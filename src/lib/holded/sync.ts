@@ -1,0 +1,152 @@
+import { SupabaseClient } from "@supabase/supabase-js";
+import {
+  getAllContacts,
+  getAllDocuments,
+  getDocuments,
+  docAmount,
+  type HoldedContact,
+  type HoldedDocument,
+} from "./api";
+
+const BATCH = 200;
+
+// ─── Mappers ─────────────────────────────────────────────────────────────────
+
+function toContactRow(c: HoldedContact) {
+  return {
+    id:             c.id,
+    name:           c.name ?? "",
+    code:           c.code           ?? null,
+    email:          c.email          ?? null,
+    phone:          c.phone          ?? null,
+    mobile:         c.mobile         ?? null,
+    type:           c.type           ?? null,
+    tags:           Array.isArray(c.tags) ? c.tags : [],
+    address:        c.billAddress?.address    ?? null,
+    city:           c.billAddress?.city       ?? null,
+    postal_code:    c.billAddress?.postalCode ?? null,
+    province:       c.billAddress?.province   ?? null,
+    country:        c.billAddress?.country    ?? null,
+    country_code:   c.billAddress?.countryCode ?? null,
+    raw:            c,
+    last_synced_at: new Date().toISOString(),
+  };
+}
+
+function toInvoiceRow(d: HoldedDocument) {
+  return {
+    id:                  d.id,
+    doc_number:          d.docNumber          ?? null,
+    contact_id:          d.contact            ?? null,
+    contact_name:        d.contactName        ?? null,
+    date:                d.date ? new Date(d.date * 1000).toISOString() : null,
+    due_date:            d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
+    date_last_modified:  d.dateLastModified
+                           ? new Date(d.dateLastModified * 1000).toISOString()
+                           : null,
+    total:               docAmount(d),
+    status:              d.status ?? 0,
+    description:         d.desc ?? d.notes ?? null,
+    raw:                 d,
+    last_synced_at:      new Date().toISOString(),
+  };
+}
+
+// ─── Batch upsert helper ──────────────────────────────────────────────────────
+
+async function upsertBatched<T extends Record<string, unknown>>(
+  db: SupabaseClient,
+  table: string,
+  rows: T[]
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await db
+      .from(table)
+      .upsert(rows.slice(i, i + BATCH), { onConflict: "id" });
+    if (error) throw new Error(`${table} upsert failed: ${error.message}`);
+  }
+}
+
+// ─── Full sync (contacts + invoices) ─────────────────────────────────────────
+
+export async function runFullSync(db: SupabaseClient): Promise<{
+  contacts: number;
+  invoices: number;
+}> {
+  const [contacts, invoices] = await Promise.all([
+    getAllContacts(),
+    getAllDocuments("invoice"),
+  ]);
+
+  await upsertBatched(db, "holded_contacts", contacts.map(toContactRow));
+  await upsertBatched(db, "holded_invoices", invoices.map(toInvoiceRow));
+
+  return { contacts: contacts.length, invoices: invoices.length };
+}
+
+// ─── Status-only sync (invoices, page 1 only — covers recent activity) ───────
+// Fetches only the first pages; statuses on older invoices rarely change.
+// A full sync runs every 15 min anyway, so this just keeps the first page fresh.
+
+const STATUS_PAGES = 5; // ~500 most recent invoices
+
+export async function runStatusSync(db: SupabaseClient): Promise<{
+  invoices: number;
+}> {
+  const invoices: HoldedDocument[] = [];
+  for (let p = 1; p <= STATUS_PAGES; p++) {
+    const batch = await getDocuments("invoice", p);
+    invoices.push(...batch);
+    if (batch.length < 100) break;
+  }
+
+  if (invoices.length === 0) return { invoices: 0 };
+
+  // Only update status-related columns, not the full row
+  const updates = invoices.map((d) => ({
+    id:                 d.id,
+    status:             d.status ?? 0,
+    total:              docAmount(d),
+    date_last_modified: d.dateLastModified
+                          ? new Date(d.dateLastModified * 1000).toISOString()
+                          : null,
+    last_synced_at:     new Date().toISOString(),
+  }));
+
+  await upsertBatched(db, "holded_invoices", updates);
+
+  return { invoices: invoices.length };
+}
+
+// ─── Sync log helpers ─────────────────────────────────────────────────────────
+
+export async function logSyncStart(
+  db: SupabaseClient,
+  type: "full" | "status_only"
+): Promise<number> {
+  const { data, error } = await db
+    .from("holded_sync_log")
+    .insert({ sync_type: type, status: "running" })
+    .select("id")
+    .single();
+  if (error) throw new Error(`sync_log insert failed: ${error.message}`);
+  return data.id as number;
+}
+
+export async function logSyncEnd(
+  db: SupabaseClient,
+  logId: number,
+  counts: { contacts?: number; invoices?: number },
+  error?: string
+): Promise<void> {
+  await db
+    .from("holded_sync_log")
+    .update({
+      status:          error ? "failed" : "completed",
+      contacts_synced: counts.contacts ?? 0,
+      invoices_synced: counts.invoices ?? 0,
+      error_message:   error ?? null,
+      finished_at:     new Date().toISOString(),
+    })
+    .eq("id", logId);
+}
