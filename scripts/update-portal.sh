@@ -8,5 +8,5 @@ curl -sL \
   | tar -xz --strip-components=1 --exclude='.env*' --exclude='node_modules'
 npm install --quiet
 npm run build
-pm2 restart portal
+pm2 restart prospectia-portal
 echo "✅ Portal actualizado"
