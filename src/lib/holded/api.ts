@@ -28,7 +28,7 @@ const CONTACTS_PAGE_SIZE = 100;
 export async function getContacts(page = 1): Promise<HoldedContact[]> {
   const data = await holdedFetch<
     HoldedContact[] | { contacts: HoldedContact[] }
-  >(`/contacts/v1/contacts?page=${page}`);
+  >(`/invoicing/v1/contacts?page=${page}`);
   if (Array.isArray(data)) return data;
   if (data && "contacts" in data) return data.contacts;
   return [];
