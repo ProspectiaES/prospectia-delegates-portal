@@ -64,7 +64,7 @@ export default async function DashboardPage() {
       .from("holded_invoices")
       .select("id, doc_number, contact_name, date, total, status, last_synced_at")
       .order("date", { ascending: false })
-      .limit(5),
+      .limit(8),
     supabase
       .from("holded_sync_log")
       .select("sync_type, status, contacts_synced, invoices_synced, finished_at")
@@ -74,37 +74,30 @@ export default async function DashboardPage() {
       .maybeSingle(),
   ]);
 
-  // KPI aggregates
-  const { data: aggData } = await supabase
-    .from("holded_invoices")
-    .select("total, status");
+  const { data: aggData } = await supabase.from("holded_invoices").select("total, status");
 
-  const allInvoices = aggData ?? [];
-  const totalInvoiced   = allInvoices.reduce((s, r) => s + (r.total ?? 0), 0);
-  const billable        = allInvoices.filter((r) => r.status > 0);
-  const paid            = allInvoices.filter((r) => r.status === 3);
-  const convRate        = billable.length > 0 ? (paid.length / billable.length) * 100 : 0;
+  const allInvoices   = aggData ?? [];
+  const totalInvoiced = allInvoices.reduce((s, r) => s + (r.total ?? 0), 0);
+  const billable      = allInvoices.filter((r) => r.status > 0);
+  const paid          = allInvoices.filter((r) => r.status === 3);
+  const convRate      = billable.length > 0 ? (paid.length / billable.length) * 100 : 0;
 
-  const hasSynced = (totalContacts ?? 0) > 0 || allInvoices.length > 0;
-  const syncLog   = lastSync as SyncLog | null;
+  const hasSynced  = (totalContacts ?? 0) > 0 || allInvoices.length > 0;
+  const syncLog    = lastSync as SyncLog | null;
   const recentDocs = (invoices ?? []) as DbInvoice[];
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 py-8 space-y-8">
+    <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
 
-      {/* Heading */}
+      {/* Page header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#F5F5F5] tracking-tight">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-[#A0A0A0]">
-            Delegados, puntos de venta y comisiones.
-          </p>
+          <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-[#6B7280]">Delegados, puntos de venta y comisiones.</p>
         </div>
         <div className="flex items-center gap-3">
           {syncLog && (
-            <span className="text-xs text-[#A0A0A0]">
+            <span className="text-xs text-[#9CA3AF]">
               Último sync: {relativeTime(syncLog.finished_at)}
             </span>
           )}
@@ -114,10 +107,16 @@ export default async function DashboardPage() {
 
       {/* Empty state */}
       {!hasSynced && (
-        <div className="rounded-[8px] border border-[#2A2A2A] bg-[#121212] px-6 py-10 text-center">
-          <p className="text-sm font-medium text-[#F5F5F5]">Sin datos sincronizados</p>
-          <p className="mt-1 text-xs text-[#A0A0A0]">
-            Pulsa «Sincronizar ahora» para importar todos los contactos y facturas de Holded.
+        <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-12 text-center shadow-sm">
+          <div className="w-10 h-10 rounded-full bg-[#F3F4F6] flex items-center justify-center mx-auto mb-4">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+              <path d="M10 4v8M10 14v2" stroke="#6B7280" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="10" cy="10" r="8.5" stroke="#6B7280" strokeWidth="1.5" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-[#0A0A0A]">Sin datos sincronizados</p>
+          <p className="mt-1 text-xs text-[#6B7280] max-w-xs mx-auto">
+            Pulsa «Sincronizar» para importar todos los contactos y facturas de Holded.
           </p>
         </div>
       )}
@@ -159,36 +158,34 @@ export default async function DashboardPage() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>Facturas recientes</CardTitle>
-                <span className="text-xs text-[#A0A0A0]">Últimas 5</span>
+                <span className="text-xs text-[#9CA3AF]">Últimas {recentDocs.length}</span>
               </CardHeader>
               <CardContent className="p-0">
-                <ul className="divide-y divide-[#2A2A2A]">
+                <ul className="divide-y divide-[#F3F4F6]">
                   {recentDocs.map((doc, i) => (
                     <li
                       key={doc.id}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#1A1A1A] transition-colors"
+                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#F9FAFB] transition-colors"
                     >
-                      <span className="w-5 shrink-0 text-xs tabular-nums text-[#A0A0A0] text-right">
+                      <span className="w-5 shrink-0 text-xs tabular-nums text-[#9CA3AF] text-right font-mono">
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#F5F5F5] font-medium leading-snug truncate">
+                        <p className="text-sm font-medium text-[#0A0A0A] leading-snug truncate">
                           {doc.contact_name ?? "Sin nombre"}
                         </p>
-                        <p className="text-xs text-[#A0A0A0] mt-0.5">
+                        <p className="text-xs text-[#6B7280] mt-0.5">
                           {doc.doc_number ? `Factura ${doc.doc_number}` : `ID ${doc.id.slice(0, 10)}…`}
                         </p>
                       </div>
-                      <span className="shrink-0 text-sm font-medium text-[#F5F5F5] tabular-nums">
+                      <span className="shrink-0 text-sm font-semibold text-[#0A0A0A] tabular-nums">
                         {fmtCurrency(doc.total)}
                       </span>
                       <div className="shrink-0 flex flex-col items-end gap-1">
                         <Badge variant={statusVariant[doc.status] ?? "neutral"}>
                           {statusLabel[doc.status] ?? "—"}
                         </Badge>
-                        <span className="text-xs text-[#A0A0A0]">
-                          {relativeTime(doc.date)}
-                        </span>
+                        <span className="text-xs text-[#9CA3AF]">{relativeTime(doc.date)}</span>
                       </div>
                     </li>
                   ))}
@@ -196,34 +193,29 @@ export default async function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Resumen de sincronización — 1/3 */}
+            {/* Sincronización — 1/3 */}
             <Card>
               <CardHeader>
                 <CardTitle>Sincronización</CardTitle>
                 <Badge variant="success" dot>Activa</Badge>
               </CardHeader>
               <CardContent className="p-0">
-                <ul className="divide-y divide-[#2A2A2A]">
+                <ul className="divide-y divide-[#F3F4F6]">
                   {[
-                    { label: "Intervalo completo",     value: "Cada 15 min" },
-                    { label: "Actualización estado",   value: "Cada 4 h"    },
-                    { label: "Contactos importados",   value: fmtNumber(totalContacts ?? 0) },
-                    { label: "Facturas importadas",    value: fmtNumber(allInvoices.length) },
+                    { label: "Intervalo completo",   value: "Cada 15 min" },
+                    { label: "Actualización estado", value: "Cada 4 h"    },
+                    { label: "Contactos",            value: fmtNumber(totalContacts ?? 0) },
+                    { label: "Facturas",             value: fmtNumber(allInvoices.length) },
                     {
-                      label: "Último sync completo",
+                      label: "Último sync",
                       value: syncLog?.sync_type === "full"
                         ? relativeTime(syncLog.finished_at)
                         : "—",
                     },
                   ].map(({ label, value }) => (
-                    <li
-                      key={label}
-                      className="flex items-center justify-between px-5 py-3"
-                    >
-                      <span className="text-xs text-[#A0A0A0]">{label}</span>
-                      <span className="text-xs font-medium text-[#F5F5F5] tabular-nums">
-                        {value}
-                      </span>
+                    <li key={label} className="flex items-center justify-between px-5 py-3">
+                      <span className="text-xs text-[#6B7280]">{label}</span>
+                      <span className="text-xs font-semibold text-[#0A0A0A] tabular-nums">{value}</span>
                     </li>
                   ))}
                 </ul>

@@ -11,26 +11,21 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-[#E50914] text-[#F5F5F5] hover:bg-[#B20710] active:bg-[#B20710] border border-[#E50914] hover:border-[#B20710]",
+    "bg-[#8E0E1A] text-white border border-[#8E0E1A] hover:bg-[#6B0A14] hover:border-[#6B0A14] active:bg-[#6B0A14]",
   outline:
-    "bg-transparent text-[#F5F5F5] border border-[#2A2A2A] hover:border-[#F5F5F5] hover:bg-[#1E1E1E]",
+    "bg-white text-[#0A0A0A] border border-[#E5E7EB] hover:border-[#0A0A0A] hover:bg-[#F9FAFB]",
   ghost:
-    "bg-transparent text-[#A0A0A0] border border-transparent hover:text-[#F5F5F5] hover:bg-[#1E1E1E]",
+    "bg-transparent text-[#6B7280] border border-transparent hover:text-[#0A0A0A] hover:bg-[#F3F4F6]",
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: "h-7  px-3   text-xs  gap-1.5",
-  md: "h-9  px-4   text-sm  gap-2",
-  lg: "h-11 px-5   text-sm  gap-2",
+  sm: "h-7  px-3 text-xs gap-1.5",
+  md: "h-9  px-4 text-sm gap-2",
+  lg: "h-11 px-5 text-sm gap-2",
 };
 
 export function Button({
-  variant = "primary",
-  size = "md",
-  className,
-  disabled,
-  children,
-  ...props
+  variant = "primary", size = "md", className, disabled, children, ...props
 }: ButtonProps) {
   return (
     <button
@@ -38,7 +33,7 @@ export function Button({
       className={cn(
         "inline-flex items-center justify-center font-medium rounded-[6px]",
         "transition-colors duration-150",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E50914] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8E0E1A] focus-visible:ring-offset-2",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         variantClasses[variant],
         sizeClasses[size],

@@ -3,17 +3,13 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Prospectia Delegates Portal",
-  description: "Portal for Prospectia delegates",
+  description: "Portal de delegados Prospectia",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="min-h-full">{children}</body>
+    <html lang="es" className="h-full">
+      <body className="h-full">{children}</body>
     </html>
   );
 }

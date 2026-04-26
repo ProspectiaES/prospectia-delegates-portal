@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Bash(ssh-keygen -t ed25519 -C \"portal-ionos-deploy\" -f /tmp/portal_deploy_key -N \"\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s -X POST -H 'Authorization: token ghu_cRFwJb2QlofZ0NQ9pYrD0OoQK0DWsF0R2NHG' -H 'Accept: application/vnd.github+json' https://api.github.com/repos/ProspectiaES/prospectia-delegates-portal/keys -d '{\"title\":\"ionos-vps-deploy\",\"key\":\"__CMDSUB_OUTPUT__\",\"read_only\":true}')",
+      "Bash(gh secret *)",
+      "Bash(curl -s -X GET -H 'Authorization: token __CMDSUB_OUTPUT__' -H 'Accept: application/vnd.github+json' https://api.github.com/repos/ProspectiaES/prospectia-delegates-portal/keys)",
+      "Bash(curl -s -X PATCH -H 'Authorization: token __CMDSUB_OUTPUT__' -H 'Accept: application/vnd.github+json' https://api.github.com/repos/ProspectiaES/prospectia-delegates-portal -d '{\"private\": false}')",
+      "Bash(cp /tmp/setup-portal.sh /workspaces/prospectia-delegates-portal/scripts/setup-portal.sh)",
+      "Bash(git -C /workspaces/prospectia-delegates-portal add scripts/setup-portal.sh)",
+      "Bash(git -C /workspaces/prospectia-delegates-portal commit -m \"chore: add server setup script\")",
+      "Bash(git -C /workspaces/prospectia-delegates-portal push origin main)",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer sbp_6c729c52e132aca205bbe1e6f9e9f5e357fd4de9' -H 'Content-Type: application/json' https://api.supabase.com/v1/projects/amqulpbjsoydboryyrwf/database/query -d '{ *)",
+      "Bash(curl -s -X POST https://dashboard.prospectia.es/api/holded/sync -H 'Authorization: Bearer d505b98906610e3d93a14a5fb30329281478d036e9a0f72926705379c77ec9ff' -H 'Content-Type: application/json' --max-time 120)",
+      "Bash(curl -s -X POST https://dashboard.prospectia.es/api/holded/sync -H 'Authorization: Bearer d505b98906610e3d93a14a5fb30329281478d036e9a0f72926705379c77ec9ff' --max-time 120)",
+      "Bash(chmod 600 /tmp/portal_deploy_key)",
+      "Bash(ssh -i /tmp/portal_deploy_key -o StrictHostKeyChecking=no root@212.227.41.73 \"echo connected\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://dashboard.prospectia.es/ --max-time 10)"
+    ]
+  }
+}

@@ -9,8 +9,8 @@ export interface HoldedContact {
   email?: string;
   phone?: string;
   mobile?: string;
-  /** 0=lead  1=client  2=provider  3=creditor  4=debtor */
-  type?: number;
+  /** 0=lead  1=client  2=provider  3=creditor  4=debtor — API returns string or number */
+  type?: number | string;
   tags?: string[];
   billAddress?: {
     address?: string;

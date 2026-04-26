@@ -25,15 +25,10 @@ export function SyncButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {result === "ok"    && <span className="text-xs text-[#4ADE80]">Sincronizado</span>}
-      {result === "error" && <span className="text-xs text-[#E50914]">Error al sincronizar</span>}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={handleSync}
-      >
-        {pending ? "Sincronizando…" : "Sincronizar ahora"}
+      {result === "ok"    && <span className="text-xs font-medium text-emerald-600">Sincronizado</span>}
+      {result === "error" && <span className="text-xs font-medium text-[#8E0E1A]">Error al sincronizar</span>}
+      <Button variant="outline" size="sm" disabled={pending} onClick={handleSync}>
+        {pending ? "Sincronizando…" : "Sincronizar"}
       </Button>
     </div>
   );

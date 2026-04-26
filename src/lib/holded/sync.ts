@@ -12,6 +12,16 @@ const BATCH = 200;
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
+const CONTACT_TYPE: Record<string, number> = {
+  lead: 0, client: 1, provider: 2, creditor: 3, debtor: 4,
+};
+
+function resolveContactType(t: number | string | undefined): number | null {
+  if (t == null) return null;
+  if (typeof t === "number") return t;
+  return CONTACT_TYPE[t.toLowerCase()] ?? null;
+}
+
 function toContactRow(c: HoldedContact) {
   return {
     id:             c.id,
@@ -20,7 +30,7 @@ function toContactRow(c: HoldedContact) {
     email:          c.email          ?? null,
     phone:          c.phone          ?? null,
     mobile:         c.mobile         ?? null,
-    type:           c.type           ?? null,
+    type:           resolveContactType(c.type),
     tags:           Array.isArray(c.tags) ? c.tags : [],
     address:        c.billAddress?.address    ?? null,
     city:           c.billAddress?.city       ?? null,

@@ -24,45 +24,26 @@ interface DbInvoice {
 const PAGE_SIZE = 50;
 
 const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(n);
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+    day: "2-digit", month: "2-digit", year: "numeric",
   });
 }
 
 const statusLabel: Record<number, string> = {
-  0: "Borrador",
-  1: "Pendiente",
-  2: "Vencida",
-  3: "Cobrada",
+  0: "Borrador", 1: "Pendiente", 2: "Vencida", 3: "Cobrada",
 };
-const statusVariant: Record<
-  number,
-  "neutral" | "warning" | "danger" | "success"
-> = {
-  0: "neutral",
-  1: "warning",
-  2: "danger",
-  3: "success",
+const statusVariant: Record<number, "neutral" | "warning" | "danger" | "success"> = {
+  0: "neutral", 1: "warning", 2: "danger", 3: "success",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  searchParams: Promise<{
-    page?: string;
-    search?: string;
-    status?: string;
-  }>;
+  searchParams: Promise<{ page?: string; search?: string; status?: string }>;
 }
 
 export default async function FacturasPage({ searchParams }: PageProps) {
@@ -84,14 +65,8 @@ export default async function FacturasPage({ searchParams }: PageProps) {
     .order("date", { ascending: false })
     .range(from, to);
 
-  if (search) {
-    query = query.or(
-      `contact_name.ilike.%${search}%,doc_number.ilike.%${search}%,description.ilike.%${search}%`
-    );
-  }
-  if (statusStr !== "") {
-    query = query.eq("status", parseInt(statusStr, 10));
-  }
+  if (search)    query = query.or(`contact_name.ilike.%${search}%,doc_number.ilike.%${search}%,description.ilike.%${search}%`);
+  if (statusStr) query = query.eq("status", parseInt(statusStr, 10));
 
   const { data, count, error } = await query;
 
@@ -99,30 +74,15 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const total      = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Aggregate totals for the filtered set (only first call — no second round-trip for now)
-  const { data: aggData } = await supabase
-    .from("holded_invoices")
-    .select("total, status")
-    .then(({ data: allRows }) => {
-      // filter locally to avoid a second query
-      let rows = allRows ?? [];
-      if (search) {
-        // aggregates reflect unfiltered total when search is active
-        rows = rows;
-      }
-      if (statusStr !== "") {
-        rows = rows.filter((r) => r.status === parseInt(statusStr, 10));
-      }
-      return { data: rows };
-    });
-
-  const sumTotal  = (aggData ?? []).reduce((s, r) => s + (r.total ?? 0), 0);
-  const sumCobradas = (aggData ?? []).filter((r) => r.status === 3).reduce((s, r) => s + (r.total ?? 0), 0);
+  const { data: allRows } = await supabase.from("holded_invoices").select("total, status");
+  const filtered    = statusStr ? (allRows ?? []).filter((r) => r.status === parseInt(statusStr, 10)) : (allRows ?? []);
+  const sumTotal    = filtered.reduce((s, r) => s + (r.total ?? 0), 0);
+  const sumCobradas = filtered.filter((r) => r.status === 3).reduce((s, r) => s + (r.total ?? 0), 0);
 
   function buildHref(overrides: Record<string, string>) {
     const p = new URLSearchParams({
-      ...(search    ? { search }               : {}),
-      ...(statusStr ? { status: statusStr }    : {}),
+      ...(search    ? { search }            : {}),
+      ...(statusStr ? { status: statusStr } : {}),
       page: String(page),
       ...overrides,
     });
@@ -130,13 +90,13 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
-      {/* Heading */}
+      {/* Page header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#F5F5F5] tracking-tight">Facturas</h1>
-          <p className="mt-1 text-sm text-[#A0A0A0]">
+          <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Facturas</h1>
+          <p className="mt-1 text-sm text-[#6B7280]">
             {total > 0
               ? `${total.toLocaleString("es-ES")} facturas — ${fmtCurrency(sumTotal)} total, ${fmtCurrency(sumCobradas)} cobrado`
               : "Sin datos"}
@@ -150,13 +110,13 @@ export default async function FacturasPage({ searchParams }: PageProps) {
         <input
           name="search"
           defaultValue={search}
-          placeholder="Buscar por cliente, núm. factura o concepto…"
-          className="h-9 rounded-[6px] border border-[#2A2A2A] bg-[#121212] px-3 text-sm text-[#F5F5F5] placeholder-[#A0A0A0] focus:border-[#E50914] focus:outline-none focus:ring-1 focus:ring-[#E50914]/30 w-80"
+          placeholder="Buscar por cliente, n.º factura o concepto…"
+          className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors w-80 shadow-sm"
         />
         <select
           name="status"
           defaultValue={statusStr}
-          className="h-9 rounded-[6px] border border-[#2A2A2A] bg-[#121212] px-3 text-sm text-[#F5F5F5] focus:border-[#E50914] focus:outline-none"
+          className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none shadow-sm"
         >
           <option value="">Todos los estados</option>
           <option value="3">Cobradas</option>
@@ -166,14 +126,14 @@ export default async function FacturasPage({ searchParams }: PageProps) {
         </select>
         <button
           type="submit"
-          className="h-9 px-4 rounded-[6px] border border-[#2A2A2A] bg-[#1E1E1E] text-sm text-[#F5F5F5] hover:border-[#F5F5F5] transition-colors"
+          className="h-9 px-4 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0A0A0A] hover:border-[#0A0A0A] hover:bg-[#F9FAFB] transition-colors shadow-sm"
         >
           Filtrar
         </button>
         {(search || statusStr) && (
           <a
             href="/dashboard/facturas"
-            className="h-9 px-3 flex items-center rounded-[6px] text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
+            className="h-9 px-3 flex items-center text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
           >
             Limpiar filtros
           </a>
@@ -182,7 +142,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
 
       {/* Error */}
       {error && (
-        <div className="rounded-[6px] border border-[#3d080e] bg-[#1F0406] px-4 py-3 text-sm text-[#E50914]">
+        <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-[#8E0E1A]">
           Error al cargar datos: {error.message}
         </div>
       )}
@@ -191,14 +151,12 @@ export default async function FacturasPage({ searchParams }: PageProps) {
       {!error && invoices.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-sm text-[#F5F5F5]">
-              {search || statusStr
-                ? "Sin resultados para los filtros aplicados."
-                : "Sin facturas sincronizadas."}
+            <p className="text-sm font-medium text-[#0A0A0A]">
+              {search || statusStr ? "Sin resultados para los filtros aplicados." : "Sin facturas sincronizadas."}
             </p>
             {!search && !statusStr && (
-              <p className="mt-1 text-xs text-[#A0A0A0]">
-                Usa «Sincronizar ahora» para importar las facturas de Holded.
+              <p className="mt-1 text-xs text-[#6B7280]">
+                Usa «Sincronizar» para importar las facturas de Holded.
               </p>
             )}
           </CardContent>
@@ -211,86 +169,54 @@ export default async function FacturasPage({ searchParams }: PageProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2A2A2A]">
-                  {[
-                    "N.º Factura",
-                    "Cliente",
-                    "Concepto",
-                    "Fecha",
-                    "Vencimiento",
-                    "Modificado",
-                    "Importe",
-                    "Estado",
-                  ].map((h) => (
+                <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "Modificado", "Importe", "Estado"].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-[#A0A0A0] uppercase tracking-wider whitespace-nowrap"
+                      className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
                     >
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#2A2A2A]">
+              <tbody className="divide-y divide-[#F3F4F6]">
                 {invoices.map((inv) => {
                   const isOverdue =
                     inv.status === 2 ||
-                    (inv.status === 1 &&
-                      inv.due_date &&
-                      new Date(inv.due_date) < new Date());
+                    (inv.status === 1 && inv.due_date && new Date(inv.due_date) < new Date());
 
                   return (
-                    <tr key={inv.id} className="hover:bg-[#1A1A1A] transition-colors">
-                      {/* N.º Factura */}
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap font-medium text-[#F5F5F5]">
+                    <tr key={inv.id} className="hover:bg-[#F9FAFB] transition-colors">
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A] font-mono text-xs">
                         {inv.doc_number ?? (
-                          <span className="text-[#A0A0A0] text-xs font-normal">
-                            {inv.id.slice(0, 8)}…
-                          </span>
+                          <span className="text-[#9CA3AF] font-normal">{inv.id.slice(0, 8)}…</span>
                         )}
                       </td>
-
-                      {/* Cliente */}
                       <td className="px-4 py-3 whitespace-nowrap max-w-[180px]">
-                        <span className="text-[#F5F5F5] truncate block">
-                          {inv.contact_name ?? <span className="text-[#A0A0A0]">—</span>}
+                        <span className="text-[#0A0A0A] font-medium truncate block">
+                          {inv.contact_name ?? <span className="text-[#9CA3AF]">—</span>}
                         </span>
                       </td>
-
-                      {/* Concepto */}
                       <td className="px-4 py-3 max-w-[200px]">
-                        <span className="text-[#A0A0A0] truncate block text-xs">
+                        <span className="text-[#6B7280] truncate block text-xs">
                           {inv.description ?? "—"}
                         </span>
                       </td>
-
-                      {/* Fecha */}
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#A0A0A0]">
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#6B7280]">
                         {fmtDate(inv.date)}
                       </td>
-
-                      {/* Vencimiento */}
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap">
-                        <span
-                          className={
-                            isOverdue ? "text-[#E50914]" : "text-[#A0A0A0]"
-                          }
-                        >
+                        <span className={isOverdue ? "text-[#8E0E1A] font-medium" : "text-[#6B7280]"}>
                           {fmtDate(inv.due_date)}
                         </span>
                       </td>
-
-                      {/* Modificado */}
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#A0A0A0]">
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#6B7280]">
                         {fmtDate(inv.date_last_modified)}
                       </td>
-
-                      {/* Importe */}
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-right font-medium text-[#F5F5F5]">
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-right font-semibold text-[#0A0A0A]">
                         {fmtCurrency(inv.total)}
                       </td>
-
-                      {/* Estado */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Badge variant={statusVariant[inv.status] ?? "neutral"}>
                           {statusLabel[inv.status] ?? `Estado ${inv.status}`}
@@ -300,15 +226,12 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                   );
                 })}
               </tbody>
-
-              {/* Totals row */}
               <tfoot>
-                <tr className="border-t border-[#2A2A2A] bg-[#1A1A1A]">
-                  <td colSpan={6} className="px-4 py-3 text-xs text-[#A0A0A0]">
-                    {total.toLocaleString("es-ES")} facturas en total
-                    {(search || statusStr) && " (filtrado)"}
+                <tr className="border-t border-[#E5E7EB] bg-[#F9FAFB]">
+                  <td colSpan={6} className="px-4 py-3 text-xs text-[#6B7280]">
+                    {total.toLocaleString("es-ES")} facturas en total{(search || statusStr) && " (filtrado)"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm font-semibold text-[#F5F5F5] tabular-nums">
+                  <td className="px-4 py-3 text-right text-sm font-bold text-[#0A0A0A] tabular-nums">
                     {fmtCurrency(sumTotal)}
                   </td>
                   <td />
@@ -319,15 +242,15 @@ export default async function FacturasPage({ searchParams }: PageProps) {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="px-4 py-3 border-t border-[#2A2A2A] flex items-center justify-between">
-              <span className="text-xs text-[#A0A0A0]">
+            <div className="px-4 py-3 border-t border-[#E5E7EB] flex items-center justify-between">
+              <span className="text-xs text-[#6B7280]">
                 Página {page} de {totalPages} — {total.toLocaleString("es-ES")} facturas
               </span>
               <div className="flex items-center gap-2">
                 {page > 1 && (
                   <a
                     href={buildHref({ page: String(page - 1) })}
-                    className="h-7 px-3 rounded-[6px] border border-[#2A2A2A] text-xs text-[#A0A0A0] hover:text-[#F5F5F5] hover:border-[#F5F5F5] transition-colors flex items-center"
+                    className="h-7 px-3 rounded-lg border border-[#E5E7EB] text-xs text-[#6B7280] hover:text-[#0A0A0A] hover:border-[#0A0A0A] transition-colors flex items-center bg-white shadow-sm"
                   >
                     ← Anterior
                   </a>
@@ -335,7 +258,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 {page < totalPages && (
                   <a
                     href={buildHref({ page: String(page + 1) })}
-                    className="h-7 px-3 rounded-[6px] border border-[#2A2A2A] text-xs text-[#A0A0A0] hover:text-[#F5F5F5] hover:border-[#F5F5F5] transition-colors flex items-center"
+                    className="h-7 px-3 rounded-lg border border-[#E5E7EB] text-xs text-[#6B7280] hover:text-[#0A0A0A] hover:border-[#0A0A0A] transition-colors flex items-center bg-white shadow-sm"
                   >
                     Siguiente →
                   </a>
