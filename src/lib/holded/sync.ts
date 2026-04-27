@@ -43,6 +43,26 @@ function toContactRow(c: HoldedContact) {
   };
 }
 
+// Holded's list API returns status:0 for all emitted (non-draft) invoices.
+// Real payment status must be derived from paymentsPending / dueDate.
+function computeInvoiceStatus(d: HoldedDocument): number {
+  const raw = d as Record<string, unknown>;
+  const isDraft = raw.draft === true;
+  if (isDraft) return 0;
+
+  const pending = typeof raw.paymentsPending === "number" ? raw.paymentsPending : null;
+  const paid    = typeof raw.paymentsTotal   === "number" ? raw.paymentsTotal   : null;
+  const total   = docAmount(d);
+
+  if (pending !== null && pending <= 0)                   return 3; // Cobrada
+  if (paid    !== null && total > 0 && paid >= total)     return 3; // Cobrada
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (d.dueDate && d.dueDate < nowSec)                    return 2; // Vencida
+
+  return 1; // Pendiente
+}
+
 function toInvoiceRow(d: HoldedDocument) {
   return {
     id:                  d.id,
@@ -55,7 +75,7 @@ function toInvoiceRow(d: HoldedDocument) {
                            ? new Date(d.dateLastModified * 1000).toISOString()
                            : null,
     total:               docAmount(d),
-    status:              d.status ?? 0,
+    status:              computeInvoiceStatus(d),
     description:         d.desc ?? d.notes ?? null,
     raw:                 d,
     last_synced_at:      new Date().toISOString(),
@@ -112,14 +132,15 @@ export async function runStatusSync(db: SupabaseClient): Promise<{
 
   if (invoices.length === 0) return { invoices: 0 };
 
-  // Only update status-related columns, not the full row
   const updates = invoices.map((d) => ({
     id:                 d.id,
-    status:             d.status ?? 0,
+    status:             computeInvoiceStatus(d),
     total:              docAmount(d),
+    due_date:           d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
     date_last_modified: d.dateLastModified
                           ? new Date(d.dateLastModified * 1000).toISOString()
                           : null,
+    raw:                d,
     last_synced_at:     new Date().toISOString(),
   }));
 
