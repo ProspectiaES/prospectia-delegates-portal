@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ContactEditForm } from "./ContactEditForm";
 import { DelegateAssignment } from "./DelegateAssignment";
+import { AffiliateSelect } from "./AffiliateSelect";
 import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ interface DbContact {
   province: string | null;
   country: string | null;
   country_code: string | null;
+  affiliate_id: string | null;
   first_synced_at: string;
   last_synced_at: string;
   raw: Record<string, unknown>;
@@ -73,7 +75,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     getProfile(),
     supabase
       .from("holded_contacts")
-      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, first_synced_at, last_synced_at, raw")
+      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, first_synced_at, last_synced_at, raw")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -88,17 +90,20 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   const isOwner = profile?.role === "OWNER";
 
-  // Owner-only: load delegates + current assignments
+  // Owner-only: load delegates + current assignments + all affiliates
   let allDelegates: { id: string; full_name: string }[] = [];
   let assignedIds: string[] = [];
+  let allAffiliates: { id: string; email: string; first_name: string | null; last_name: string | null; referral_code: string | null }[] = [];
 
   if (isOwner) {
-    const [delegatesRes, assignmentsRes] = await Promise.all([
+    const [delegatesRes, assignmentsRes, affiliatesRes] = await Promise.all([
       supabase.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
       supabase.from("contact_delegates").select("delegate_id").eq("contact_id", id),
+      supabase.from("bixgrow_affiliates").select("id, email, first_name, last_name, referral_code").order("email"),
     ]);
-    allDelegates = (delegatesRes.data ?? []) as typeof allDelegates;
-    assignedIds  = (assignmentsRes.data ?? []).map((r) => r.delegate_id);
+    allDelegates  = (delegatesRes.data  ?? []) as typeof allDelegates;
+    assignedIds   = (assignmentsRes.data ?? []).map((r) => r.delegate_id);
+    allAffiliates = (affiliatesRes.data  ?? []) as typeof allAffiliates;
   }
 
   const contact = contactData as DbContact;
@@ -204,6 +209,23 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   contactId={contact.id}
                   delegates={allDelegates}
                   assignedIds={assignedIds}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Affiliate assignment — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Afiliado asignado</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Solo visible para ti</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <AffiliateSelect
+                  contactId={contact.id}
+                  affiliates={allAffiliates}
+                  currentAffiliateId={contact.affiliate_id}
                 />
               </CardContent>
             </Card>
