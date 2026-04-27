@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ContactEditForm } from "./ContactEditForm";
+import { DelegateAssignment } from "./DelegateAssignment";
+import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +69,8 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: contactData }, { data: invoicesData }] = await Promise.all([
+  const [profile, { data: contactData }, { data: invoicesData }] = await Promise.all([
+    getProfile(),
     supabase
       .from("holded_contacts")
       .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, first_synced_at, last_synced_at, raw")
@@ -82,6 +85,21 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   ]);
 
   if (!contactData) notFound();
+
+  const isOwner = profile?.role === "OWNER";
+
+  // Owner-only: load delegates + current assignments
+  let allDelegates: { id: string; full_name: string }[] = [];
+  let assignedIds: string[] = [];
+
+  if (isOwner) {
+    const [delegatesRes, assignmentsRes] = await Promise.all([
+      supabase.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
+      supabase.from("contact_delegates").select("delegate_id").eq("contact_id", id),
+    ]);
+    allDelegates = (delegatesRes.data ?? []) as typeof allDelegates;
+    assignedIds  = (assignmentsRes.data ?? []).map((r) => r.delegate_id);
+  }
 
   const contact = contactData as DbContact;
   const invoices = (invoicesData ?? []) as DbInvoice[];
@@ -173,6 +191,23 @@ export default async function ClienteDetailPage({ params }: PageProps) {
               </ul>
             </CardContent>
           </Card>
+
+          {/* Delegate assignment — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Delegados asignados</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Solo visible para ti</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <DelegateAssignment
+                  contactId={contact.id}
+                  delegates={allDelegates}
+                  assignedIds={assignedIds}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recent invoices */}
           {invoices.length > 0 && (
