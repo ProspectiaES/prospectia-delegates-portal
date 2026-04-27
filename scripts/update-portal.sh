@@ -1,11 +1,20 @@
 #!/bin/bash
 set -e
+APP_DIR="/var/www/portal"
+REPO="https://github.com/ProspectiaES/prospectia-delegates-portal.git"
+
 echo "Actualizando portal..."
-cd /var/www/portal
-curl -sL \
-  -H "Authorization: token ghu_cRFwJb2QlofZ0NQ9pYrD0OoQK0DWsF0R2NHG" \
-  "https://api.github.com/repos/ProspectiaES/prospectia-delegates-portal/tarball/main" \
-  | tar -xz --strip-components=1 --exclude='.env*' --exclude='node_modules'
+cd "$APP_DIR"
+
+# Primera vez: inicializar git si no existe
+if [ ! -d ".git" ]; then
+  echo "  Inicializando repositorio git..."
+  git init
+  git remote add origin "$REPO"
+fi
+
+git fetch origin main --quiet
+git reset --hard origin/main --quiet
 npm install --quiet
 npm run build
 pm2 restart prospectia-portal
