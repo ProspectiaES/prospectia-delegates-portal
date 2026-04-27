@@ -39,6 +39,17 @@ const IconAfiliados = () => (
   </svg>
 );
 
+const IconDelegados = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <circle cx="8" cy="4.5" r="2" />
+    <path d="M3.5 13c0-2.485 2.015-4.5 4.5-4.5s4.5 2.015 4.5 4.5" strokeLinecap="round" />
+    <circle cx="2.5" cy="6" r="1.5" />
+    <circle cx="13.5" cy="6" r="1.5" />
+    <path d="M0.5 13c0-1.657.895-3 2-3" strokeLinecap="round" />
+    <path d="M15.5 13c0-1.657-.895-3-2-3" strokeLinecap="round" />
+  </svg>
+);
+
 const IconLogout = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <path d="M10.5 11l3-3-3-3" strokeLinecap="round" strokeLinejoin="round" />
@@ -59,8 +70,14 @@ const sections = [
   {
     label: "Holded",
     items: [
-      { href: "/dashboard/clientes", label: "Clientes",  Icon: IconClientes,  exact: false },
-      { href: "/dashboard/facturas", label: "Facturas",  Icon: IconFacturas,  exact: false },
+      { href: "/dashboard/clientes",  label: "Clientes",   Icon: IconClientes,  exact: false },
+      { href: "/dashboard/facturas",  label: "Facturas",   Icon: IconFacturas,  exact: false },
+    ],
+  },
+  {
+    label: "Delegados",
+    items: [
+      { href: "/dashboard/delegados", label: "Delegados",  Icon: IconDelegados, exact: false },
     ],
   },
   {
