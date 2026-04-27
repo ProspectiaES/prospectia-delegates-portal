@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -170,7 +171,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "Modificado", "Importe", "Estado"].map((h) => (
+                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "Modificado", "Importe", "Estado", ""].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
@@ -189,9 +190,11 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                   return (
                     <tr key={inv.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A] font-mono text-xs">
-                        {inv.doc_number ?? (
-                          <span className="text-[#9CA3AF] font-normal">{inv.id.slice(0, 8)}…</span>
-                        )}
+                        <Link href={`/dashboard/facturas/${inv.id}`} className="hover:text-[#8E0E1A] transition-colors">
+                          {inv.doc_number ?? (
+                            <span className="font-normal">{inv.id.slice(0, 8)}…</span>
+                          )}
+                        </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap max-w-[180px]">
                         <span className="text-[#0A0A0A] font-medium truncate block">
@@ -222,6 +225,14 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                           {statusLabel[inv.status] ?? `Estado ${inv.status}`}
                         </Badge>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link
+                          href={`/dashboard/facturas/${inv.id}`}
+                          className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
+                        >
+                          Ver →
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}
@@ -234,6 +245,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                   <td className="px-4 py-3 text-right text-sm font-bold text-[#0A0A0A] tabular-nums">
                     {fmtCurrency(sumTotal)}
                   </td>
+                  <td />
                   <td />
                 </tr>
               </tfoot>

@@ -32,7 +32,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtcXVscGJqc295ZGJvcnl5cndmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzAyNzk3OCwiZXhwIjoyMDkyNjAzOTc4fQ.bICMTtEEyaNpYS6GaZEx5htUGU4tdv6_SzC7r-_5EMk
 HOLDED_API_KEY=c80e4b283df7454e974b1d5375053b1c
 CRON_SECRET=d505b98906610e3d93a14a5fb30329281478d036e9a0f72926705379c77ec9ff
-APP_URL=http://212.227.41.73
+APP_URL=https://dashboard.prospectia.es
 ENV
 chmod 600 /var/www/portal/.env.production
 
@@ -51,7 +51,16 @@ echo "[NGINX] Configurando..."
 cat > /etc/nginx/sites-available/portal << 'NGINX'
 server {
     listen 80;
-    server_name 212.227.41.73;
+    server_name dashboard.prospectia.es;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl http2;
+    server_name dashboard.prospectia.es;
+    ssl_certificate     /etc/letsencrypt/live/dashboard.prospectia.es/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dashboard.prospectia.es/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
     access_log /var/log/nginx/portal.access.log;
     error_log  /var/log/nginx/portal.error.log;
     client_max_body_size 10M;
@@ -72,6 +81,11 @@ server {
 NGINX
 rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/portal /etc/nginx/sites-enabled/portal
+
+echo "[SSL] Instalando certbot y obteniendo certificado..."
+apt-get install -y -qq certbot python3-certbot-nginx
+certbot certonly --nginx --non-interactive --agree-tos --email lvila@prospectia.es \
+  -d dashboard.prospectia.es
 nginx -t && systemctl restart nginx && systemctl enable nginx
 
 echo "[UFW] Firewall..."
@@ -81,7 +95,7 @@ ufw allow 443/tcp > /dev/null
 ufw --force enable > /dev/null
 
 echo "[CRON] Sync Holded..."
-( crontab -l 2>/dev/null | grep -v "cron-sync" ; echo 'CRON_SECRET=d505b98906610e3d93a14a5fb30329281478d036e9a0f72926705379c77ec9ff' ; echo 'APP_URL=http://212.227.41.73' ; echo '*/15 * * * * node /var/www/portal/scripts/cron-sync.mjs full >> /var/log/holded-sync.log 2>&1' ; echo '0 */4 * * * node /var/www/portal/scripts/cron-sync.mjs status >> /var/log/holded-sync.log 2>&1' ) | crontab -
+( crontab -l 2>/dev/null | grep -v "cron-sync" ; echo 'CRON_SECRET=d505b98906610e3d93a14a5fb30329281478d036e9a0f72926705379c77ec9ff' ; echo 'APP_URL=https://dashboard.prospectia.es' ; echo '*/15 * * * * node /var/www/portal/scripts/cron-sync.mjs full >> /var/log/holded-sync.log 2>&1' ; echo '0 */4 * * * node /var/www/portal/scripts/cron-sync.mjs status >> /var/log/holded-sync.log 2>&1' ) | crontab -
 touch /var/log/holded-sync.log
 
 sleep 3
@@ -93,6 +107,6 @@ pm2 status
 systemctl is-active nginx && echo "Nginx: activo"
 curl -s -o /dev/null -w "App responde: HTTP %{http_code}\n" http://localhost:3000
 echo ""
-echo "  Portal: http://212.227.41.73"
+echo "  Portal: https://dashboard.prospectia.es"
 echo "  Login:  lvila@prospectia.es"
 echo "======================================"

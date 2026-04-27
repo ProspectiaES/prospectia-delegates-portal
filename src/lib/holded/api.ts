@@ -106,6 +106,36 @@ export async function getAllDocuments(
   return all;
 }
 
+// ─── Contact mutations ───────────────────────────────────────────────────────
+
+export interface HoldedContactUpdatePayload {
+  name: string;
+  code?: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  type?: number;
+  tags?: string[];
+  billAddress?: {
+    address?: string;
+    city?: string;
+    postalCode?: string;
+    province?: string;
+    country?: string;
+    countryCode?: string;
+  };
+}
+
+export async function updateContact(
+  id: string,
+  payload: HoldedContactUpdatePayload
+): Promise<void> {
+  await holdedFetch<unknown>(`/invoicing/v1/contacts/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function docAmount(doc: HoldedDocument): number {

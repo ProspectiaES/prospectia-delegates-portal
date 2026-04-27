@@ -93,7 +93,7 @@ export default async function DashboardPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-[#6B7280]">Delegados, puntos de venta y comisiones.</p>
+          <p className="mt-1 text-sm text-[#6B7280]">Contactos, puntos de venta y comisiones.</p>
         </div>
         <div className="flex items-center gap-3">
           {syncLog && (
@@ -127,9 +127,9 @@ export default async function DashboardPage() {
           <section aria-label="Indicadores clave">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard
-                label="Delegados"
+                label="Contactos"
                 value={fmtNumber(totalContacts ?? 0)}
-                subtext="contactos en Holded"
+                subtext="importados de Holded"
                 accent
               />
               <KpiCard

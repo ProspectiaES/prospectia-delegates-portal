@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -157,7 +158,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["Nombre", "Código", "Email", "Teléfono", "Tipo", "Localidad", "Etiquetas"].map((h) => (
+                  {["Nombre", "Código", "Email", "Teléfono", "Tipo", "Localidad", "Etiquetas", ""].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
@@ -171,7 +172,9 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                 {contacts.map((c) => (
                   <tr key={c.id} className="hover:bg-[#F9FAFB] transition-colors">
                     <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap max-w-[200px] truncate">
-                      {c.name || <span className="text-[#9CA3AF]">—</span>}
+                      <Link href={`/dashboard/clientes/${c.id}`} className="hover:text-[#8E0E1A] transition-colors">
+                        {c.name || <span className="text-[#9CA3AF]">—</span>}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-[#6B7280] tabular-nums whitespace-nowrap font-mono text-xs">
                       {c.code || <span className="text-[#D1D5DB]">—</span>}
@@ -207,6 +210,14 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                           <Badge variant="neutral">+{c.tags.length - 3}</Badge>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Link
+                        href={`/dashboard/clientes/${c.id}`}
+                        className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
+                      >
+                        Ver →
+                      </Link>
                     </td>
                   </tr>
                 ))}
