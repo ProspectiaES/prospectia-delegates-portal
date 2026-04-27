@@ -84,6 +84,30 @@ async function tryMatchInvoice(orderNumber: string | undefined, db: ReturnType<t
   return data?.id ?? null;
 }
 
+async function findAffiliateId(
+  code: string | undefined,
+  email: string | undefined,
+  db: ReturnType<typeof createAdminClient>
+): Promise<string | null> {
+  if (code) {
+    const { data } = await db
+      .from("bixgrow_affiliates")
+      .select("id")
+      .eq("referral_code", code)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+  if (email) {
+    const { data } = await db
+      .from("bixgrow_affiliates")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
+}
+
 // ─── Event handlers ───────────────────────────────────────────────────────────
 
 async function handleAffiliate(data: BixGrowAffiliate, db: ReturnType<typeof createAdminClient>) {
@@ -91,7 +115,7 @@ async function handleAffiliate(data: BixGrowAffiliate, db: ReturnType<typeof cre
 
   await db.from("bixgrow_affiliates").upsert(
     {
-      referral_code: data.referral_code,
+      referral_code: data.referral_code || null,
       email:         data.email,
       first_name:    data.first_name  ?? null,
       last_name:     data.last_name   ?? null,
@@ -102,13 +126,20 @@ async function handleAffiliate(data: BixGrowAffiliate, db: ReturnType<typeof cre
       raw:           data,
       updated_at:    new Date().toISOString(),
     },
-    { onConflict: "referral_code" }
+    { onConflict: "email" }
   );
 }
 
 async function handleOrder(data: BixGrowOrder, db: ReturnType<typeof createAdminClient>) {
   const id = String(data.id ?? data.order_id ?? `order-${Date.now()}`);
-  const affiliateCode = data.affiliate_code ?? data.referral_code ?? "";
+  const affiliateCode = data.affiliate_code ?? data.referral_code;
+
+  const affiliateId = await findAffiliateId(affiliateCode, undefined, db);
+  if (!affiliateId) {
+    console.warn("[BixGrow] No affiliate found for code:", affiliateCode);
+    return;
+  }
+
   const contactId = await tryMatchContact(data.customer_email, db);
   const invoiceId = await tryMatchInvoice(data.order_number, db);
 
@@ -121,7 +152,7 @@ async function handleOrder(data: BixGrowOrder, db: ReturnType<typeof createAdmin
   await db.from("bixgrow_orders").upsert(
     {
       id,
-      affiliate_code:  affiliateCode,
+      affiliate_id:    affiliateId,
       contact_id:      contactId,
       invoice_id:      invoiceId,
       customer_email:  data.customer_email ?? null,
@@ -139,17 +170,24 @@ async function handleOrder(data: BixGrowOrder, db: ReturnType<typeof createAdmin
 
 async function handlePayment(data: BixGrowPayment, db: ReturnType<typeof createAdminClient>) {
   const id = String(data.id ?? data.payment_id ?? `pay-${Date.now()}`);
-  const affiliateCode = data.affiliate_code ?? data.referral_code ?? "";
+  const affiliateCode = data.affiliate_code ?? data.referral_code;
+
+  const affiliateId = await findAffiliateId(affiliateCode, undefined, db);
+  if (!affiliateId) {
+    console.warn("[BixGrow] No affiliate found for code:", affiliateCode);
+    return;
+  }
+
   const status = (data.status ?? "").toLowerCase() === "paid" ? "paid" : "generated";
 
   await db.from("bixgrow_payments").upsert(
     {
       id,
-      affiliate_code: affiliateCode,
-      amount:         data.amount ?? 0,
+      affiliate_id: affiliateId,
+      amount:       data.amount ?? 0,
       status,
-      raw:            data,
-      updated_at:     new Date().toISOString(),
+      raw:          data,
+      updated_at:   new Date().toISOString(),
     },
     { onConflict: "id" }
   );

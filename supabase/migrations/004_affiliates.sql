@@ -1,32 +1,31 @@
 -- ─── bixgrow_affiliates ───────────────────────────────────────────────────────
--- One row per affiliate registered in BixGrow.
--- Primary key = referral_code (unique in BixGrow, no numeric ID sent in webhooks).
+-- UUID primary key; referral_code and email are both unique but referral_code
+-- may arrive later (via webhook) if affiliate was imported by email first.
 
 CREATE TABLE IF NOT EXISTS bixgrow_affiliates (
-  referral_code TEXT PRIMARY KEY,
-  email         TEXT NOT NULL,
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  referral_code TEXT        UNIQUE,          -- nullable until BixGrow sends it
+  email         TEXT        NOT NULL UNIQUE,
   first_name    TEXT,
   last_name     TEXT,
   program       TEXT,
-  status        TEXT    NOT NULL DEFAULT 'Approved',
+  status        TEXT        NOT NULL DEFAULT 'Approved',
   standard_link TEXT,
-  -- auto-matched or manually linked Holded contact
   contact_id    TEXT REFERENCES holded_contacts(id) ON DELETE SET NULL,
-  raw           JSONB   NOT NULL DEFAULT '{}',
+  raw           JSONB       NOT NULL DEFAULT '{}',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_bg_affiliates_email      ON bixgrow_affiliates (email);
-CREATE INDEX IF NOT EXISTS idx_bg_affiliates_contact_id ON bixgrow_affiliates (contact_id);
+CREATE INDEX IF NOT EXISTS idx_bg_affiliates_email ON bixgrow_affiliates (email);
+CREATE INDEX IF NOT EXISTS idx_bg_affiliates_code  ON bixgrow_affiliates (referral_code);
+CREATE INDEX IF NOT EXISTS idx_bg_affiliates_cid   ON bixgrow_affiliates (contact_id);
 
 -- ─── bixgrow_orders ───────────────────────────────────────────────────────────
--- One row per order/conversion tracked by BixGrow.
 
 CREATE TABLE IF NOT EXISTS bixgrow_orders (
-  id              TEXT PRIMARY KEY,   -- BixGrow order ID
-  affiliate_code  TEXT NOT NULL REFERENCES bixgrow_affiliates(referral_code) ON DELETE CASCADE,
-  -- linked Holded data (auto-matched or manual)
+  id              TEXT        PRIMARY KEY,
+  affiliate_id    UUID        NOT NULL REFERENCES bixgrow_affiliates(id) ON DELETE CASCADE,
   contact_id      TEXT REFERENCES holded_contacts(id) ON DELETE SET NULL,
   invoice_id      TEXT REFERENCES holded_invoices(id) ON DELETE SET NULL,
   customer_email  TEXT,
@@ -34,7 +33,7 @@ CREATE TABLE IF NOT EXISTS bixgrow_orders (
   amount          NUMERIC(14,2) NOT NULL DEFAULT 0,
   commission_rate NUMERIC(6,3),
   commission      NUMERIC(14,2) NOT NULL DEFAULT 0,
-  -- pending → approved → settled (in a payment batch) → paid
+  -- pending → approved → settled (batched into a payment) → paid
   status          TEXT NOT NULL DEFAULT 'pending'
                   CHECK (status IN ('pending', 'approved', 'settled', 'paid')),
   raw             JSONB       NOT NULL DEFAULT '{}',
@@ -42,30 +41,26 @@ CREATE TABLE IF NOT EXISTS bixgrow_orders (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_bg_orders_affiliate ON bixgrow_orders (affiliate_code);
+CREATE INDEX IF NOT EXISTS idx_bg_orders_affiliate ON bixgrow_orders (affiliate_id);
 CREATE INDEX IF NOT EXISTS idx_bg_orders_contact   ON bixgrow_orders (contact_id);
-CREATE INDEX IF NOT EXISTS idx_bg_orders_invoice   ON bixgrow_orders (invoice_id);
 CREATE INDEX IF NOT EXISTS idx_bg_orders_status    ON bixgrow_orders (status);
 
 -- ─── bixgrow_payments ─────────────────────────────────────────────────────────
--- One row per payment batch sent to an affiliate.
 
 CREATE TABLE IF NOT EXISTS bixgrow_payments (
-  id             TEXT PRIMARY KEY,
-  affiliate_code TEXT NOT NULL REFERENCES bixgrow_affiliates(referral_code) ON DELETE CASCADE,
-  amount         NUMERIC(14,2) NOT NULL DEFAULT 0,
-  -- generated = payment created; paid = actually disbursed
-  status         TEXT NOT NULL DEFAULT 'generated'
-                 CHECK (status IN ('generated', 'paid')),
-  raw            JSONB       NOT NULL DEFAULT '{}',
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id           TEXT PRIMARY KEY,
+  affiliate_id UUID NOT NULL REFERENCES bixgrow_affiliates(id) ON DELETE CASCADE,
+  amount       NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status       TEXT NOT NULL DEFAULT 'generated'
+               CHECK (status IN ('generated', 'paid')),
+  raw          JSONB       NOT NULL DEFAULT '{}',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_bg_payments_affiliate ON bixgrow_payments (affiliate_code);
+CREATE INDEX IF NOT EXISTS idx_bg_payments_affiliate ON bixgrow_payments (affiliate_id);
 
 -- ─── bixgrow_events ───────────────────────────────────────────────────────────
--- Raw event log — every webhook received is stored here for debugging.
 
 CREATE TABLE IF NOT EXISTS bixgrow_events (
   id         BIGSERIAL   PRIMARY KEY,

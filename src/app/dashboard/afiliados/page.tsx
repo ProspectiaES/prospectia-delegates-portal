@@ -6,20 +6,21 @@ import { KpiCard } from "@/components/ui/KpiCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface OrderRow {
+  commission: number;
+  status: string;
+}
+
 interface Affiliate {
-  referral_code: string;
+  id: string;
+  referral_code: string | null;
   email: string;
   first_name: string | null;
   last_name: string | null;
   program: string | null;
   status: string;
   contact_id: string | null;
-}
-
-interface OrderAgg {
-  affiliate_code: string;
-  commission: number;
-  status: string;
+  bixgrow_orders: OrderRow[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,29 +40,33 @@ const statusVariant: Record<string, "success" | "warning" | "neutral"> = {
 export default async function AfiliadosPage() {
   const supabase = await createClient();
 
-  const [{ data: affiliatesData }, { data: ordersData }] = await Promise.all([
-    supabase.from("bixgrow_affiliates").select("referral_code, email, first_name, last_name, program, status, contact_id").order("created_at", { ascending: false }),
-    supabase.from("bixgrow_orders").select("affiliate_code, commission, status"),
-  ]);
+  const { data: affiliatesData } = await supabase
+    .from("bixgrow_affiliates")
+    .select("id, referral_code, email, first_name, last_name, program, status, contact_id, bixgrow_orders(commission, status)")
+    .order("created_at", { ascending: false });
 
   const affiliates = (affiliatesData ?? []) as Affiliate[];
-  const orders     = (ordersData ?? []) as OrderAgg[];
 
-  // Aggregate commissions per affiliate
-  const byAffiliate = new Map<string, { total: number; approved: number; pending: number; paid: number }>();
-  for (const o of orders) {
-    const cur = byAffiliate.get(o.affiliate_code) ?? { total: 0, approved: 0, pending: 0, paid: 0 };
-    cur.total += o.commission;
-    if (o.status === "pending")  cur.pending  += o.commission;
-    if (o.status === "approved") cur.approved += o.commission;
-    if (o.status === "paid")     cur.paid     += o.commission;
-    byAffiliate.set(o.affiliate_code, cur);
-  }
+  // Aggregate per affiliate
+  type Agg = { total: number; approved: number; pending: number; paid: number; count: number };
+  const agg = (orders: OrderRow[]): Agg =>
+    orders.reduce<Agg>(
+      (acc, o) => {
+        acc.total += o.commission;
+        acc.count += 1;
+        if (o.status === "pending")  acc.pending  += o.commission;
+        if (o.status === "approved") acc.approved += o.commission;
+        if (o.status === "paid")     acc.paid     += o.commission;
+        return acc;
+      },
+      { total: 0, approved: 0, pending: 0, paid: 0, count: 0 }
+    );
 
-  const totalCommissions = orders.reduce((s, o) => s + o.commission, 0);
-  const totalPaid        = orders.filter((o) => o.status === "paid").reduce((s, o) => s + o.commission, 0);
-  const totalApproved    = orders.filter((o) => o.status === "approved").reduce((s, o) => s + o.commission, 0);
-  const totalPending     = orders.filter((o) => o.status === "pending").reduce((s, o) => s + o.commission, 0);
+  const allOrders = affiliates.flatMap((a) => a.bixgrow_orders);
+  const totalCommissions = allOrders.reduce((s, o) => s + o.commission, 0);
+  const totalPaid        = allOrders.filter((o) => o.status === "paid").reduce((s, o) => s + o.commission, 0);
+  const totalApproved    = allOrders.filter((o) => o.status === "approved").reduce((s, o) => s + o.commission, 0);
+  const totalPending     = allOrders.filter((o) => o.status === "pending").reduce((s, o) => s + o.commission, 0);
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
@@ -77,10 +82,10 @@ export default async function AfiliadosPage() {
       {/* KPIs */}
       {affiliates.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Afiliados"      value={fmtNumber(affiliates.length)} subtext="registrados" accent />
-          <KpiCard label="Comisiones totales" value={fmtCurrency(totalCommissions)} subtext={`${orders.length} órdenes`} />
-          <KpiCard label="Por liquidar"   value={fmtCurrency(totalApproved)} subtext="aprobadas sin pagar" trend={totalApproved > 0 ? "down" : "neutral"} />
-          <KpiCard label="Pagadas"        value={fmtCurrency(totalPaid)} subtext="desembolsadas" trend="up" />
+          <KpiCard label="Afiliados"          value={fmtNumber(affiliates.length)} subtext="registrados" accent />
+          <KpiCard label="Comisiones totales" value={fmtCurrency(totalCommissions)} subtext={`${allOrders.length} órdenes`} />
+          <KpiCard label="Por liquidar"       value={fmtCurrency(totalApproved)} subtext="aprobadas sin pagar" trend={totalApproved > 0 ? "down" : "neutral"} />
+          <KpiCard label="Pagadas"            value={fmtCurrency(totalPaid)} subtext="desembolsadas" trend="up" />
         </div>
       )}
 
@@ -117,12 +122,12 @@ export default async function AfiliadosPage() {
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {affiliates.map((a) => {
-                  const agg = byAffiliate.get(a.referral_code) ?? { total: 0, approved: 0, pending: 0, paid: 0 };
+                  const ag = agg(a.bixgrow_orders);
                   const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
                   return (
-                    <tr key={a.referral_code} className="hover:bg-[#F9FAFB] transition-colors">
+                    <tr key={a.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="px-4 py-3">
-                        <Link href={`/dashboard/afiliados/${a.referral_code}`} className="hover:text-[#8E0E1A] transition-colors">
+                        <Link href={`/dashboard/afiliados/${a.id}`} className="hover:text-[#8E0E1A] transition-colors">
                           <p className="font-medium text-[#0A0A0A]">{name}</p>
                           <p className="text-xs text-[#6B7280]">{a.email}</p>
                         </Link>
@@ -131,25 +136,25 @@ export default async function AfiliadosPage() {
                         {a.program ?? "—"}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-[#6B7280] whitespace-nowrap">
-                        {a.referral_code}
+                        {a.referral_code ?? "—"}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Badge variant={statusVariant[a.status] ?? "neutral"}>{a.status}</Badge>
                       </td>
                       <td className="px-4 py-3 tabular-nums text-xs text-[#F59E0B] whitespace-nowrap">
-                        {fmtCurrency(agg.pending)}
+                        {fmtCurrency(ag.pending)}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-xs text-[#6B7280] whitespace-nowrap">
-                        {fmtCurrency(agg.approved)}
+                        {fmtCurrency(ag.approved)}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-xs text-emerald-600 whitespace-nowrap">
-                        {fmtCurrency(agg.paid)}
+                        {fmtCurrency(ag.paid)}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-sm font-semibold text-[#0A0A0A] whitespace-nowrap">
-                        {fmtCurrency(agg.total)}
+                        {fmtCurrency(ag.total)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link href={`/dashboard/afiliados/${a.referral_code}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
+                        <Link href={`/dashboard/afiliados/${a.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
                           Ver →
                         </Link>
                       </td>

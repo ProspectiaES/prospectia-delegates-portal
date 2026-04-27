@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Affiliate {
-  referral_code: string;
+  id: string;
+  referral_code: string | null;
   email: string;
   first_name: string | null;
   last_name: string | null;
@@ -76,13 +77,13 @@ interface PageProps {
 }
 
 export default async function AfiliadoDetailPage({ params }: PageProps) {
-  const { id: referralCode } = await params;
+  const { id } = await params;
   const supabase = await createClient();
 
   const [{ data: affData }, { data: ordersData }, { data: paymentsData }] = await Promise.all([
-    supabase.from("bixgrow_affiliates").select("*").eq("referral_code", referralCode).maybeSingle(),
-    supabase.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_code", referralCode).order("created_at", { ascending: false }),
-    supabase.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_code", referralCode).order("created_at", { ascending: false }),
+    supabase.from("bixgrow_affiliates").select("*").eq("id", id).maybeSingle(),
+    supabase.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
+    supabase.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
   ]);
 
   if (!affData) notFound();
@@ -118,7 +119,7 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
             <div className="mt-1.5 flex items-center gap-2 flex-wrap">
               <Badge variant={aff.status === "Approved" ? "success" : "warning"}>{aff.status}</Badge>
               {aff.program && <span className="text-xs text-[#6B7280]">{aff.program}</span>}
-              <code className="text-xs font-mono text-[#6B7280]">{aff.referral_code}</code>
+              {aff.referral_code && <code className="text-xs font-mono text-[#6B7280]">{aff.referral_code}</code>}
             </div>
           </div>
         </div>
@@ -158,7 +159,7 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
               {[
                 { label: "Email",         value: aff.email },
                 { label: "Programa",      value: aff.program ?? "—" },
-                { label: "Código",        value: aff.referral_code },
+                { label: "Código",        value: aff.referral_code ?? "—" },
                 { label: "Enlace",        value: aff.standard_link ?? "—" },
                 { label: "Alta",          value: fmtDate(aff.created_at) },
               ].map(({ label, value }) => (
