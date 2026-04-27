@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 APP_DIR="/var/www/portal"
-REPO="https://github.com/ProspectiaES/prospectia-delegates-portal.git"
+REPO="https://ProspectiaES:ghu_CQBiKhtLijaQPslnmfHZ9jLvf9FWNu4dHZPc@github.com/ProspectiaES/prospectia-delegates-portal.git"
 
 echo "Actualizando portal..."
 cd "$APP_DIR"
@@ -11,6 +11,8 @@ if [ ! -d ".git" ]; then
   echo "  Inicializando repositorio git..."
   git init
   git remote add origin "$REPO"
+else
+  git remote set-url origin "$REPO"
 fi
 
 git fetch origin main --quiet
