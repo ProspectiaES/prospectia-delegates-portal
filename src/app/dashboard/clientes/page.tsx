@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SyncButton } from "@/components/SyncButton";
+import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,8 +47,9 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   const search  = (params.search ?? "").trim();
   const typeStr = params.type ?? "";
 
-  const supabase = await createClient();
-  const from     = (page - 1) * PAGE_SIZE;
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = profile?.role === "OWNER";
+  const from    = (page - 1) * PAGE_SIZE;
   const to       = from + PAGE_SIZE - 1;
 
   let query = supabase
@@ -89,7 +91,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
             {total > 0 ? `${total.toLocaleString("es-ES")} contactos importados de Holded` : "Sin datos"}
           </p>
         </div>
-        <SyncButton />
+        {isOwner && <SyncButton endpoint="/api/holded/sync" label="Sincronizar" />}
       </div>
 
       {/* Filters */}

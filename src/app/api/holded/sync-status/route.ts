@@ -1,27 +1,34 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runStatusSync, logSyncStart, logSyncEnd } from "@/lib/holded/sync";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/profile";
 
-function isAuthorized(request: Request): boolean {
+function hasCronSecret(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
-/** Status-only sync — Vercel Cron every 4 hours. */
+/** Status-only sync — cron every 4 hours or manual OWNER trigger. */
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!hasCronSecret(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   return runSync();
 }
 
 export async function POST(request: Request) {
-  if (isAuthorized(request)) return runSync();
+  if (hasCronSecret(request)) return runSync();
 
+  // Manual trigger — OWNER only
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const profile = await getProfile();
+  if (profile?.role !== "OWNER") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   return runSync();
 }

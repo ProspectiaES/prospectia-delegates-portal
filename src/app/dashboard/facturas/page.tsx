@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SyncButton } from "@/components/SyncButton";
+import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +55,23 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const search    = (params.search ?? "").trim();
   const statusStr = params.status ?? "";
 
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = profile?.role === "OWNER";
+
+  // Last status sync — admin client since sync_log is OWNER-only via RLS
+  let lastSyncedAt: string | null = null;
+  if (isOwner) {
+    const adminDb = createAdminClient();
+    const { data: lastSync } = await adminDb
+      .from("holded_sync_log")
+      .select("finished_at")
+      .eq("sync_type", "status_only")
+      .eq("status", "completed")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    lastSyncedAt = lastSync?.finished_at ?? null;
+  }
   const from     = (page - 1) * PAGE_SIZE;
   const to       = from + PAGE_SIZE - 1;
 
@@ -103,7 +121,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
               : "Sin datos"}
           </p>
         </div>
-        <SyncButton />
+        {isOwner && <SyncButton lastSyncedAt={lastSyncedAt} />}
       </div>
 
       {/* Filters */}

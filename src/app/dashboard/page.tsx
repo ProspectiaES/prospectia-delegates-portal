@@ -3,6 +3,7 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SyncButton } from "@/components/SyncButton";
+import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,8 @@ const statusVariant: Record<number, "neutral" | "warning" | "danger" | "success"
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = profile?.role === "OWNER";
 
   const [
     { count: totalContacts },
@@ -65,13 +67,15 @@ export default async function DashboardPage() {
       .select("id, doc_number, contact_name, date, total, status, last_synced_at")
       .order("date", { ascending: false })
       .limit(8),
-    supabase
-      .from("holded_sync_log")
-      .select("sync_type, status, contacts_synced, invoices_synced, finished_at")
-      .eq("status", "completed")
-      .order("finished_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    isOwner
+      ? supabase
+          .from("holded_sync_log")
+          .select("sync_type, status, contacts_synced, invoices_synced, finished_at")
+          .eq("status", "completed")
+          .order("finished_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const { data: aggData } = await supabase.from("holded_invoices").select("total, status");
@@ -95,14 +99,16 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-[#6B7280]">Contactos, puntos de venta y comisiones.</p>
         </div>
-        <div className="flex items-center gap-3">
-          {syncLog && (
-            <span className="text-xs text-[#9CA3AF]">
-              Último sync: {relativeTime(syncLog.finished_at)}
-            </span>
-          )}
-          <SyncButton />
-        </div>
+        {isOwner && (
+          <div className="flex items-center gap-3">
+            {syncLog && (
+              <span className="text-xs text-[#9CA3AF]">
+                Último sync: {relativeTime(syncLog.finished_at)}
+              </span>
+            )}
+            <SyncButton lastSyncedAt={syncLog?.finished_at ?? null} endpoint="/api/holded/sync" label="Sincronizar" />
+          </div>
+        )}
       </div>
 
       {/* Empty state */}
