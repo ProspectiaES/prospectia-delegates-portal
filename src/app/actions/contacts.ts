@@ -112,3 +112,36 @@ export async function saveContactAffiliate(
   revalidatePath(`/dashboard/clientes/${contactId}`);
   return { success: true };
 }
+
+// ─── Assign recommender to contact ───────────────────────────────────────────
+
+export async function saveContactRecommender(
+  _prev: UpdateContactState | null,
+  formData: FormData
+): Promise<UpdateContactState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+  const contactId     = formData.get("contact_id")     as string;
+  const recommenderId = (formData.get("recommender_id") as string) || null;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ recommender_id: recommenderId })
+    .eq("id", contactId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/clientes/${contactId}`);
+  return { success: true };
+}

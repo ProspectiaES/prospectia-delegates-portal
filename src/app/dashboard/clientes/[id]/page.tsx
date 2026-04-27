@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ContactEditForm } from "./ContactEditForm";
 import { DelegateAssignment } from "./DelegateAssignment";
 import { AffiliateSelect } from "./AffiliateSelect";
+import { RecommenderSelect } from "./RecommenderSelect";
 import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ interface DbContact {
   country: string | null;
   country_code: string | null;
   affiliate_id: string | null;
+  recommender_id: string | null;
   first_synced_at: string;
   last_synced_at: string;
   raw: Record<string, unknown>;
@@ -75,7 +77,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     getProfile(),
     supabase
       .from("holded_contacts")
-      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, first_synced_at, last_synced_at, raw")
+      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, recommender_id, first_synced_at, last_synced_at, raw")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -108,6 +110,17 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   const contact = contactData as DbContact;
   const invoices = (invoicesData ?? []) as DbInvoice[];
+
+  // Load current recommender name (for display)
+  let currentRecommender: { id: string; name: string; code: string | null; email: string | null; city: string | null } | null = null;
+  if (contact.recommender_id) {
+    const { data: recData } = await supabase
+      .from("holded_contacts")
+      .select("id, name, code, email, city")
+      .eq("id", contact.recommender_id)
+      .maybeSingle();
+    currentRecommender = recData ?? null;
+  }
   const totalBilled = invoices.reduce((s, inv) => s + inv.total, 0);
   const totalPaid   = invoices.filter((inv) => inv.status === 3).reduce((s, inv) => s + inv.total, 0);
 
@@ -226,6 +239,22 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   contactId={contact.id}
                   affiliates={allAffiliates}
                   currentAffiliateId={contact.affiliate_id}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recommender — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recomendador</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Solo visible para ti</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <RecommenderSelect
+                  contactId={contact.id}
+                  currentRecommender={currentRecommender}
                 />
               </CardContent>
             </Card>

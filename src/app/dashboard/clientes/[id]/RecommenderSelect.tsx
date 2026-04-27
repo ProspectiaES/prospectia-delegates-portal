@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useCallback, useRef } from "react";
-import { saveClientAssignmentsForDelegate } from "@/app/actions/delegates";
+import { saveContactRecommender, UpdateContactState } from "@/app/actions/contacts";
 
 interface Contact {
   id: string;
@@ -12,38 +12,37 @@ interface Contact {
 }
 
 interface Props {
-  delegateId: string;
-  initialAssigned: Contact[];
+  contactId: string;
+  currentRecommender: Contact | null;
 }
 
-export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
-  const [assigned, setAssigned] = useState<Map<string, Contact>>(
-    () => new Map(initialAssigned.map((c) => [c.id, c]))
-  );
-  const [search, setSearch] = useState("");
-  const [allResults, setAllResults] = useState<Contact[]>([]);
-  const [searching, setSearching] = useState(false);
+export function RecommenderSelect({ contactId, currentRecommender }: Props) {
+  const [selected, setSelected]     = useState<Contact | null>(currentRecommender);
+  const [search, setSearch]         = useState("");
+  const [results, setResults]       = useState<Contact[]>([]);
+  const [searching, setSearching]   = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [status, setStatus] = useState<{ error?: string; success?: boolean } | null>(null);
+  const [status, setStatus]         = useState<UpdateContactState | null>(null);
   const [isPending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchContacts = useCallback(async (q: string) => {
     setSearching(true);
     try {
-      const res = await fetch(`/api/contacts/search?type=1&q=${encodeURIComponent(q)}`);
-      const data: Contact[] = await res.json();
-      setAllResults(data);
+      const res = await fetch(
+        `/api/contacts/search?q=${encodeURIComponent(q)}&exclude=${encodeURIComponent(contactId)}`
+      );
+      setResults(await res.json());
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [contactId]);
 
   // Load full list on mount
   useEffect(() => { fetchContacts(""); }, [fetchContacts]);
 
-  // Debounced re-fetch on search change
+  // Debounced re-fetch
   useEffect(() => {
     const timer = setTimeout(() => fetchContacts(search), 250);
     return () => clearTimeout(timer);
@@ -55,42 +54,37 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
       if (
         dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
         inputRef.current   && !inputRef.current.contains(e.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
+      ) setShowDropdown(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const visibleResults = allResults.filter((c) => !assigned.has(c.id));
-
-  const add = (c: Contact) => {
-    setAssigned((prev) => new Map(prev).set(c.id, c));
+  const pick = (c: Contact) => {
+    setSelected(c);
     setSearch("");
     setShowDropdown(false);
     setStatus(null);
   };
 
-  const remove = (id: string) => {
-    setAssigned((prev) => { const n = new Map(prev); n.delete(id); return n; });
+  const clear = () => {
+    setSelected(null);
     setStatus(null);
   };
 
   const save = () => {
     startTransition(async () => {
       const fd = new FormData();
-      fd.set("delegate_id", delegateId);
-      for (const id of assigned.keys()) fd.append("contact_ids", id);
-      const result = await saveClientAssignmentsForDelegate(null, fd);
+      fd.set("contact_id",     contactId);
+      fd.set("recommender_id", selected?.id ?? "");
+      const result = await saveContactRecommender(null, fd);
       setStatus(result);
     });
   };
 
-  const assignedList = Array.from(assigned.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
-
   return (
     <div className="px-5 py-4 space-y-3">
+      <input type="hidden" name="contact_id" value={contactId} />
 
       {status?.error && (
         <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-xs text-[#8E0E1A]">
@@ -99,18 +93,40 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
       )}
       {status?.success && (
         <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-700">
-          Asignaciones guardadas.
+          Recomendador guardado.
         </div>
       )}
 
-      {/* Search + dropdown */}
+      {/* Current selection */}
+      {selected ? (
+        <div className="flex items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[#0A0A0A] truncate">{selected.name}</p>
+            <p className="text-xs text-[#9CA3AF]">
+              {[selected.code, selected.email, selected.city].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clear}
+            className="ml-3 shrink-0 text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors text-lg leading-none"
+            aria-label="Quitar recomendador"
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-[#9CA3AF]">Sin recomendador asignado.</p>
+      )}
+
+      {/* Search */}
       <div className="relative">
         <input
           ref={inputRef}
           value={search}
           onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); setStatus(null); }}
           onFocus={() => setShowDropdown(true)}
-          placeholder="Buscar cliente por nombre, código o email…"
+          placeholder="Buscar recomendador por nombre, código o email…"
           className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 pr-8 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors shadow-sm"
         />
         {searching && (
@@ -120,19 +136,19 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
         {showDropdown && (
           <div
             ref={dropdownRef}
-            className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-64 overflow-y-auto"
+            className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-56 overflow-y-auto"
           >
-            {visibleResults.length === 0 ? (
+            {results.length === 0 ? (
               <p className="px-4 py-3 text-xs text-[#9CA3AF]">
-                {searching ? "Buscando…" : search.length >= 2 ? `Sin resultados para «${search}»` : "Sin más clientes disponibles"}
+                {searching ? "Buscando…" : "Sin resultados"}
               </p>
             ) : (
-              visibleResults.map((c) => (
+              results.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => add(c)}
+                  onClick={() => pick(c)}
                   className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#F9FAFB] transition-colors border-b border-[#F3F4F6] last:border-0"
                 >
                   <div className="min-w-0">
@@ -141,7 +157,7 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
                       {[c.code, c.email, c.city].filter(Boolean).join(" · ")}
                     </span>
                   </div>
-                  <span className="ml-3 text-[#8E0E1A] text-xs font-semibold shrink-0">+ Añadir</span>
+                  <span className="ml-3 text-[#8E0E1A] text-xs font-semibold shrink-0">Seleccionar</span>
                 </button>
               ))
             )}
@@ -149,42 +165,13 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
         )}
       </div>
 
-      {/* Assigned list */}
-      {assignedList.length === 0 ? (
-        <p className="text-xs text-[#9CA3AF] py-2 text-center">
-          Sin clientes asignados. Usa el buscador para añadir.
-        </p>
-      ) : (
-        <ul className="divide-y divide-[#F3F4F6] border border-[#E5E7EB] rounded-lg overflow-hidden">
-          {assignedList.map((c) => (
-            <li key={c.id} className="flex items-center justify-between px-4 py-2.5 bg-white hover:bg-[#F9FAFB]">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-[#0A0A0A] truncate">{c.name}</p>
-                <p className="text-xs text-[#9CA3AF]">
-                  {[c.code, c.email, c.city].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(c.id)}
-                className="ml-3 shrink-0 text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors text-lg leading-none"
-                aria-label={`Quitar ${c.name}`}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Save */}
       <button
         type="button"
         onClick={save}
         disabled={isPending}
-        className="w-full h-9 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 transition-colors"
+        className="w-full h-8 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 transition-colors"
       >
-        {isPending ? "Guardando…" : `Guardar asignaciones (${assignedList.length})`}
+        {isPending ? "Guardando…" : "Guardar"}
       </button>
     </div>
   );
