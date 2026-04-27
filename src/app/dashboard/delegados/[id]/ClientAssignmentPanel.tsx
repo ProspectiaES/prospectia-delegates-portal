@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import { saveClientAssignmentsForDelegate } from "@/app/actions/delegates";
 
 interface Contact {
@@ -21,50 +21,54 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
     () => new Map(initialAssigned.map((c) => [c.id, c]))
   );
   const [search, setSearch] = useState("");
-  const [results, setResults] = useState<Contact[]>([]);
+  const [allResults, setAllResults] = useState<Contact[]>([]);
   const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [status, setStatus] = useState<{ error?: string; success?: boolean } | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search
-  useEffect(() => {
-    if (search.length < 2) { setResults([]); setShowResults(false); return; }
+  const fetchContacts = useCallback(async (q: string) => {
     setSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(search)}`);
-        const data: Contact[] = await res.json();
-        setResults(data.filter((c) => !assigned.has(c.id)));
-        setShowResults(true);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
+    try {
+      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`);
+      const data: Contact[] = await res.json();
+      setAllResults(data);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  // Load full list on mount
+  useEffect(() => { fetchContacts(""); }, [fetchContacts]);
+
+  // Debounced re-fetch on search change
+  useEffect(() => {
+    const timer = setTimeout(() => fetchContacts(search), 250);
     return () => clearTimeout(timer);
-  }, [search, assigned]);
+  }, [search, fetchContacts]);
 
   // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
         dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-        inputRef.current  && !inputRef.current.contains(e.target as Node)
+        inputRef.current   && !inputRef.current.contains(e.target as Node)
       ) {
-        setShowResults(false);
+        setShowDropdown(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const visibleResults = allResults.filter((c) => !assigned.has(c.id));
+
   const add = (c: Contact) => {
     setAssigned((prev) => new Map(prev).set(c.id, c));
     setSearch("");
-    setResults([]);
-    setShowResults(false);
+    setShowDropdown(false);
     setStatus(null);
   };
 
@@ -99,45 +103,48 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
         </div>
       )}
 
-      {/* Search */}
+      {/* Search + dropdown */}
       <div className="relative">
         <input
           ref={inputRef}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => results.length > 0 && setShowResults(true)}
-          placeholder="Buscar y añadir cliente por nombre, código o email…"
-          className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors shadow-sm"
+          onChange={(e) => { setSearch(e.target.value); setShowDropdown(true); setStatus(null); }}
+          onFocus={() => setShowDropdown(true)}
+          placeholder="Buscar cliente por nombre, código o email…"
+          className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 pr-8 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors shadow-sm"
         />
         {searching && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#9CA3AF]">…</span>
         )}
-        {showResults && results.length > 0 && (
+
+        {showDropdown && (
           <div
             ref={dropdownRef}
-            className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-56 overflow-y-auto"
+            className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-64 overflow-y-auto"
           >
-            {results.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => add(c)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#F9FAFB] transition-colors"
-              >
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-[#0A0A0A] block truncate">{c.name}</span>
-                  <span className="text-xs text-[#9CA3AF]">
-                    {[c.code, c.email, c.city].filter(Boolean).join(" · ")}
-                  </span>
-                </div>
-                <span className="ml-3 text-[#8E0E1A] text-xs font-semibold shrink-0">+ Añadir</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {showResults && results.length === 0 && !searching && search.length >= 2 && (
-          <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg px-4 py-3 text-xs text-[#9CA3AF]">
-            Sin resultados para «{search}»
+            {visibleResults.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-[#9CA3AF]">
+                {searching ? "Buscando…" : search.length >= 2 ? `Sin resultados para «${search}»` : "Sin más clientes disponibles"}
+              </p>
+            ) : (
+              visibleResults.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => add(c)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#F9FAFB] transition-colors border-b border-[#F3F4F6] last:border-0"
+                >
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-[#0A0A0A] block truncate">{c.name}</span>
+                    <span className="text-xs text-[#9CA3AF]">
+                      {[c.code, c.email, c.city].filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                  <span className="ml-3 text-[#8E0E1A] text-xs font-semibold shrink-0">+ Añadir</span>
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -145,7 +152,7 @@ export function ClientAssignmentPanel({ delegateId, initialAssigned }: Props) {
       {/* Assigned list */}
       {assignedList.length === 0 ? (
         <p className="text-xs text-[#9CA3AF] py-2 text-center">
-          Sin clientes asignados. Usa el buscador de arriba para añadir.
+          Sin clientes asignados. Usa el buscador para añadir.
         </p>
       ) : (
         <ul className="divide-y divide-[#F3F4F6] border border-[#E5E7EB] rounded-lg overflow-hidden">
