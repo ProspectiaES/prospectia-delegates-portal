@@ -6,17 +6,17 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
 
-  let query = supabase
+  if (q.length < 2) return Response.json([]);
+
+  const { data } = await supabase
     .from("holded_contacts")
     .select("id, name, code, email, city")
+    .eq("type", 1)
+    .or(`name.ilike.%${q}%,code.ilike.%${q}%,email.ilike.%${q}%`)
     .order("name")
     .limit(20);
 
-  if (q.length >= 2) {
-    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%,email.ilike.%${q}%`);
-  } else {
-    return Response.json([]);
-  }
+  return Response.json(data ?? []);
 
   const { data } = await query;
   return Response.json(data ?? []);
