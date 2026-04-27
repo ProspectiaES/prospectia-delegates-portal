@@ -48,3 +48,93 @@ export async function saveDelegateAssignments(
   revalidatePath(`/dashboard/clientes/${contactId}`);
   return { success: true };
 }
+
+// ─── Assign contacts to a delegate (from the delegate detail page) ────────────
+
+export async function saveClientAssignmentsForDelegate(
+  _prevState: SaveDelegatesState | null,
+  formData: FormData
+): Promise<SaveDelegatesState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+  const delegateId = formData.get("delegate_id") as string;
+  const contactIds = formData.getAll("contact_ids") as string[];
+
+  const admin = createAdminClient();
+
+  const { error: delErr } = await admin
+    .from("contact_delegates")
+    .delete()
+    .eq("delegate_id", delegateId);
+
+  if (delErr) return { error: `Error al limpiar asignaciones: ${delErr.message}` };
+
+  if (contactIds.length > 0) {
+    const { error: insErr } = await admin
+      .from("contact_delegates")
+      .insert(contactIds.map((contactId) => ({ contact_id: contactId, delegate_id: delegateId })));
+
+    if (insErr) return { error: `Error al guardar asignaciones: ${insErr.message}` };
+  }
+
+  revalidatePath(`/dashboard/delegados/${delegateId}`);
+  return { success: true };
+}
+
+// ─── Assign affiliates to a delegate ─────────────────────────────────────────
+
+export async function saveAffiliateDelegates(
+  _prevState: SaveDelegatesState | null,
+  formData: FormData
+): Promise<SaveDelegatesState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+  const delegateId          = formData.get("delegate_id") as string;
+  const assignedIds         = formData.getAll("affiliate_ids") as string[];
+  const allAffiliateIds     = formData.getAll("all_affiliate_ids") as string[];
+
+  const admin = createAdminClient();
+
+  // Assign checked affiliates to this delegate
+  if (assignedIds.length > 0) {
+    const { error } = await admin
+      .from("bixgrow_affiliates")
+      .update({ delegate_id: delegateId })
+      .in("id", assignedIds);
+    if (error) return { error: error.message };
+  }
+
+  // Unassign unchecked affiliates that currently belong to this delegate
+  const toUnassign = allAffiliateIds.filter((id) => !assignedIds.includes(id));
+  if (toUnassign.length > 0) {
+    const { error } = await admin
+      .from("bixgrow_affiliates")
+      .update({ delegate_id: null })
+      .in("id", toUnassign)
+      .eq("delegate_id", delegateId);
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath(`/dashboard/delegados/${delegateId}`);
+  return { success: true };
+}

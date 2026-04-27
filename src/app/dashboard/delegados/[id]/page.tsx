@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { getProfile } from "@/lib/profile";
 import { DelegateBillingForm } from "./DelegateBillingForm";
 import { InvoiceTabs, DelegateInvoice } from "./InvoiceTabs";
+import { ClientAssignmentPanel } from "./ClientAssignmentPanel";
+import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ interface DbAffiliate {
   status: string;
   referral_code: string | null;
   program: string | null;
+  delegate_id: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,7 +76,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
   const [profile, admin] = await Promise.all([getProfile(), Promise.resolve(createAdminClient())]);
   const supabase = await createClient();
 
-  // Load delegate profile using admin client (bypasses RLS for billing columns)
+  // Load delegate profile via admin (billing columns bypass RLS)
   const { data: delegateData } = await admin
     .from("profiles")
     .select("id, full_name, role, created_at, email, phone, nif, address, city, postal_code, iban")
@@ -93,8 +96,8 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
 
   const contactIds = (cdRows ?? []).map((r) => r.contact_id as string).filter(Boolean);
 
-  // Parallel: clients, invoices, affiliates
-  const [clientsRes, invoicesRes, affiliatesRes] = await Promise.all([
+  // Parallel: assigned clients, invoices, all affiliates
+  const [clientsRes, invoicesRes, allAffiliatesRes] = await Promise.all([
     contactIds.length > 0
       ? supabase
           .from("holded_contacts")
@@ -111,26 +114,29 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
       : Promise.resolve({ data: [] as DelegateInvoice[] }),
     supabase
       .from("bixgrow_affiliates")
-      .select("id, email, first_name, last_name, status, referral_code, program")
-      .eq("delegate_id", id)
+      .select("id, email, first_name, last_name, status, referral_code, program, delegate_id")
       .order("email"),
   ]);
 
-  const clients    = (clientsRes.data    ?? []) as DbContact[];
-  const invoices   = (invoicesRes.data   ?? []) as DelegateInvoice[];
-  const affiliates = (affiliatesRes.data ?? []) as DbAffiliate[];
+  const clients      = (clientsRes.data      ?? []) as DbContact[];
+  const invoices     = (invoicesRes.data     ?? []) as DelegateInvoice[];
+  const allAffiliates = (allAffiliatesRes.data ?? []) as DbAffiliate[];
+
+  const assignedAffiliateIds = allAffiliates
+    .filter((a) => a.delegate_id === id)
+    .map((a) => a.id);
 
   // Current month period for "Cobradas este mes" tab
   const now         = new Date();
   const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
   const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
 
-  // Invoice summary KPIs
-  const totalBilled  = invoices.reduce((s, inv) => s + inv.total, 0);
-  const cobradas     = invoices.filter((inv) => inv.status === 3);
-  const pendientes   = invoices.filter((inv) => inv.status === 1);
-  const vencidas     = invoices.filter((inv) => inv.status === 2);
-  const periodo      = cobradas.filter((inv) => !!inv.date && inv.date >= periodStart && inv.date <= periodEnd);
+  // Invoice KPIs
+  const totalBilled = invoices.reduce((s, inv) => s + inv.total, 0);
+  const cobradas    = invoices.filter((inv) => inv.status === 3);
+  const pendientes  = invoices.filter((inv) => inv.status === 1);
+  const vencidas    = invoices.filter((inv) => inv.status === 2);
+  const periodo     = cobradas.filter((inv) => !!inv.date && inv.date >= periodStart && inv.date <= periodEnd);
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
@@ -187,7 +193,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Main grid: contact/billing (1/3) + content (2/3) */}
+      {/* Main grid: billing (1/3) + assignment (2/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Contact + billing data */}
@@ -202,13 +208,13 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
             ) : (
               <ul className="divide-y divide-[#F3F4F6] -mx-5">
                 {[
-                  { label: "Email",   value: delegate.email },
+                  { label: "Email",     value: delegate.email },
                   { label: "Teléfono", value: delegate.phone },
-                  { label: "NIF",     value: delegate.nif },
-                  { label: "Ciudad",  value: delegate.city },
+                  { label: "NIF",      value: delegate.nif },
+                  { label: "Ciudad",   value: delegate.city },
                   { label: "Dirección", value: delegate.address },
-                  { label: "C.P.",    value: delegate.postal_code },
-                  { label: "IBAN",    value: delegate.iban },
+                  { label: "C.P.",     value: delegate.postal_code },
+                  { label: "IBAN",     value: delegate.iban },
                 ].map(({ label, value }) => (
                   <li key={label} className="flex items-center justify-between px-5 py-3">
                     <span className="text-xs text-[#6B7280] shrink-0">{label}</span>
@@ -232,7 +238,18 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
               <span className="text-xs text-[#9CA3AF]">{clients.length} cliente{clients.length !== 1 ? "s" : ""}</span>
             </CardHeader>
             <CardContent className="p-0">
-              {clients.length === 0 ? (
+              {isOwner ? (
+                <ClientAssignmentPanel
+                  delegateId={id}
+                  initialAssigned={clients.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    code: c.code,
+                    email: c.email,
+                    city: c.city,
+                  }))}
+                />
+              ) : clients.length === 0 ? (
                 <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin clientes asignados.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -288,23 +305,33 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
           <Card>
             <CardHeader>
               <CardTitle>Afiliados asociados</CardTitle>
-              <span className="text-xs text-[#9CA3AF]">{affiliates.length} afiliado{affiliates.length !== 1 ? "s" : ""}</span>
+              <span className="text-xs text-[#9CA3AF]">{assignedAffiliateIds.length} afiliado{assignedAffiliateIds.length !== 1 ? "s" : ""}</span>
             </CardHeader>
             <CardContent className="p-0">
-              {affiliates.length === 0 ? (
+              {isOwner ? (
+                <AffiliateAssignmentPanel
+                  delegateId={id}
+                  allAffiliates={allAffiliates.map((a) => ({
+                    id: a.id,
+                    email: a.email,
+                    first_name: a.first_name,
+                    last_name: a.last_name,
+                    status: a.status,
+                    referral_code: a.referral_code,
+                  }))}
+                  assignedIds={assignedAffiliateIds}
+                />
+              ) : assignedAffiliateIds.length === 0 ? (
                 <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin afiliados asignados.</p>
               ) : (
                 <ul className="divide-y divide-[#F3F4F6]">
-                  {affiliates.map((a) => {
+                  {allAffiliates.filter((a) => assignedAffiliateIds.includes(a.id)).map((a) => {
                     const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
                     return (
                       <li key={a.id} className="flex items-center justify-between px-5 py-3 gap-4">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-[#0A0A0A] truncate">{name}</p>
                           <p className="text-xs text-[#6B7280]">{a.email}</p>
-                          {a.referral_code && (
-                            <code className="text-xs font-mono text-[#9CA3AF]">{a.referral_code}</code>
-                          )}
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <Badge variant={a.status === "Approved" ? "success" : "warning"}>{a.status}</Badge>

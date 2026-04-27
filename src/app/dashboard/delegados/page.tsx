@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/Card";
+import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,8 @@ function fmtDate(iso: string | null): string {
 
 export default async function DelegadosPage() {
   const admin    = createAdminClient();
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = profile?.role === "OWNER";
 
   const [delegatesRes, cdRes, affiliatesRes, invoicesRes] = await Promise.all([
     admin
@@ -67,13 +69,23 @@ export default async function DelegadosPage() {
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Delegados</h1>
-        <p className="mt-1 text-sm text-[#6B7280]">
-          {delegates.length > 0
-            ? `${delegates.length} delegado${delegates.length !== 1 ? "s" : ""} registrado${delegates.length !== 1 ? "s" : ""}`
-            : "Sin delegados configurados"}
-        </p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Delegados</h1>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            {delegates.length > 0
+              ? `${delegates.length} delegado${delegates.length !== 1 ? "s" : ""} registrado${delegates.length !== 1 ? "s" : ""}`
+              : "Sin delegados configurados"}
+          </p>
+        </div>
+        {isOwner && (
+          <Link
+            href="/dashboard/delegados/nuevo"
+            className="h-9 px-4 flex items-center gap-2 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] transition-colors shadow-sm"
+          >
+            + Nuevo delegado
+          </Link>
+        )}
       </div>
 
       {/* Empty */}
