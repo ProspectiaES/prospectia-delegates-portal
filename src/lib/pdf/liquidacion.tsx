@@ -21,6 +21,7 @@ export interface InvoiceCommission {
   contactId: string | null;
   contactName: string;
   invoiceDate: string | null;
+  paidAt: string | null;
   invoiceTotal: number;
   lines: CommissionLine[];
   subtotalCommission: number;
@@ -341,15 +342,16 @@ function InvoiceSection({ inv }: { inv: InvoiceCommission }) {
     <View wrap={false}>
       {/* Invoice header */}
       <View style={s.invoiceHeader}>
-        <View style={{ width: 70 }}>
+        <View style={{ width: 90 }}>
           <Text style={s.invoiceDocNumber}>{inv.docNumber}</Text>
-          {inv.invoiceDate && (
-            <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-              Cobrada: {fmtDate(inv.invoiceDate)}
-            </Text>
-          )}
+          <Text style={{ fontSize: 7, color: GRAY, marginTop: 2 }}>
+            Emisión: {fmtDate(inv.invoiceDate)}
+          </Text>
+          <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+            Cobro: {fmtDate(inv.paidAt)}
+          </Text>
         </View>
-        <Text style={s.invoiceClient}>{inv.contactName}</Text>
+        <Text style={[s.invoiceClient, { flex: 1 }]}>{inv.contactName}</Text>
         <Text style={s.invoiceTotal}>{fmtEuro(inv.invoiceTotal)}</Text>
         <Text style={s.invoiceComm}>{fmtEuro(inv.netCommission)}</Text>
       </View>
@@ -417,8 +419,8 @@ function BlockSection({ block }: { block: CommissionBlock }) {
 
       {/* Column labels */}
       <View style={[s.invoiceHeader, { backgroundColor: "#F0F0F0" }]}>
-        <Text style={[s.invoiceDocNumber, { fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }]}>FACTURA</Text>
-        <Text style={[s.invoiceClient, { fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }]}>CLIENTE</Text>
+        <Text style={{ width: 90, fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }}>FACTURA / FECHAS</Text>
+        <Text style={[s.invoiceClient, { flex: 1, fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }]}>CLIENTE</Text>
         <Text style={[s.invoiceTotal, { fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }]}>TOTAL FAC.</Text>
         <Text style={[s.invoiceComm, { fontSize: 7.5, color: GRAY, fontFamily: "Helvetica-Bold" }]}>COMISIÓN</Text>
       </View>

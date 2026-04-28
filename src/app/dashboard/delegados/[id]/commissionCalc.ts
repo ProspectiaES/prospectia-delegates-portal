@@ -102,12 +102,18 @@ export function buildCommissionBlock(
 
     const netCommission = subtotal - recommenderDeduction;
 
+    const approvedAtRaw = inv.raw?.approvedAt;
+    const paidAt = typeof approvedAtRaw === "number"
+      ? new Date(approvedAtRaw * 1000).toISOString()
+      : null;
+
     invoiceCommissions.push({
       invoiceId: inv.id,
       docNumber: inv.doc_number ?? inv.id.slice(0, 8),
       contactId: inv.contact_id,
       contactName: inv.contact_name ?? "—",
       invoiceDate: inv.date ?? null,
+      paidAt,
       invoiceTotal: inv.total,
       lines,
       subtotalCommission: subtotal,

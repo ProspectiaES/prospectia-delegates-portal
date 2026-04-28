@@ -25,6 +25,7 @@ export interface InvoiceCommission {
   contactId: string | null;
   contactName: string;
   invoiceDate: string | null;
+  paidAt: string | null;
   invoiceTotal: number;
   lines: CommissionLine[];
   subtotalCommission: number;
@@ -192,7 +193,8 @@ function InvoiceRow({ inv }: { inv: InvoiceCommission }) {
             </p>
             <p className="text-xs text-[#9CA3AF]">
               {inv.lines.length} producto{inv.lines.length !== 1 ? "s" : ""}
-              {inv.invoiceDate && ` · Cobrada: ${fmtDate(inv.invoiceDate)}`}
+              {` · Emisión: ${fmtDate(inv.invoiceDate)}`}
+              {` · Cobro: ${fmtDate(inv.paidAt)}`}
               {inv.recommenderName && ` · Rec: ${inv.recommenderName}`}
             </p>
           </div>
