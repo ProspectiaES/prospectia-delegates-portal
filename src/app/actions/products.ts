@@ -15,6 +15,7 @@ const COMMISSION_KEYS = [
   "commission_affiliate",
   "commission_4",
   "commission_5",
+  "commission_6",
 ] as const;
 
 export async function saveProductCommissions(

@@ -30,6 +30,7 @@ interface DbProduct {
   commission_affiliate:   number | null;
   commission_4:           number | null;
   commission_5:           number | null;
+  commission_6:           number | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,6 +170,7 @@ export default async function ProductoDetailPage({ params }: PageProps) {
                   commission_affiliate:   product.commission_affiliate,
                   commission_4:           product.commission_4,
                   commission_5:           product.commission_5,
+                  commission_6:           product.commission_6,
                 }}
               />
             ) : (
@@ -177,8 +179,9 @@ export default async function ProductoDetailPage({ params }: PageProps) {
                   { label: "Delegado",     value: product.commission_delegate },
                   { label: "Recomendador", value: product.commission_recommender },
                   { label: "Afiliado",     value: product.commission_affiliate },
-                  { label: "Com. 4",       value: product.commission_4 },
-                  { label: "Com. 5",       value: product.commission_5 },
+                  { label: "KOL",          value: product.commission_4 },
+                  { label: "Coordinador",  value: product.commission_5 },
+                  { label: "Com. 6",       value: product.commission_6 },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between">
                     <dt className="text-xs text-[#6B7280]">{label}</dt>

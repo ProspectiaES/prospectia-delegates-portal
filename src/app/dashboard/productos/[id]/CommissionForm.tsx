@@ -11,6 +11,7 @@ interface Props {
     commission_affiliate:   number | null;
     commission_4:           number | null;
     commission_5:           number | null;
+    commission_6:           number | null;
   };
 }
 
@@ -18,8 +19,9 @@ const FIELDS: { key: keyof Props["commissions"]; label: string; hint: string }[]
   { key: "commission_delegate",    label: "Delegado",      hint: "% sobre venta para el delegado asignado" },
   { key: "commission_recommender", label: "Recomendador",  hint: "% para el recomendador del cliente" },
   { key: "commission_affiliate",   label: "Afiliado",      hint: "% para el afiliado BixGrow" },
-  { key: "commission_4",           label: "Comisión 4",    hint: "Tipo de comisión adicional" },
-  { key: "commission_5",           label: "Comisión 5",    hint: "Tipo de comisión adicional" },
+  { key: "commission_4",           label: "KOL",           hint: "% para Key Opinion Leader" },
+  { key: "commission_5",           label: "Coordinador",   hint: "% para el coordinador" },
+  { key: "commission_6",           label: "Comisión 6",    hint: "Tipo de comisión adicional" },
 ];
 
 const inputCls =

@@ -23,6 +23,7 @@ interface DbProduct {
   commission_affiliate:   number | null;
   commission_4:           number | null;
   commission_5:           number | null;
+  commission_6:           number | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
   let query = supabase
     .from("holded_products")
     .select(
-      "id, name, description, sku, kind, price, total, taxes, stock, has_stock, commission_delegate, commission_recommender, commission_affiliate, commission_4, commission_5",
+      "id, name, description, sku, kind, price, total, taxes, stock, has_stock, commission_delegate, commission_recommender, commission_affiliate, commission_4, commission_5, commission_6",
       { count: "exact" }
     )
     .order("name");
@@ -129,7 +130,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
                   {[
                     "Nombre", "SKU", "Tipo", "Precio IVA incl.", "IVA", "Stock",
-                    "Delegado", "Recomendador", "Afiliado", "Com. 4", "Com. 5", ""
+                    "Delegado", "Recomendador", "Afiliado", "KOL", "Coordinador", "Com. 6", ""
                   ].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">
                       {h}
@@ -172,6 +173,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
                     <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_affiliate)}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_4)}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_5)}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_6)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Link href={`/dashboard/productos/${p.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
                         {isOwner ? "Editar →" : "Ver →"}
