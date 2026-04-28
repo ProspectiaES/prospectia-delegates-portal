@@ -14,5 +14,8 @@ jobs:
           host:     ${{ secrets.VPS_HOST }}
           username: root
           password: ${{ secrets.VPS_PASSWORD }}
+          envs:     GH_TOKEN
           script:   bash /var/www/portal/scripts/update-portal.sh
           timeout:  300s
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

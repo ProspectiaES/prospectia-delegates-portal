@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 APP_DIR="/var/www/portal"
-REPO="https://ProspectiaES:ghu_CQBiKhtLijaQPslnmfHZ9jLvf9FWNu4dHZPc@github.com/ProspectiaES/prospectia-delegates-portal.git"
+REPO="https://x-access-token:${GH_TOKEN}@github.com/ProspectiaES/prospectia-delegates-portal.git"
 
 echo "Actualizando portal..."
 cd "$APP_DIR"
