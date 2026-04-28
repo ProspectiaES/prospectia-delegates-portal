@@ -10,6 +10,10 @@ import { InvoiceTabs, DelegateInvoice } from "./InvoiceTabs";
 import { ClientAssignmentPanel } from "./ClientAssignmentPanel";
 import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
 import { DelegateProfileAssignSelect } from "./DelegateProfileAssignSelect";
+import { RiesgoClientesCard } from "./RiesgoClientesCard";
+import { ActividadClientesCard } from "./ActividadClientesCard";
+import { ComisionesCard } from "./ComisionesCard";
+import { buildCommissionBlock } from "./commissionCalc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +22,7 @@ interface DelegateProfile {
   full_name: string;
   delegate_name: string | null;
   role: string;
+  is_kol: boolean;
   show_in_delegate_list: boolean;
   created_at: string;
   email: string | null;
@@ -84,7 +89,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
   // Load delegate profile via admin (billing columns bypass RLS)
   const { data: delegateData } = await admin
     .from("profiles")
-    .select("id, full_name, delegate_name, role, show_in_delegate_list, created_at, email, phone, nif, address, city, postal_code, iban, kol_id, coordinator_id")
+    .select("id, full_name, delegate_name, role, is_kol, show_in_delegate_list, created_at, email, phone, nif, address, city, postal_code, iban, kol_id, coordinator_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -135,25 +140,159 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
       .order("email"),
   ]);
 
-  const clients      = (clientsRes.data      ?? []) as DbContact[];
-  const invoices     = (invoicesRes.data     ?? []) as DelegateInvoice[];
+  const clients       = (clientsRes.data      ?? []) as DbContact[];
+  const invoices      = (invoicesRes.data     ?? []) as DelegateInvoice[];
   const allAffiliates = (allAffiliatesRes.data ?? []) as DbAffiliate[];
+
+  // ── Dates & period ──────────────────────────────────────────────────────────
+  const now         = new Date();
+  const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
+  const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
+
+  // ── Extra data for risk / activity / commissions ────────────────────────────
+
+  // Riesgo data
+  const vencidas = invoices
+    .filter((inv) => inv.status === 2 && inv.due_date)
+    .map((inv) => ({
+      invoiceId: inv.id,
+      docNumber: inv.doc_number ?? inv.id.slice(0, 8),
+      contactId: inv.contact_id,
+      contactName: inv.contact_name ?? "—",
+      total: inv.total,
+      dueDate: inv.due_date!,
+      daysOverdue: Math.floor((now.getTime() - new Date(inv.due_date!).getTime()) / 86_400_000),
+    }))
+    .sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+  const pendientes = invoices
+    .filter((inv) => inv.status === 1)
+    .map((inv) => ({
+      invoiceId: inv.id,
+      docNumber: inv.doc_number ?? inv.id.slice(0, 8),
+      contactId: inv.contact_id,
+      contactName: inv.contact_name ?? "—",
+      total: inv.total,
+      dueDate: inv.due_date ?? null,
+      daysUntilDue: inv.due_date
+        ? Math.floor((new Date(inv.due_date).getTime() - now.getTime()) / 86_400_000)
+        : null,
+    }))
+    .sort((a, b) => {
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+  // Actividad data
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const clientLastActivity: Record<string, string> = {};
+  for (const inv of invoices) {
+    if (inv.contact_id && inv.date) {
+      if (!clientLastActivity[inv.contact_id] || inv.date > clientLastActivity[inv.contact_id]) {
+        clientLastActivity[inv.contact_id] = inv.date;
+      }
+    }
+  }
+  const activos = clients
+    .filter((c) => clientLastActivity[c.id] && clientLastActivity[c.id] >= thirtyDaysAgo)
+    .map((c) => ({
+      clientId: c.id, name: c.name,
+      lastActivity: clientLastActivity[c.id],
+      daysAgo: Math.floor((now.getTime() - new Date(clientLastActivity[c.id]).getTime()) / 86_400_000),
+    }))
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+
+  const dormidos = clients
+    .filter((c) => !clientLastActivity[c.id] || clientLastActivity[c.id] < thirtyDaysAgo)
+    .map((c) => ({
+      clientId: c.id, name: c.name,
+      lastActivity: clientLastActivity[c.id] ?? null,
+      daysDormant: clientLastActivity[c.id]
+        ? Math.floor((now.getTime() - new Date(clientLastActivity[c.id]).getTime()) / 86_400_000)
+        : 999,
+    }))
+    .sort((a, b) => b.daysDormant - a.daysDormant);
+
+  // Commissions: load all products + paid invoices this month with raw
+  const [allProductsRes, paidMonthInvRes, contactsWithRecRes] = await Promise.all([
+    admin.from("holded_products").select(
+      "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
+    ),
+    contactIds.length > 0
+      ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
+          .in("contact_id", contactIds).eq("status", 3).gte("date", periodStart).lte("date", periodEnd)
+      : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? supabase.from("holded_contacts").select("id, recommender_id").in("id", contactIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const productMap: Record<string, {
+    id: string; name: string;
+    commission_delegate: number | null; commission_delegate_type: "percent" | "amount";
+    commission_recommender: number | null; commission_recommender_type: "percent" | "amount";
+    commission_4: number | null; commission_4_type: "percent" | "amount";
+  }> = {};
+  for (const p of allProductsRes.data ?? []) productMap[p.id] = p as typeof productMap[string];
+
+  const recommenderMap: Record<string, string | null> = {};
+  for (const c of (contactsWithRecRes.data ?? []) as { id: string; recommender_id: string | null }[]) {
+    recommenderMap[c.id] = c.recommender_id;
+  }
+
+  // Load recommender names
+  const uniqueRecIds = [...new Set(Object.values(recommenderMap).filter(Boolean))] as string[];
+  const recommenderNameMap: Record<string, string> = {};
+  if (uniqueRecIds.length > 0) {
+    const { data: recContacts } = await supabase
+      .from("holded_contacts").select("id, name").in("id", uniqueRecIds);
+    for (const rc of recContacts ?? []) recommenderNameMap[rc.id] = rc.name;
+  }
+
+  const paidMonthInvoices = (paidMonthInvRes.data ?? []) as {
+    id: string; doc_number: string | null; contact_id: string | null;
+    contact_name: string | null; total: number; raw: Record<string, unknown>;
+  }[];
+
+  const delegateBlock = buildCommissionBlock(
+    "Delegado", paidMonthInvoices, productMap, recommenderMap, recommenderNameMap, "delegate"
+  );
+  const commissionBlocks = [delegateBlock];
+
+  // KOL block: if delegate also has KOL role
+  if (delegate.is_kol) {
+    const { data: kolContactsData } = await supabase
+      .from("holded_contacts").select("id, recommender_id").eq("kol_id", id);
+    const kolContactIds = (kolContactsData ?? []).map((c: { id: string }) => c.id);
+
+    const kolRecommenderMap: Record<string, string | null> = {};
+    for (const c of kolContactsData ?? []) kolRecommenderMap[(c as { id: string; recommender_id: string | null }).id] = (c as { id: string; recommender_id: string | null }).recommender_id;
+
+    let kolPaidInvoices: typeof paidMonthInvoices = [];
+    if (kolContactIds.length > 0) {
+      const { data: kolInvData } = await supabase
+        .from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
+        .in("contact_id", kolContactIds).eq("status", 3).gte("date", periodStart).lte("date", periodEnd);
+      kolPaidInvoices = (kolInvData ?? []) as typeof paidMonthInvoices;
+    }
+    commissionBlocks.push(
+      buildCommissionBlock("KOL", kolPaidInvoices, productMap, kolRecommenderMap, recommenderNameMap, "kol")
+    );
+  }
+
+  const commissionPeriod = now.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   const assignedAffiliateIds = allAffiliates
     .filter((a) => a.delegate_id === id)
     .map((a) => a.id);
 
-  // Current month period for "Cobradas este mes" tab
-  const now         = new Date();
-  const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
-  const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
-
   // Invoice KPIs
-  const totalBilled = invoices.reduce((s, inv) => s + inv.total, 0);
-  const cobradas    = invoices.filter((inv) => inv.status === 3);
-  const pendientes  = invoices.filter((inv) => inv.status === 1);
-  const vencidas    = invoices.filter((inv) => inv.status === 2);
-  const periodo     = cobradas.filter((inv) => !!inv.date && inv.date >= periodStart && inv.date <= periodEnd);
+  const totalBilled   = invoices.reduce((s, inv) => s + inv.total, 0);
+  const kpiCobradas   = invoices.filter((inv) => inv.status === 3);
+  const kpiPendientes = invoices.filter((inv) => inv.status === 1);
+  const kpiVencidas   = invoices.filter((inv) => inv.status === 2);
+  const periodo       = kpiCobradas.filter((inv) => !!inv.date && inv.date >= periodStart && inv.date <= periodEnd);
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
@@ -197,14 +336,14 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
         <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
           <p className="text-xs font-medium text-[#F59E0B] uppercase tracking-wide">Pendientes</p>
           <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">
-            {fmtCurrency(pendientes.reduce((s, inv) => s + inv.total, 0))}
+            {fmtCurrency(kpiPendientes.reduce((s, inv) => s + inv.total, 0))}
           </p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">{pendientes.length} facturas</p>
+          <p className="mt-0.5 text-xs text-[#9CA3AF]">{kpiPendientes.length} facturas</p>
         </div>
         <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
           <p className="text-xs font-medium text-[#8E0E1A] uppercase tracking-wide">Vencidas</p>
           <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">
-            {fmtCurrency(vencidas.reduce((s, inv) => s + inv.total, 0))}
+            {fmtCurrency(kpiVencidas.reduce((s, inv) => s + inv.total, 0))}
           </p>
           <p className="mt-0.5 text-xs text-[#9CA3AF]">{vencidas.length} facturas</p>
         </div>
@@ -412,6 +551,15 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
           <InvoiceTabs invoices={invoices} periodStart={periodStart} periodEnd={periodEnd} />
         </CardContent>
       </Card>
+
+      {/* Riesgo clientes */}
+      <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
+
+      {/* Actividad clientes */}
+      <ActividadClientesCard activos={activos} dormidos={dormidos} />
+
+      {/* Comisiones liquidables */}
+      <ComisionesCard blocks={commissionBlocks} period={commissionPeriod} />
 
     </div>
   );
