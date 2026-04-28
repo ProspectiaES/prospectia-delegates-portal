@@ -29,6 +29,13 @@ const IconFacturas = () => (
   </svg>
 );
 
+const IconProductos = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d="M2 5l6-3 6 3v6l-6 3-6-3V5z" strokeLinejoin="round" />
+    <path d="M8 2v13M2 5l6 3 6-3" strokeLinejoin="round" />
+  </svg>
+);
+
 const IconAfiliados = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <circle cx="5" cy="5" r="2" />
@@ -72,6 +79,7 @@ const sections = [
     items: [
       { href: "/dashboard/clientes",  label: "Clientes",   Icon: IconClientes,  exact: false },
       { href: "/dashboard/facturas",  label: "Facturas",   Icon: IconFacturas,  exact: false },
+      { href: "/dashboard/productos", label: "Productos",  Icon: IconProductos, exact: false },
     ],
   },
   {

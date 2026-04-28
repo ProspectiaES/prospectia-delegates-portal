@@ -106,6 +106,50 @@ export async function getAllDocuments(
   return all;
 }
 
+// ─── Products ────────────────────────────────────────────────────────────────
+
+export interface HoldedProduct {
+  id: string;
+  name: string;
+  desc?: string;
+  sku?: string;
+  barcode?: string;
+  factoryCode?: string;
+  kind?: string;
+  price?: number;
+  total?: number;
+  cost?: number;
+  purchasePrice?: number;
+  taxes?: string[];
+  stock?: number;
+  hasStock?: boolean;
+  tags?: string[];
+  [key: string]: unknown;
+}
+
+const PRODUCTS_PAGE_SIZE = 100;
+
+export async function getProducts(page = 1): Promise<HoldedProduct[]> {
+  const data = await holdedFetch<HoldedProduct[] | { products: HoldedProduct[] }>(
+    `/invoicing/v1/products?page=${page}`
+  );
+  if (Array.isArray(data)) return data;
+  if (data && "products" in data) return data.products;
+  return [];
+}
+
+export async function getAllProducts(): Promise<HoldedProduct[]> {
+  const all: HoldedProduct[] = [];
+  let page = 1;
+  while (true) {
+    const batch = await getProducts(page);
+    all.push(...batch);
+    if (batch.length < PRODUCTS_PAGE_SIZE) break;
+    page++;
+  }
+  return all;
+}
+
 // ─── Contact mutations ───────────────────────────────────────────────────────
 
 export interface HoldedContactUpdatePayload {

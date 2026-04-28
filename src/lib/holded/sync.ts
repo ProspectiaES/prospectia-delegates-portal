@@ -2,10 +2,12 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import {
   getAllContacts,
   getAllDocuments,
+  getAllProducts,
   getDocuments,
   docAmount,
   type HoldedContact,
   type HoldedDocument,
+  type HoldedProduct,
 } from "./api";
 
 const BATCH = 200;
@@ -82,6 +84,29 @@ function toInvoiceRow(d: HoldedDocument) {
   };
 }
 
+function toProductRow(p: HoldedProduct) {
+  return {
+    id:             p.id,
+    name:           p.name ?? "",
+    description:    p.desc           ?? null,
+    sku:            p.sku            ?? null,
+    barcode:        p.barcode        ?? null,
+    factory_code:   p.factoryCode    ?? null,
+    kind:           p.kind           ?? null,
+    price:          typeof p.price        === "number" ? p.price        : null,
+    total:          typeof p.total        === "number" ? p.total        : null,
+    cost:           typeof p.cost         === "number" ? p.cost         : null,
+    purchase_price: typeof p.purchasePrice === "number" ? p.purchasePrice : null,
+    taxes:          Array.isArray(p.taxes)  ? p.taxes  : [],
+    stock:          typeof p.stock        === "number" ? p.stock        : null,
+    has_stock:      p.hasStock ?? false,
+    tags:           Array.isArray(p.tags)   ? p.tags   : [],
+    raw:            p,
+    last_synced_at: new Date().toISOString(),
+    // commission_* columns intentionally omitted — never overwritten by sync
+  };
+}
+
 // ─── Batch upsert helper ──────────────────────────────────────────────────────
 
 async function upsertBatched<T extends Record<string, unknown>>(
@@ -102,16 +127,21 @@ async function upsertBatched<T extends Record<string, unknown>>(
 export async function runFullSync(db: SupabaseClient): Promise<{
   contacts: number;
   invoices: number;
+  products: number;
 }> {
-  const [contacts, invoices] = await Promise.all([
+  const [contacts, invoices, products] = await Promise.all([
     getAllContacts(),
     getAllDocuments("invoice"),
+    getAllProducts(),
   ]);
 
-  await upsertBatched(db, "holded_contacts", contacts.map(toContactRow));
-  await upsertBatched(db, "holded_invoices", invoices.map(toInvoiceRow));
+  await Promise.all([
+    upsertBatched(db, "holded_contacts", contacts.map(toContactRow)),
+    upsertBatched(db, "holded_invoices",  invoices.map(toInvoiceRow)),
+    upsertBatched(db, "holded_products",  products.map(toProductRow)),
+  ]);
 
-  return { contacts: contacts.length, invoices: invoices.length };
+  return { contacts: contacts.length, invoices: invoices.length, products: products.length };
 }
 
 // ─── Status-only sync (invoices, page 1 only — covers recent activity) ───────
@@ -167,17 +197,18 @@ export async function logSyncStart(
 export async function logSyncEnd(
   db: SupabaseClient,
   logId: number,
-  counts: { contacts?: number; invoices?: number },
+  counts: { contacts?: number; invoices?: number; products?: number },
   error?: string
 ): Promise<void> {
   await db
     .from("holded_sync_log")
     .update({
-      status:          error ? "failed" : "completed",
-      contacts_synced: counts.contacts ?? 0,
-      invoices_synced: counts.invoices ?? 0,
-      error_message:   error ?? null,
-      finished_at:     new Date().toISOString(),
+      status:           error ? "failed" : "completed",
+      contacts_synced:  counts.contacts ?? 0,
+      invoices_synced:  counts.invoices ?? 0,
+      products_synced:  counts.products ?? 0,
+      error_message:    error ?? null,
+      finished_at:      new Date().toISOString(),
     })
     .eq("id", logId);
 }
