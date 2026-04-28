@@ -66,6 +66,7 @@ export function buildCommissionBlock(
 
       const units = Number(rp.units) || 0;
       const price = Number(rp.price) || 0;
+      if (price === 0) continue; // promotional — no commission
       const discount = Number(rp.discount) || 0;
       const lineNet = units * price * (1 - discount / 100);
 

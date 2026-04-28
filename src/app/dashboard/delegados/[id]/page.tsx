@@ -214,19 +214,33 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     }))
     .sort((a, b) => b.daysDormant - a.daysDormant);
 
-  // Commissions: load all products + paid invoices this month with raw
-  const [allProductsRes, paidMonthInvRes, contactsWithRecRes] = await Promise.all([
+  // Commissions: load products + paid invoices this month (raw) + credit notes
+  const [allProductsRes, paidMonthInvRes, cnRes, contactsWithRecRes] = await Promise.all([
     admin.from("holded_products").select(
       "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
     ),
     contactIds.length > 0
       ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
-          .in("contact_id", contactIds).eq("status", 3).gte("date", periodStart).lte("date", periodEnd)
+          .in("contact_id", contactIds).eq("status", 3).eq("is_credit_note", false)
+          .gte("date", periodStart).lte("date", periodEnd)
+      : Promise.resolve({ data: [] }),
+    // Credit notes for any contact ever assigned to this delegate (not period-limited —
+    // a CN issued this month can cancel an invoice from a prior month)
+    contactIds.length > 0
+      ? supabase.from("holded_invoices").select("doc_num_ref")
+          .in("contact_id", contactIds).eq("is_credit_note", true).not("doc_num_ref", "is", null)
       : Promise.resolve({ data: [] }),
     contactIds.length > 0
       ? supabase.from("holded_contacts").select("id, recommender_id").in("id", contactIds)
       : Promise.resolve({ data: [] }),
   ]);
+
+  // Build set of invoice doc_numbers cancelled by a CN
+  const cancelledDocNumbers = new Set(
+    ((cnRes.data ?? []) as { doc_num_ref: string | null }[])
+      .map((r) => r.doc_num_ref)
+      .filter(Boolean) as string[]
+  );
 
   const productMap: Record<string, {
     id: string; name: string;
@@ -250,10 +264,13 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     for (const rc of recContacts ?? []) recommenderNameMap[rc.id] = rc.name;
   }
 
-  const paidMonthInvoices = (paidMonthInvRes.data ?? []) as {
+  type PaidInvoice = {
     id: string; doc_number: string | null; contact_id: string | null;
     contact_name: string | null; total: number; raw: Record<string, unknown>;
-  }[];
+  };
+
+  const paidMonthInvoices = ((paidMonthInvRes.data ?? []) as PaidInvoice[])
+    .filter((inv) => !inv.doc_number || !cancelledDocNumbers.has(inv.doc_number));
 
   const delegateBlock = buildCommissionBlock(
     "Delegado", paidMonthInvoices, productMap, recommenderMap, recommenderNameMap, "delegate"
@@ -269,12 +286,21 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     const kolRecommenderMap: Record<string, string | null> = {};
     for (const c of kolContactsData ?? []) kolRecommenderMap[(c as { id: string; recommender_id: string | null }).id] = (c as { id: string; recommender_id: string | null }).recommender_id;
 
-    let kolPaidInvoices: typeof paidMonthInvoices = [];
+    let kolPaidInvoices: PaidInvoice[] = [];
     if (kolContactIds.length > 0) {
-      const { data: kolInvData } = await supabase
-        .from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
-        .in("contact_id", kolContactIds).eq("status", 3).gte("date", periodStart).lte("date", periodEnd);
-      kolPaidInvoices = (kolInvData ?? []) as typeof paidMonthInvoices;
+      const [kolInvRes, kolCnRes] = await Promise.all([
+        supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
+          .in("contact_id", kolContactIds).eq("status", 3).eq("is_credit_note", false)
+          .gte("date", periodStart).lte("date", periodEnd),
+        supabase.from("holded_invoices").select("doc_num_ref")
+          .in("contact_id", kolContactIds).eq("is_credit_note", true).not("doc_num_ref", "is", null),
+      ]);
+      const kolCancelledDocs = new Set(
+        ((kolCnRes.data ?? []) as { doc_num_ref: string | null }[])
+          .map((r) => r.doc_num_ref).filter(Boolean) as string[]
+      );
+      kolPaidInvoices = ((kolInvRes.data ?? []) as PaidInvoice[])
+        .filter((inv) => !inv.doc_number || !kolCancelledDocs.has(inv.doc_number));
     }
     commissionBlocks.push(
       buildCommissionBlock("KOL", kolPaidInvoices, productMap, kolRecommenderMap, recommenderNameMap, "kol")

@@ -65,7 +65,8 @@ function computeInvoiceStatus(d: HoldedDocument): number {
   return 1; // Pendiente
 }
 
-function toInvoiceRow(d: HoldedDocument) {
+function toInvoiceRow(d: HoldedDocument, isCreditNote = false) {
+  const raw = d as Record<string, unknown>;
   return {
     id:                  d.id,
     doc_number:          d.docNumber          ?? null,
@@ -78,6 +79,8 @@ function toInvoiceRow(d: HoldedDocument) {
                            : null,
     total:               docAmount(d),
     status:              computeInvoiceStatus(d),
+    is_credit_note:      isCreditNote,
+    doc_num_ref:         isCreditNote ? ((raw.docNumRef as string) ?? null) : null,
     description:         d.desc ?? d.notes ?? null,
     raw:                 d,
     last_synced_at:      new Date().toISOString(),
@@ -129,19 +132,25 @@ export async function runFullSync(db: SupabaseClient): Promise<{
   invoices: number;
   products: number;
 }> {
-  const [contacts, invoices, products] = await Promise.all([
+  const [contacts, invoices, creditNotes, products] = await Promise.all([
     getAllContacts(),
     getAllDocuments("invoice"),
+    getAllDocuments("creditnote"),
     getAllProducts(),
   ]);
 
+  const allInvoiceRows = [
+    ...invoices.map(d => toInvoiceRow(d, false)),
+    ...creditNotes.map(d => toInvoiceRow(d, true)),
+  ];
+
   await Promise.all([
     upsertBatched(db, "holded_contacts", contacts.map(toContactRow)),
-    upsertBatched(db, "holded_invoices",  invoices.map(toInvoiceRow)),
+    upsertBatched(db, "holded_invoices",  allInvoiceRows),
     upsertBatched(db, "holded_products",  products.map(toProductRow)),
   ]);
 
-  return { contacts: contacts.length, invoices: invoices.length, products: products.length };
+  return { contacts: contacts.length, invoices: invoices.length + creditNotes.length, products: products.length };
 }
 
 // ─── Status-only sync (invoices, page 1 only — covers recent activity) ───────
