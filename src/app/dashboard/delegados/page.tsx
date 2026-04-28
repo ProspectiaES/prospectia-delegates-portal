@@ -9,10 +9,12 @@ import { getProfile } from "@/lib/profile";
 interface DelegateRow {
   id: string;
   full_name: string;
+  delegate_name: string | null;
   email: string | null;
   phone: string | null;
   city: string | null;
   created_at: string;
+  is_private: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,15 +37,17 @@ export default async function DelegadosPage() {
   const [delegatesRes, cdRes, affiliatesRes, invoicesRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("id, full_name, email, phone, city, created_at")
-      .eq("role", "DELEGATE")
+      .select("id, full_name, delegate_name, email, phone, city, created_at, is_private")
+      .or("role.eq.DELEGATE,show_in_delegate_list.eq.true")
       .order("full_name"),
     supabase.from("contact_delegates").select("delegate_id, contact_id"),
     supabase.from("bixgrow_affiliates").select("delegate_id").not("delegate_id", "is", null),
     supabase.from("holded_invoices").select("contact_id, total, status"),
   ]);
 
-  const delegates  = (delegatesRes.data  ?? []) as DelegateRow[];
+  const allRows    = (delegatesRes.data  ?? []) as DelegateRow[];
+  // KOL and non-OWNER roles cannot see private delegates
+  const delegates  = isOwner ? allRows : allRows.filter((d) => !d.is_private);
   const cdRows     = cdRes.data           ?? [];
   const affRows    = affiliatesRes.data   ?? [];
   const invRows    = invoicesRes.data     ?? [];
@@ -121,9 +125,14 @@ export default async function DelegadosPage() {
                 {stats.map((d) => (
                   <tr key={d.id} className="hover:bg-[#F9FAFB] transition-colors">
                     <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap">
-                      <Link href={`/dashboard/delegados/${d.id}`} className="hover:text-[#8E0E1A] transition-colors">
-                        {d.full_name}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dashboard/delegados/${d.id}`} className="hover:text-[#8E0E1A] transition-colors">
+                          {d.delegate_name ?? d.full_name}
+                        </Link>
+                        {d.is_private && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#F3F4F6] text-[#6B7280] uppercase tracking-wide">Privado</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-[#6B7280]">
                       {d.email && <p>{d.email}</p>}

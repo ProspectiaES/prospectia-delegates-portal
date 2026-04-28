@@ -8,6 +8,8 @@ import { DelegateAssignment } from "./DelegateAssignment";
 import { AffiliateSelect } from "./AffiliateSelect";
 import { RecommenderSelect } from "./RecommenderSelect";
 import { PaymentForm } from "./PaymentForm";
+import { ProfileAssignSelect } from "./ProfileAssignSelect";
+import { saveContactKOL, saveContactCoordinator, saveContactCommission6 } from "@/app/actions/contacts";
 import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +34,9 @@ interface DbContact {
   payment_method: string | null;
   iban: string | null;
   bic: string | null;
+  kol_id: string | null;
+  coordinator_id: string | null;
+  commission_6_id: string | null;
   first_synced_at: string;
   last_synced_at: string;
   raw: Record<string, unknown>;
@@ -81,7 +86,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     getProfile(),
     supabase
       .from("holded_contacts")
-      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, recommender_id, payment_method, iban, bic, first_synced_at, last_synced_at, raw")
+      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, recommender_id, payment_method, iban, bic, kol_id, coordinator_id, commission_6_id, first_synced_at, last_synced_at, raw")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -96,20 +101,29 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   const isOwner = profile?.role === "OWNER";
 
-  // Owner-only: load delegates + current assignments + all affiliates
+  // Owner-only: load delegates + current assignments + all affiliates + KOL/Coord/Com6 profiles
   let allDelegates: { id: string; full_name: string }[] = [];
   let assignedIds: string[] = [];
   let allAffiliates: { id: string; email: string; first_name: string | null; last_name: string | null; referral_code: string | null }[] = [];
+  let kolProfiles:   { id: string; display_name: string }[] = [];
+  let coordProfiles: { id: string; display_name: string }[] = [];
+  let com6Profiles:  { id: string; display_name: string }[] = [];
 
   if (isOwner) {
-    const [delegatesRes, assignmentsRes, affiliatesRes] = await Promise.all([
+    const [delegatesRes, assignmentsRes, affiliatesRes, kolRes, coordRes, com6Res] = await Promise.all([
       supabase.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
       supabase.from("contact_delegates").select("delegate_id").eq("contact_id", id),
       supabase.from("bixgrow_affiliates").select("id, email, first_name, last_name, referral_code").order("email"),
+      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "KOL").order("full_name"),
+      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "COORDINATOR").order("full_name"),
+      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "COM6").order("full_name"),
     ]);
     allDelegates  = (delegatesRes.data  ?? []) as typeof allDelegates;
     assignedIds   = (assignmentsRes.data ?? []).map((r) => r.delegate_id);
     allAffiliates = (affiliatesRes.data  ?? []) as typeof allAffiliates;
+    kolProfiles   = (kolRes.data   ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
+    coordProfiles = (coordRes.data ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
+    com6Profiles  = (com6Res.data  ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
   }
 
   const contact = contactData as DbContact;
@@ -259,6 +273,63 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                 <RecommenderSelect
                   contactId={contact.id}
                   currentRecommender={currentRecommender}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* KOL assignment — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>KOL asignado</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Key Opinion Leader</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ProfileAssignSelect
+                  contactId={contact.id}
+                  profiles={kolProfiles}
+                  currentId={contact.kol_id}
+                  action={saveContactKOL}
+                  placeholder="Sin KOL asignado"
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Coordinator assignment — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Coordinador asignado</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Coordinador de ventas</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ProfileAssignSelect
+                  contactId={contact.id}
+                  profiles={coordProfiles}
+                  currentId={contact.coordinator_id}
+                  action={saveContactCoordinator}
+                  placeholder="Sin coordinador asignado"
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Commission 6 assignment — owner only */}
+          {isOwner && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Comisión 6</CardTitle>
+                <span className="text-xs text-[#9CA3AF]">Comisión adicional</span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ProfileAssignSelect
+                  contactId={contact.id}
+                  profiles={com6Profiles}
+                  currentId={contact.commission_6_id}
+                  action={saveContactCommission6}
+                  placeholder="Sin asignar"
                 />
               </CardContent>
             </Card>
