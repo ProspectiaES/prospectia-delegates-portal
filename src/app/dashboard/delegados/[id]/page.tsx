@@ -9,13 +9,16 @@ import { DelegateBillingForm } from "./DelegateBillingForm";
 import { InvoiceTabs, DelegateInvoice } from "./InvoiceTabs";
 import { ClientAssignmentPanel } from "./ClientAssignmentPanel";
 import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
+import { DelegateProfileAssignSelect } from "./DelegateProfileAssignSelect";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DelegateProfile {
   id: string;
   full_name: string;
+  delegate_name: string | null;
   role: string;
+  show_in_delegate_list: boolean;
   created_at: string;
   email: string | null;
   phone: string | null;
@@ -24,6 +27,8 @@ interface DelegateProfile {
   city: string | null;
   postal_code: string | null;
   iban: string | null;
+  kol_id: string | null;
+  coordinator_id: string | null;
 }
 
 interface DbContact {
@@ -79,11 +84,12 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
   // Load delegate profile via admin (billing columns bypass RLS)
   const { data: delegateData } = await admin
     .from("profiles")
-    .select("id, full_name, role, created_at, email, phone, nif, address, city, postal_code, iban")
+    .select("id, full_name, delegate_name, role, show_in_delegate_list, created_at, email, phone, nif, address, city, postal_code, iban, kol_id, coordinator_id")
     .eq("id", id)
     .maybeSingle();
 
-  if (!delegateData || delegateData.role !== "DELEGATE") notFound();
+  // Allow DELEGATE role or OWNER profiles flagged as delegate (PROSPECTIA CASA)
+  if (!delegateData || (delegateData.role !== "DELEGATE" && !delegateData.show_in_delegate_list)) notFound();
 
   const delegate = delegateData as DelegateProfile;
   const isOwner  = profile?.role === "OWNER";
@@ -95,6 +101,17 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     .eq("delegate_id", id);
 
   const contactIds = (cdRows ?? []).map((r) => r.contact_id as string).filter(Boolean);
+
+  // KOL and Coordinator options (for OWNER assignment widgets)
+  const [kolOptions, coordOptions] = isOwner
+    ? await Promise.all([
+        admin.from("profiles").select("id, full_name, delegate_name").or("is_kol.eq.true,role.eq.KOL").order("full_name"),
+        admin.from("profiles").select("id, full_name, delegate_name").or("is_coordinator.eq.true,role.eq.COORDINATOR").order("full_name"),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const kolProfiles   = (kolOptions.data   ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
+  const coordProfiles = (coordOptions.data ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
 
   // Parallel: assigned clients, invoices, all affiliates
   const [clientsRes, invoicesRes, allAffiliatesRes] = await Promise.all([
@@ -151,7 +168,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">{delegate.full_name}</h1>
+            <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">{delegate.delegate_name ?? delegate.full_name}</h1>
             <div className="mt-1.5 flex items-center gap-2 flex-wrap">
               <Badge variant="default">Delegado</Badge>
               {delegate.city && <span className="text-xs text-[#6B7280]">{delegate.city}</span>}
@@ -193,40 +210,76 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Main grid: billing (1/3) + assignment (2/3) */}
+      {/* Main grid: left col (billing + KOL/Coord) + right col (clients + affiliates) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Contact + billing data */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Datos del delegado</CardTitle>
-            {isOwner && <span className="text-xs text-[#9CA3AF]">Solo visible para el owner</span>}
-          </CardHeader>
-          <CardContent>
-            {isOwner ? (
-              <DelegateBillingForm delegate={delegate} />
-            ) : (
-              <ul className="divide-y divide-[#F3F4F6] -mx-5">
-                {[
-                  { label: "Email",     value: delegate.email },
-                  { label: "Teléfono", value: delegate.phone },
-                  { label: "NIF",      value: delegate.nif },
-                  { label: "Ciudad",   value: delegate.city },
-                  { label: "Dirección", value: delegate.address },
-                  { label: "C.P.",     value: delegate.postal_code },
-                  { label: "IBAN",     value: delegate.iban },
-                ].map(({ label, value }) => (
-                  <li key={label} className="flex items-center justify-between px-5 py-3">
-                    <span className="text-xs text-[#6B7280] shrink-0">{label}</span>
-                    <span className="text-xs font-medium text-[#0A0A0A] text-right break-all">
-                      {value || <span className="text-[#D1D5DB]">—</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        {/* Left column */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Datos del delegado</CardTitle>
+              {isOwner && <span className="text-xs text-[#9CA3AF]">Solo visible para el owner</span>}
+            </CardHeader>
+            <CardContent>
+              {isOwner ? (
+                <DelegateBillingForm delegate={delegate} />
+              ) : (
+                <ul className="divide-y divide-[#F3F4F6] -mx-5">
+                  {[
+                    { label: "Email",      value: delegate.email },
+                    { label: "Teléfono",   value: delegate.phone },
+                    { label: "NIF",        value: delegate.nif },
+                    { label: "Ciudad",     value: delegate.city },
+                    { label: "Dirección",  value: delegate.address },
+                    { label: "C.P.",       value: delegate.postal_code },
+                    { label: "IBAN",       value: delegate.iban },
+                  ].map(({ label, value }) => (
+                    <li key={label} className="flex items-center justify-between px-5 py-3">
+                      <span className="text-xs text-[#6B7280] shrink-0">{label}</span>
+                      <span className="text-xs font-medium text-[#0A0A0A] text-right break-all">
+                        {value || <span className="text-[#D1D5DB]">—</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {isOwner && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>KOL asignado</CardTitle>
+                  <span className="text-xs text-[#9CA3AF]">Key Opinion Leader</span>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <DelegateProfileAssignSelect
+                    delegateId={id}
+                    profiles={kolProfiles}
+                    currentId={delegate.kol_id}
+                    field="kol"
+                    placeholder="Sin KOL asignado"
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Coordinador asignado</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <DelegateProfileAssignSelect
+                    delegateId={id}
+                    profiles={coordProfiles}
+                    currentId={delegate.coordinator_id}
+                    field="coordinator"
+                    placeholder="Sin coordinador asignado"
+                  />
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
 
         {/* Right column: clients + affiliates */}
         <div className="lg:col-span-2 space-y-6">

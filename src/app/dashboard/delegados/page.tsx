@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/Card";
-import { getProfile } from "@/lib/profile";
+import { getProfile, isKolUser } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ interface DelegateRow {
   city: string | null;
   created_at: string;
   is_private: boolean;
+  kol_id: string | null;
+  coordinator_id: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -37,7 +39,7 @@ export default async function DelegadosPage() {
   const [delegatesRes, cdRes, affiliatesRes, invoicesRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("id, full_name, delegate_name, email, phone, city, created_at, is_private")
+      .select("id, full_name, delegate_name, email, phone, city, created_at, is_private, kol_id, coordinator_id")
       .or("role.eq.DELEGATE,show_in_delegate_list.eq.true")
       .order("full_name"),
     supabase.from("contact_delegates").select("delegate_id, contact_id"),
@@ -45,9 +47,21 @@ export default async function DelegadosPage() {
     supabase.from("holded_invoices").select("contact_id, total, status"),
   ]);
 
-  const allRows    = (delegatesRes.data  ?? []) as DelegateRow[];
-  // KOL and non-OWNER roles cannot see private delegates
-  const delegates  = isOwner ? allRows : allRows.filter((d) => !d.is_private);
+  const allRows = (delegatesRes.data ?? []) as DelegateRow[];
+  const isKol   = isKolUser(profile);
+
+  // Filter visible delegates based on role:
+  // OWNER → all (including private)
+  // KOL (or DELEGATE+KOL) → delegates assigned to them as KOL + their own profile
+  // Regular DELEGATE → only their own profile
+  const delegates = isOwner
+    ? allRows
+    : allRows.filter((d) => {
+        if (d.is_private) return false;
+        if (isKol && d.kol_id === profile?.id) return true;
+        if (profile && d.id === profile.id) return true;
+        return false;
+      });
   const cdRows     = cdRes.data           ?? [];
   const affRows    = affiliatesRes.data   ?? [];
   const invRows    = invoicesRes.data     ?? [];

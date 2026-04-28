@@ -53,3 +53,41 @@ export async function saveDelegateProfile(
   revalidatePath(`/dashboard/delegados/${delegateId}`);
   return { success: true };
 }
+
+// ─── Assign KOL or Coordinator to a delegate ─────────────────────────────────
+
+function makeDelegateProfileAssignAction(field: "kol_id" | "coordinator_id") {
+  return async function (
+    _prev: SaveProfileState | null,
+    formData: FormData
+  ): Promise<SaveProfileState> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado" };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+    const delegateId = formData.get("delegate_id") as string;
+    const profileId  = (formData.get("profile_id") as string) || null;
+
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("profiles")
+      .update({ [field]: profileId })
+      .eq("id", delegateId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/delegados/${delegateId}`);
+    return { success: true };
+  };
+}
+
+export const saveDelegateKOL         = makeDelegateProfileAssignAction("kol_id");
+export const saveDelegateCoordinator = makeDelegateProfileAssignAction("coordinator_id");
