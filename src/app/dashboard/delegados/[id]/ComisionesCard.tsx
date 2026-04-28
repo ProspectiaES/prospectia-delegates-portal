@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 
@@ -23,6 +24,7 @@ export interface InvoiceCommission {
   docNumber: string;
   contactId: string | null;
   contactName: string;
+  invoiceDate: string | null;
   invoiceTotal: number;
   lines: CommissionLine[];
   subtotalCommission: number;
@@ -37,9 +39,32 @@ export interface CommissionBlock {
   totalNetCommission: number;
 }
 
+interface PendienteRow {
+  invoiceId: string;
+  docNumber: string;
+  contactName: string;
+  total: number;
+  dueDate: string | null;
+  daysUntilDue: number | null;
+}
+
+interface VencidaRow {
+  invoiceId: string;
+  docNumber: string;
+  contactName: string;
+  total: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
 interface Props {
   blocks: CommissionBlock[];
   period: string;
+  mesStr: string;        // YYYY-MM
+  isCurrentMes: boolean;
+  delegateId: string;
+  pendientes: PendienteRow[];
+  vencidas: VencidaRow[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -47,8 +72,92 @@ interface Props {
 const fmtEuro = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
 
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+
 const fmtRate = (rate: number, type: string) =>
   type === "amount" ? `${fmtEuro(rate)}/ud` : `${rate}%`;
+
+function prevMes(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  return m === 1
+    ? `${y - 1}-12`
+    : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+function nextMes(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  return m === 12
+    ? `${y + 1}-01`
+    : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+// ─── Month navigation ─────────────────────────────────────────────────────────
+
+function MonthNav({
+  mesStr, isCurrentMes, period, delegateId,
+}: { mesStr: string; isCurrentMes: boolean; period: string; delegateId: string }) {
+  const router   = useRouter();
+  const pathname = usePathname();
+
+  function go(mes: string) {
+    const nowMes = (() => {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+    })();
+    router.push(pathname + (mes === nowMes ? "" : `?mes=${mes}`));
+  }
+
+  const prev = prevMes(mesStr);
+  const next = nextMes(mesStr);
+
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+      <button
+        onClick={() => go(prev)}
+        className="flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path d="M10 4L6 8l4 4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Mes anterior
+      </button>
+
+      <div className="text-center">
+        <p className="text-sm font-bold text-[#0A0A0A] capitalize">{period}</p>
+        {isCurrentMes && (
+          <p className="text-[10px] text-[#8E0E1A] font-semibold uppercase tracking-wide">Mes en curso</p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        {!isCurrentMes && (
+          <button
+            onClick={() => go(nextMes(mesStr))}
+            className="flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
+          >
+            Mes siguiente
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+              <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+        <a
+          href={`/api/delegados/${delegateId}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs font-semibold text-[#8E0E1A] border border-[#8E0E1A] rounded-[5px] px-2.5 py-1 hover:bg-[#8E0E1A] hover:text-white transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3 13h10" strokeLinecap="round" />
+          </svg>
+          PDF
+        </a>
+      </div>
+    </div>
+  );
+}
 
 // ─── Invoice row (expandable) ─────────────────────────────────────────────────
 
@@ -83,6 +192,7 @@ function InvoiceRow({ inv }: { inv: InvoiceCommission }) {
             </p>
             <p className="text-xs text-[#9CA3AF]">
               {inv.lines.length} producto{inv.lines.length !== 1 ? "s" : ""}
+              {inv.invoiceDate && ` · Cobrada: ${fmtDate(inv.invoiceDate)}`}
               {inv.recommenderName && ` · Rec: ${inv.recommenderName}`}
             </p>
           </div>
@@ -130,7 +240,6 @@ function InvoiceRow({ inv }: { inv: InvoiceCommission }) {
                   ))}
                 </tbody>
               </table>
-
               <div className="pt-2 border-t border-[#E5E7EB] space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-[#6B7280]">Subtotal comisión</span>
@@ -155,9 +264,149 @@ function InvoiceRow({ inv }: { inv: InvoiceCommission }) {
   );
 }
 
+// ─── Pending invoices section ─────────────────────────────────────────────────
+
+function PendientesSection({ rows }: { rows: PendienteRow[] }) {
+  const [open, setOpen] = useState(false);
+  const total = rows.reduce((s, r) => s + r.total, 0);
+
+  return (
+    <div className="border-t border-[#E5E7EB]">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-[#F9FAFB] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+            className={`shrink-0 text-[#9CA3AF] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden>
+            <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-[#374151]">
+              Facturas pendientes
+              <span className="ml-2 text-xs font-normal text-[#9CA3AF]">{rows.length} factura{rows.length !== 1 ? "s" : ""} · no liquidables hasta cobro</span>
+            </p>
+          </div>
+        </div>
+        <span className="text-sm font-bold text-[#374151] tabular-nums shrink-0 ml-4">{fmtEuro(total)}</span>
+      </button>
+
+      {open && (
+        <div className="overflow-x-auto border-t border-[#F3F4F6]">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                {["Factura", "Cliente", "Vencimiento", "Días", "Importe"].map(h => (
+                  <th key={h} className="px-5 py-2 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3F4F6]">
+              {rows.map(r => (
+                <tr key={r.invoiceId} className="hover:bg-[#F9FAFB] transition-colors">
+                  <td className="px-5 py-2.5 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
+                    <Link href={`/dashboard/facturas/${r.invoiceId}`} className="hover:text-[#8E0E1A] transition-colors">
+                      {r.docNumber}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-2.5 text-[#374151] max-w-[180px] truncate">{r.contactName}</td>
+                  <td className="px-5 py-2.5 text-[#6B7280] whitespace-nowrap tabular-nums">{fmtDate(r.dueDate)}</td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    {r.daysUntilDue != null ? (
+                      <span className={r.daysUntilDue < 0 ? "text-[#8E0E1A] font-semibold" : r.daysUntilDue <= 7 ? "text-amber-600 font-semibold" : "text-[#6B7280]"}>
+                        {r.daysUntilDue < 0 ? `${Math.abs(r.daysUntilDue)} d vencida` : `${r.daysUntilDue} d`}
+                      </span>
+                    ) : <span className="text-[#D1D5DB]">—</span>}
+                  </td>
+                  <td className="px-5 py-2.5 tabular-nums font-semibold text-[#0A0A0A] text-right whitespace-nowrap">{fmtEuro(r.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-[#E5E7EB] bg-[#F9FAFB]">
+                <td colSpan={4} className="px-5 py-2.5 text-xs text-[#6B7280]">Total pendiente de cobro</td>
+                <td className="px-5 py-2.5 text-right text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Overdue invoices section ─────────────────────────────────────────────────
+
+function VencidasSection({ rows }: { rows: VencidaRow[] }) {
+  const [open, setOpen] = useState(false);
+  const total = rows.reduce((s, r) => s + r.total, 0);
+
+  return (
+    <div className="border-t border-[#E5E7EB]">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-[#F9FAFB] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+            className={`shrink-0 text-[#9CA3AF] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden>
+            <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-[#8E0E1A]">
+              Facturas vencidas
+              <span className="ml-2 text-xs font-normal text-[#9CA3AF]">{rows.length} factura{rows.length !== 1 ? "s" : ""} · requieren seguimiento</span>
+            </p>
+          </div>
+        </div>
+        <span className="text-sm font-bold text-[#8E0E1A] tabular-nums shrink-0 ml-4">{fmtEuro(total)}</span>
+      </button>
+
+      {open && (
+        <div className="overflow-x-auto border-t border-[#F3F4F6]">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-red-50 border-b border-red-100">
+                {["Factura", "Cliente", "Vencida el", "Días vencida", "Importe"].map(h => (
+                  <th key={h} className="px-5 py-2 text-left text-[10px] font-semibold text-[#8E0E1A] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3F4F6]">
+              {rows.map(r => (
+                <tr key={r.invoiceId} className="hover:bg-red-50/50 transition-colors">
+                  <td className="px-5 py-2.5 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
+                    <Link href={`/dashboard/facturas/${r.invoiceId}`} className="hover:text-[#8E0E1A] transition-colors">
+                      {r.docNumber}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-2.5 text-[#374151] max-w-[180px] truncate">{r.contactName}</td>
+                  <td className="px-5 py-2.5 text-[#8E0E1A] whitespace-nowrap tabular-nums">{fmtDate(r.dueDate)}</td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    <span className="font-semibold text-[#8E0E1A]">{r.daysOverdue} días</span>
+                  </td>
+                  <td className="px-5 py-2.5 tabular-nums font-bold text-[#8E0E1A] text-right whitespace-nowrap">{fmtEuro(r.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-red-100 bg-red-50">
+                <td colSpan={4} className="px-5 py-2.5 text-xs font-semibold text-[#8E0E1A]">Total vencido</td>
+                <td className="px-5 py-2.5 text-right text-sm font-bold text-[#8E0E1A] tabular-nums">{fmtEuro(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ComisionesCard({ blocks, period }: Props) {
+export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, pendientes, vencidas }: Props) {
   const grandTotal = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
 
   const badge = (
@@ -170,6 +419,10 @@ export function ComisionesCard({ blocks, period }: Props) {
       subtitle={`Facturas cobradas en ${period}`}
       badge={badge}
     >
+      {/* Month navigation */}
+      <MonthNav mesStr={mesStr} isCurrentMes={isCurrentMes} period={period} delegateId={delegateId} />
+
+      {/* Commission blocks */}
       {blocks.every(b => b.invoices.length === 0) ? (
         <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">
           Sin facturas cobradas en {period}.
@@ -178,7 +431,6 @@ export function ComisionesCard({ blocks, period }: Props) {
         <div className="divide-y divide-[#E5E7EB]">
           {blocks.map((block) => (
             <div key={block.role}>
-              {/* Block header */}
               <div className="px-5 py-3 bg-[#F9FAFB] flex items-center justify-between">
                 <span className="text-xs font-bold text-[#374151] uppercase tracking-wide">
                   Liquidación {block.role}
@@ -187,7 +439,6 @@ export function ComisionesCard({ blocks, period }: Props) {
                   {fmtEuro(block.totalNetCommission)}
                 </span>
               </div>
-
               {block.invoices.length === 0 ? (
                 <p className="px-5 py-4 text-xs text-[#9CA3AF]">Sin facturas cobradas este mes para este rol.</p>
               ) : (
@@ -212,6 +463,13 @@ export function ComisionesCard({ blocks, period }: Props) {
           )}
         </div>
       )}
+
+      {/* Facturas pendientes */}
+      {pendientes.length > 0 && <PendientesSection rows={pendientes} />}
+
+      {/* Facturas vencidas */}
+      {vencidas.length > 0 && <VencidasSection rows={vencidas} />}
+
     </CollapsibleCard>
   );
 }

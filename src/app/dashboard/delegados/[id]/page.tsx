@@ -78,10 +78,12 @@ const contactTypeVariant: Record<number, "default" | "success" | "warning" | "ne
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mes?: string }>;
 }
 
-export default async function DelegadoDetailPage({ params }: PageProps) {
+export default async function DelegadoDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { mes: mesParam } = await searchParams;
 
   const [profile, admin] = await Promise.all([getProfile(), Promise.resolve(createAdminClient())]);
   const supabase = await createClient();
@@ -145,9 +147,19 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
   const allAffiliates = (allAffiliatesRes.data ?? []) as DbAffiliate[];
 
   // ── Dates & period ──────────────────────────────────────────────────────────
-  const now         = new Date();
-  const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
-  const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
+  const now = new Date();
+  const nowMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  let pYear  = now.getFullYear();
+  let pMonth = now.getMonth(); // 0-indexed
+  if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
+    const [y, m] = mesParam.split("-").map(Number);
+    pYear = y; pMonth = m - 1;
+  }
+  const mesStr      = `${pYear}-${String(pMonth + 1).padStart(2, "0")}`;
+  const isCurrentMes = mesStr === nowMes;
+  const periodStart = new Date(Date.UTC(pYear, pMonth, 1)).toISOString();
+  const periodEnd   = new Date(Date.UTC(pYear, pMonth + 1, 0, 23, 59, 59, 999)).toISOString();
 
   // ── Extra data for risk / activity / commissions ────────────────────────────
 
@@ -220,7 +232,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
       "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
     ),
     contactIds.length > 0
-      ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
+      ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", contactIds).eq("status", 3).eq("is_credit_note", false)
           .gte("date", periodStart).lte("date", periodEnd)
       : Promise.resolve({ data: [] }),
@@ -266,7 +278,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
 
   type PaidInvoice = {
     id: string; doc_number: string | null; contact_id: string | null;
-    contact_name: string | null; total: number; raw: Record<string, unknown>;
+    contact_name: string | null; date: string | null; total: number; raw: Record<string, unknown>;
   };
 
   const paidMonthInvoices = ((paidMonthInvRes.data ?? []) as PaidInvoice[])
@@ -289,7 +301,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     let kolPaidInvoices: PaidInvoice[] = [];
     if (kolContactIds.length > 0) {
       const [kolInvRes, kolCnRes] = await Promise.all([
-        supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, total, raw")
+        supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", kolContactIds).eq("status", 3).eq("is_credit_note", false)
           .gte("date", periodStart).lte("date", periodEnd),
         supabase.from("holded_invoices").select("doc_num_ref")
@@ -307,7 +319,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
     );
   }
 
-  const commissionPeriod = now.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const commissionPeriod = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   const assignedAffiliateIds = allAffiliates
     .filter((a) => a.delegate_id === id)
@@ -342,7 +354,7 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
           <div className="flex flex-col items-end gap-2 shrink-0 ml-4">
             <p className="text-xs text-[#9CA3AF]">Alta: {fmtDate(delegate.created_at)}</p>
             <a
-              href={`/api/delegados/${id}/liquidacion`}
+              href={`/api/delegados/${id}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[#8E0E1A] text-xs font-semibold text-[#8E0E1A] hover:bg-[#8E0E1A] hover:text-white transition-colors duration-150"
@@ -597,7 +609,15 @@ export default async function DelegadoDetailPage({ params }: PageProps) {
       <ActividadClientesCard activos={activos} dormidos={dormidos} />
 
       {/* Comisiones liquidables */}
-      <ComisionesCard blocks={commissionBlocks} period={commissionPeriod} />
+      <ComisionesCard
+        blocks={commissionBlocks}
+        period={commissionPeriod}
+        mesStr={mesStr}
+        isCurrentMes={isCurrentMes}
+        delegateId={id}
+        pendientes={pendientes}
+        vencidas={vencidas}
+      />
 
     </div>
   );

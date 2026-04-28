@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { buildCommissionBlock } from "@/app/dashboard/delegados/[id]/commissionCalc";
-import { LiquidacionPDF } from "@/lib/pdf/liquidacion";
+import { LiquidacionPDF, type PendienteRow, type VencidaRow } from "@/lib/pdf/liquidacion";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ interface ProductRow {
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -56,11 +56,19 @@ export async function GET(
 
   const contactIds = (cdRows ?? []).map((r) => r.contact_id as string).filter(Boolean);
 
-  // Period: current calendar month
+  // Period: from ?mes=YYYY-MM or current calendar month
+  const url         = new URL(req.url);
+  const mesParam    = url.searchParams.get("mes");
   const now         = new Date();
-  const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
-  const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
-  const period      = now.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  let pYear  = now.getFullYear();
+  let pMonth = now.getMonth(); // 0-indexed
+  if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
+    const [y, m] = mesParam.split("-").map(Number);
+    pYear = y; pMonth = m - 1;
+  }
+  const periodStart = new Date(Date.UTC(pYear, pMonth, 1)).toISOString();
+  const periodEnd   = new Date(Date.UTC(pYear, pMonth + 1, 0, 23, 59, 59, 999)).toISOString();
+  const period      = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   // Products map
   const { data: allProducts } = await admin
@@ -70,12 +78,12 @@ export async function GET(
   const productMap: Record<string, ProductRow> = {};
   for (const p of allProducts ?? []) productMap[p.id] = p as ProductRow;
 
-  // Paid invoices this month + credit notes (delegate contacts)
-  const [paidRes, cnRes, contactsRecRes] = await Promise.all([
+  // Paid invoices this month + credit notes + pending/overdue (delegate contacts)
+  const [paidRes, cnRes, contactsRecRes, pendienteRes, vencidaRes] = await Promise.all([
     contactIds.length > 0
       ? supabase
           .from("holded_invoices")
-          .select("id, doc_number, contact_id, contact_name, total, raw")
+          .select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", contactIds)
           .eq("status", 3)
           .eq("is_credit_note", false)
@@ -96,9 +104,25 @@ export async function GET(
           .select("id, recommender_id")
           .in("id", contactIds)
       : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? supabase
+          .from("holded_invoices")
+          .select("id, doc_number, contact_id, contact_name, total, due_date")
+          .in("contact_id", contactIds)
+          .eq("status", 1)
+          .order("due_date", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? supabase
+          .from("holded_invoices")
+          .select("id, doc_number, contact_id, contact_name, total, due_date")
+          .in("contact_id", contactIds)
+          .eq("status", 2)
+          .order("due_date", { ascending: true })
+      : Promise.resolve({ data: [] }),
   ]);
 
-  type PaidInvoice = { id: string; doc_number: string | null; contact_id: string | null; contact_name: string | null; total: number; raw: Record<string, unknown> };
+  type PaidInvoice = { id: string; doc_number: string | null; contact_id: string | null; contact_name: string | null; date: string | null; total: number; raw: Record<string, unknown> };
 
   const cancelledDocs = new Set(
     ((cnRes.data ?? []) as { doc_num_ref: string | null }[])
@@ -120,6 +144,31 @@ export async function GET(
     const { data: recData } = await supabase.from("holded_contacts").select("id, name").in("id", recIds);
     for (const r of recData ?? []) recommenderNameMap[r.id] = r.name;
   }
+
+  // Build pending / overdue row arrays
+  type InvStatusRow = { id: string; doc_number: string | null; contact_id: string | null; contact_name: string | null; total: number; due_date: string | null };
+
+  const pendientes: PendienteRow[] = ((pendienteRes.data ?? []) as InvStatusRow[]).map((inv) => ({
+    invoiceId: inv.id,
+    docNumber: inv.doc_number ?? inv.id.slice(0, 8),
+    contactName: inv.contact_name ?? "—",
+    total: inv.total,
+    dueDate: inv.due_date ?? null,
+    daysUntilDue: inv.due_date
+      ? Math.floor((new Date(inv.due_date).getTime() - now.getTime()) / 86_400_000)
+      : null,
+  }));
+
+  const vencidas: VencidaRow[] = ((vencidaRes.data ?? []) as InvStatusRow[]).map((inv) => ({
+    invoiceId: inv.id,
+    docNumber: inv.doc_number ?? inv.id.slice(0, 8),
+    contactName: inv.contact_name ?? "—",
+    total: inv.total,
+    dueDate: inv.due_date ?? "—",
+    daysOverdue: inv.due_date
+      ? Math.floor((now.getTime() - new Date(inv.due_date).getTime()) / 86_400_000)
+      : 0,
+  })).sort((a, b) => b.daysOverdue - a.daysOverdue);
 
   const delegateBlock = buildCommissionBlock(
     "Delegado", paidInvoices, productMap, recommenderMap, recommenderNameMap, "delegate"
@@ -145,7 +194,7 @@ export async function GET(
       const [kolPaidRes, kolCnRes] = await Promise.all([
         supabase
           .from("holded_invoices")
-          .select("id, doc_number, contact_id, contact_name, total, raw")
+          .select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", kolContactIds)
           .eq("status", 3)
           .eq("is_credit_note", false)
@@ -176,6 +225,8 @@ export async function GET(
     delegate: delegateData,
     blocks,
     period,
+    pendientes,
+    vencidas,
     generatedAt: now.toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" }),
   });
 
@@ -187,7 +238,7 @@ export async function GET(
     .replace(/[^a-zA-Z0-9]/g, "-")
     .toLowerCase();
 
-  const monthSlug = now.toLocaleDateString("es-ES", { month: "2-digit", year: "numeric" }).replace("/", "-");
+  const monthSlug = `${String(pMonth + 1).padStart(2, "0")}-${pYear}`;
 
   return new Response(buffer as unknown as BodyInit, {
     headers: {

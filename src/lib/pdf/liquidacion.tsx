@@ -20,6 +20,7 @@ export interface InvoiceCommission {
   docNumber: string;
   contactId: string | null;
   contactName: string;
+  invoiceDate: string | null;
   invoiceTotal: number;
   lines: CommissionLine[];
   subtotalCommission: number;
@@ -46,9 +47,29 @@ export interface DelegateInfo {
   iban: string | null;
 }
 
+export interface PendienteRow {
+  invoiceId: string;
+  docNumber: string;
+  contactName: string;
+  total: number;
+  dueDate: string | null;
+  daysUntilDue: number | null;
+}
+
+export interface VencidaRow {
+  invoiceId: string;
+  docNumber: string;
+  contactName: string;
+  total: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const RED    = "#8E0E1A";
+const AMBER  = "#92400E";
+const AMBERBG = "#FFFBEB";
 const BLACK  = "#0A0A0A";
 const DARK   = "#374151";
 const GRAY   = "#6B7280";
@@ -65,6 +86,11 @@ const fmtEuro = (n: number) =>
 
 const fmtRate = (rate: number, type: string) =>
   type === "amount" ? `${fmtEuro(rate)}/ud` : `${rate}%`;
+
+const fmtDate = (iso: string | null) => {
+  if (!iso || iso === "—") return "—";
+  return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -122,6 +148,75 @@ const s = StyleSheet.create({
   },
   blockHeaderText: { fontFamily: "Helvetica-Bold", fontSize: 9, color: WHITE, letterSpacing: 1 },
   blockHeaderAmount: { fontFamily: "Helvetica-Bold", fontSize: 10, color: WHITE },
+
+  // Pending / overdue section headers
+  pendienteHeader: {
+    backgroundColor: AMBERBG,
+    borderTopWidth: 2,
+    borderTopColor: AMBER,
+    borderTopStyle: "solid",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  pendienteHeaderText: { fontFamily: "Helvetica-Bold", fontSize: 9, color: AMBER, letterSpacing: 1 },
+  pendienteHeaderNote: { fontSize: 7.5, color: AMBER },
+
+  vencidaHeader: {
+    backgroundColor: "#FEF2F2",
+    borderTopWidth: 2,
+    borderTopColor: RED,
+    borderTopStyle: "solid",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  vencidaHeaderText: { fontFamily: "Helvetica-Bold", fontSize: 9, color: RED, letterSpacing: 1 },
+  vencidaHeaderNote: { fontSize: 7.5, color: RED },
+
+  // Status table rows
+  statusTableHeader: {
+    flexDirection: "row",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    borderBottomStyle: "solid",
+  },
+  statusTableRow: {
+    flexDirection: "row",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    borderBottomStyle: "solid",
+  },
+  stDocNumber: { width: 80, fontSize: 7.5 },
+  stClient: { flex: 1, fontSize: 7.5 },
+  stDate: { width: 72, textAlign: "right", fontSize: 7.5 },
+  stDays: { width: 72, textAlign: "right", fontSize: 7.5 },
+  stTotal: { width: 72, textAlign: "right", fontSize: 7.5 },
+
+  statusTotalRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: LGRAY,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    borderTopStyle: "solid",
+    marginBottom: 4,
+  },
+  statusTotalLabel: { fontSize: 8, fontFamily: "Helvetica-Bold", color: DARK, marginRight: 8 },
+  statusTotalValue: { width: 72, textAlign: "right", fontSize: 8, fontFamily: "Helvetica-Bold" },
 
   // Invoice
   invoiceHeader: {
@@ -212,6 +307,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 8,
+    marginBottom: 0,
   },
   grandTotalLabel: { fontFamily: "Helvetica-Bold", fontSize: 11, color: WHITE, letterSpacing: 0.5 },
   grandTotalNote: { fontSize: 7.5, color: WHITE, opacity: 0.8, marginTop: 3 },
@@ -245,7 +341,14 @@ function InvoiceSection({ inv }: { inv: InvoiceCommission }) {
     <View wrap={false}>
       {/* Invoice header */}
       <View style={s.invoiceHeader}>
-        <Text style={s.invoiceDocNumber}>{inv.docNumber}</Text>
+        <View style={{ width: 70 }}>
+          <Text style={s.invoiceDocNumber}>{inv.docNumber}</Text>
+          {inv.invoiceDate && (
+            <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+              Cobrada: {fmtDate(inv.invoiceDate)}
+            </Text>
+          )}
+        </View>
         <Text style={s.invoiceClient}>{inv.contactName}</Text>
         <Text style={s.invoiceTotal}>{fmtEuro(inv.invoiceTotal)}</Text>
         <Text style={s.invoiceComm}>{fmtEuro(inv.netCommission)}</Text>
@@ -337,16 +440,100 @@ function BlockSection({ block }: { block: CommissionBlock }) {
   );
 }
 
+function PendientesSection({ rows }: { rows: PendienteRow[] }) {
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  return (
+    <View>
+      <View style={s.pendienteHeader}>
+        <Text style={s.pendienteHeaderText}>FACTURAS PENDIENTES DE COBRO</Text>
+        <Text style={s.pendienteHeaderNote}>{rows.length} factura{rows.length !== 1 ? "s" : ""}</Text>
+      </View>
+
+      {/* Table header */}
+      <View style={s.statusTableHeader}>
+        <Text style={[s.stDocNumber, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>FACTURA</Text>
+        <Text style={[s.stClient, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>CLIENTE</Text>
+        <Text style={[s.stDate, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>VENCE</Text>
+        <Text style={[s.stDays, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>DÍAS REST.</Text>
+        <Text style={[s.stTotal, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>IMPORTE</Text>
+      </View>
+
+      {rows.length === 0 ? (
+        <Text style={s.noInvoices}>Sin facturas pendientes.</Text>
+      ) : (
+        rows.map((row) => (
+          <View key={row.invoiceId} style={s.statusTableRow} wrap={false}>
+            <Text style={[s.stDocNumber, { color: DARK }]}>{row.docNumber}</Text>
+            <Text style={[s.stClient, { color: DARK }]}>{row.contactName}</Text>
+            <Text style={[s.stDate, { color: GRAY }]}>{fmtDate(row.dueDate)}</Text>
+            <Text style={[s.stDays, { color: row.daysUntilDue != null && row.daysUntilDue <= 7 ? AMBER : GRAY }]}>
+              {row.daysUntilDue != null ? `${row.daysUntilDue}d` : "—"}
+            </Text>
+            <Text style={[s.stTotal, { fontFamily: "Helvetica-Bold", color: DARK }]}>{fmtEuro(row.total)}</Text>
+          </View>
+        ))
+      )}
+
+      <View style={s.statusTotalRow}>
+        <Text style={s.statusTotalLabel}>Total pendiente:</Text>
+        <Text style={[s.statusTotalValue, { color: AMBER }]}>{fmtEuro(total)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function VencidasSection({ rows }: { rows: VencidaRow[] }) {
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  return (
+    <View>
+      <View style={s.vencidaHeader}>
+        <Text style={s.vencidaHeaderText}>FACTURAS VENCIDAS (IMPAGADAS)</Text>
+        <Text style={s.vencidaHeaderNote}>{rows.length} factura{rows.length !== 1 ? "s" : ""}</Text>
+      </View>
+
+      {/* Table header */}
+      <View style={s.statusTableHeader}>
+        <Text style={[s.stDocNumber, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>FACTURA</Text>
+        <Text style={[s.stClient, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>CLIENTE</Text>
+        <Text style={[s.stDate, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>VENCIÓ</Text>
+        <Text style={[s.stDays, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>DÍAS VEN.</Text>
+        <Text style={[s.stTotal, { fontFamily: "Helvetica-Bold", color: GRAY, fontSize: 7 }]}>IMPORTE</Text>
+      </View>
+
+      {rows.length === 0 ? (
+        <Text style={s.noInvoices}>Sin facturas vencidas.</Text>
+      ) : (
+        rows.map((row) => (
+          <View key={row.invoiceId} style={s.statusTableRow} wrap={false}>
+            <Text style={[s.stDocNumber, { color: DARK }]}>{row.docNumber}</Text>
+            <Text style={[s.stClient, { color: DARK }]}>{row.contactName}</Text>
+            <Text style={[s.stDate, { color: GRAY }]}>{fmtDate(row.dueDate)}</Text>
+            <Text style={[s.stDays, { color: RED }]}>{row.daysOverdue}d</Text>
+            <Text style={[s.stTotal, { fontFamily: "Helvetica-Bold", color: RED }]}>{fmtEuro(row.total)}</Text>
+          </View>
+        ))
+      )}
+
+      <View style={s.statusTotalRow}>
+        <Text style={s.statusTotalLabel}>Total vencido:</Text>
+        <Text style={[s.statusTotalValue, { color: RED }]}>{fmtEuro(total)}</Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main document ────────────────────────────────────────────────────────────
 
 interface Props {
   delegate: DelegateInfo;
   blocks: CommissionBlock[];
   period: string;
+  pendientes?: PendienteRow[];
+  vencidas?: VencidaRow[];
   generatedAt?: string;
 }
 
-export function LiquidacionPDF({ delegate, blocks, period, generatedAt }: Props) {
+export function LiquidacionPDF({ delegate, blocks, period, pendientes = [], vencidas = [], generatedAt }: Props) {
   const displayName = delegate.delegate_name ?? delegate.full_name;
   const grandTotal  = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
   const today       = generatedAt ?? new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
@@ -412,6 +599,12 @@ export function LiquidacionPDF({ delegate, blocks, period, generatedAt }: Props)
           </View>
           <Text style={s.grandTotalValue}>{fmtEuro(grandTotal)}</Text>
         </View>
+
+        {/* Pending invoices */}
+        <PendientesSection rows={pendientes} />
+
+        {/* Overdue invoices */}
+        <VencidasSection rows={vencidas} />
 
         {/* Footer */}
         <View style={s.footer} fixed>

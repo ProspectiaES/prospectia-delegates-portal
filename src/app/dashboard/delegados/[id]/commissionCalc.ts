@@ -27,6 +27,7 @@ interface PaidInvoiceRaw {
   doc_number: string | null;
   contact_id: string | null;
   contact_name: string | null;
+  date: string | null;
   total: number;
   raw: Record<string, unknown>;
 }
@@ -106,6 +107,7 @@ export function buildCommissionBlock(
       docNumber: inv.doc_number ?? inv.id.slice(0, 8),
       contactId: inv.contact_id,
       contactName: inv.contact_name ?? "—",
+      invoiceDate: inv.date ?? null,
       invoiceTotal: inv.total,
       lines,
       subtotalCommission: subtotal,
