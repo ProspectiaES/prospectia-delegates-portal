@@ -18,6 +18,15 @@ const COMMISSION_KEYS = [
   "commission_6",
 ] as const;
 
+const COMMISSION_TYPE_KEYS = [
+  "commission_delegate_type",
+  "commission_recommender_type",
+  "commission_affiliate_type",
+  "commission_4_type",
+  "commission_5_type",
+  "commission_6_type",
+] as const;
+
 export async function saveProductCommissions(
   _prev: SaveCommissionsState | null,
   formData: FormData
@@ -43,8 +52,12 @@ export async function saveProductCommissions(
     return isNaN(n) ? null : n;
   };
 
-  const updates: Record<string, number | null> = {};
+  const updates: Record<string, number | null | string> = {};
   for (const key of COMMISSION_KEYS) updates[key] = parseRate(key);
+  for (const key of COMMISSION_TYPE_KEYS) {
+    const v = (formData.get(key) as string)?.trim();
+    updates[key] = v === "amount" ? "amount" : "percent";
+  }
 
   const admin = createAdminClient();
   const { error } = await admin

@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { getProfile } from "@/lib/profile";
 import { CommissionForm } from "./CommissionForm";
+import type { CommissionValues } from "./CommissionForm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type CommType = "percent" | "amount";
 
 interface DbProduct {
   id: string;
@@ -25,12 +28,18 @@ interface DbProduct {
   has_stock: boolean;
   tags: string[];
   last_synced_at: string;
-  commission_delegate:    number | null;
-  commission_recommender: number | null;
-  commission_affiliate:   number | null;
-  commission_4:           number | null;
-  commission_5:           number | null;
-  commission_6:           number | null;
+  commission_delegate:         number | null;
+  commission_delegate_type:    CommType;
+  commission_recommender:      number | null;
+  commission_recommender_type: CommType;
+  commission_affiliate:        number | null;
+  commission_affiliate_type:   CommType;
+  commission_4:                number | null;
+  commission_4_type:           CommType;
+  commission_5:                number | null;
+  commission_5_type:           CommType;
+  commission_6:                number | null;
+  commission_6_type:           CommType;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +60,18 @@ function taxLabel(codes: string[]): string {
     return m ? `${m[1]}%` : c;
   });
   return pcts.join(" + ");
+}
+
+function fmtCommission(value: number | null, type: CommType) {
+  if (value == null) return <span className="text-[#D1D5DB] font-normal">—</span>;
+  if (type === "amount") {
+    return (
+      <span className="tabular-nums">
+        {new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €
+      </span>
+    );
+  }
+  return <span className="tabular-nums">{value}%</span>;
 }
 
 const kindLabel: Record<string, string> = {
@@ -82,18 +103,33 @@ export default async function ProductoDetailPage({ params }: PageProps) {
   const product = data as DbProduct;
 
   const infoRows = [
-    { label: "SKU",            value: product.sku },
-    { label: "Código fábrica", value: product.factory_code },
+    { label: "SKU",              value: product.sku },
+    { label: "Código fábrica",   value: product.factory_code },
     { label: "Código de barras", value: product.barcode },
-    { label: "Tipo",           value: product.kind ? (kindLabel[product.kind] ?? product.kind) : null },
-    { label: "Precio base",    value: fmtCurrency(product.price) },
-    { label: "Precio c/ IVA", value: fmtCurrency(product.total) },
-    { label: "Coste",          value: fmtCurrency(product.cost) },
-    { label: "P. compra",      value: fmtCurrency(product.purchase_price) },
-    { label: "IVA",            value: taxLabel(product.taxes ?? []) },
-    { label: "Stock",          value: product.has_stock ? String(product.stock ?? 0) : "Sin gestión de stock" },
-    { label: "Sync",           value: fmtDate(product.last_synced_at) },
+    { label: "Tipo",             value: product.kind ? (kindLabel[product.kind] ?? product.kind) : null },
+    { label: "Precio base",      value: fmtCurrency(product.price) },
+    { label: "Precio c/ IVA",    value: fmtCurrency(product.total) },
+    { label: "Coste",            value: fmtCurrency(product.cost) },
+    { label: "P. compra",        value: fmtCurrency(product.purchase_price) },
+    { label: "IVA",              value: taxLabel(product.taxes ?? []) },
+    { label: "Stock",            value: product.has_stock ? String(product.stock ?? 0) : "Sin gestión de stock" },
+    { label: "Sync",             value: fmtDate(product.last_synced_at) },
   ];
+
+  const commissionValues: CommissionValues = {
+    commission_delegate:         product.commission_delegate,
+    commission_delegate_type:    product.commission_delegate_type    ?? "percent",
+    commission_recommender:      product.commission_recommender,
+    commission_recommender_type: product.commission_recommender_type ?? "percent",
+    commission_affiliate:        product.commission_affiliate,
+    commission_affiliate_type:   product.commission_affiliate_type   ?? "percent",
+    commission_4:                product.commission_4,
+    commission_4_type:           product.commission_4_type           ?? "percent",
+    commission_5:                product.commission_5,
+    commission_5_type:           product.commission_5_type           ?? "percent",
+    commission_6:                product.commission_6,
+    commission_6_type:           product.commission_6_type           ?? "percent",
+  };
 
   return (
     <div className="max-w-screen-lg mx-auto px-6 py-8 space-y-6">
@@ -158,35 +194,25 @@ export default async function ProductoDetailPage({ params }: PageProps) {
         <Card>
           <CardHeader>
             <CardTitle>Comisiones</CardTitle>
-            {isOwner && <span className="text-xs text-[#9CA3AF]">% sobre precio de venta</span>}
+            {isOwner && <span className="text-xs text-[#9CA3AF]">% o € por producto</span>}
           </CardHeader>
           <CardContent>
             {isOwner ? (
-              <CommissionForm
-                productId={product.id}
-                commissions={{
-                  commission_delegate:    product.commission_delegate,
-                  commission_recommender: product.commission_recommender,
-                  commission_affiliate:   product.commission_affiliate,
-                  commission_4:           product.commission_4,
-                  commission_5:           product.commission_5,
-                  commission_6:           product.commission_6,
-                }}
-              />
+              <CommissionForm productId={product.id} commissions={commissionValues} />
             ) : (
               <dl className="space-y-3">
                 {[
-                  { label: "Delegado",     value: product.commission_delegate },
-                  { label: "Recomendador", value: product.commission_recommender },
-                  { label: "Afiliado",     value: product.commission_affiliate },
-                  { label: "KOL",          value: product.commission_4 },
-                  { label: "Coordinador",  value: product.commission_5 },
-                  { label: "Com. 6",       value: product.commission_6 },
-                ].map(({ label, value }) => (
+                  { label: "Delegado",     value: product.commission_delegate,    type: product.commission_delegate_type    ?? "percent" },
+                  { label: "Recomendador", value: product.commission_recommender, type: product.commission_recommender_type ?? "percent" },
+                  { label: "Afiliado",     value: product.commission_affiliate,   type: product.commission_affiliate_type   ?? "percent" },
+                  { label: "KOL",          value: product.commission_4,           type: product.commission_4_type           ?? "percent" },
+                  { label: "Coordinador",  value: product.commission_5,           type: product.commission_5_type           ?? "percent" },
+                  { label: "Com. 6",       value: product.commission_6,           type: product.commission_6_type           ?? "percent" },
+                ].map(({ label, value, type }) => (
                   <div key={label} className="flex items-center justify-between">
                     <dt className="text-xs text-[#6B7280]">{label}</dt>
                     <dd className="text-xs font-semibold text-[#0A0A0A] tabular-nums">
-                      {value != null ? `${value}%` : <span className="text-[#D1D5DB] font-normal">—</span>}
+                      {fmtCommission(value, type as CommType)}
                     </dd>
                   </div>
                 ))}

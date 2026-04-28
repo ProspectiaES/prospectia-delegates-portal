@@ -7,6 +7,8 @@ import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type CommType = "percent" | "amount";
+
 interface DbProduct {
   id: string;
   name: string;
@@ -18,12 +20,18 @@ interface DbProduct {
   taxes: string[];
   stock: number | null;
   has_stock: boolean;
-  commission_delegate:    number | null;
-  commission_recommender: number | null;
-  commission_affiliate:   number | null;
-  commission_4:           number | null;
-  commission_5:           number | null;
-  commission_6:           number | null;
+  commission_delegate:         number | null;
+  commission_delegate_type:    CommType;
+  commission_recommender:      number | null;
+  commission_recommender_type: CommType;
+  commission_affiliate:        number | null;
+  commission_affiliate_type:   CommType;
+  commission_4:                number | null;
+  commission_4_type:           CommType;
+  commission_5:                number | null;
+  commission_5_type:           CommType;
+  commission_6:                number | null;
+  commission_6_type:           CommType;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -32,8 +40,17 @@ const fmtCurrency = (n: number | null) =>
   n == null ? "—"
   : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
 
-const fmtRate = (n: number | null) =>
-  n == null ? <span className="text-[#D1D5DB]">—</span> : <span className="tabular-nums">{n}%</span>;
+function fmtCommission(value: number | null, type: CommType) {
+  if (value == null) return <span className="text-[#D1D5DB]">—</span>;
+  if (type === "amount") {
+    return (
+      <span className="tabular-nums">
+        {new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €
+      </span>
+    );
+  }
+  return <span className="tabular-nums">{value}%</span>;
+}
 
 function taxLabel(codes: string[]): string {
   if (!codes?.length) return "—";
@@ -61,7 +78,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
   let query = supabase
     .from("holded_products")
     .select(
-      "id, name, description, sku, kind, price, total, taxes, stock, has_stock, commission_delegate, commission_recommender, commission_affiliate, commission_4, commission_5, commission_6",
+      "id, name, description, sku, kind, price, total, taxes, stock, has_stock, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_affiliate, commission_affiliate_type, commission_4, commission_4_type, commission_5, commission_5_type, commission_6, commission_6_type",
       { count: "exact" }
     )
     .order("name");
@@ -168,12 +185,12 @@ export default async function ProductosPage({ searchParams }: PageProps) {
                         ? <span className={Number(p.stock) > 0 ? "text-emerald-600 font-medium" : "text-[#8E0E1A] font-medium"}>{p.stock}</span>
                         : <span className="text-[#D1D5DB]">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_delegate)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_recommender)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_affiliate)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_4)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_5)}</td>
-                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtRate(p.commission_6)}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_delegate,    p.commission_delegate_type    ?? "percent")}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_recommender, p.commission_recommender_type ?? "percent")}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_affiliate,   p.commission_affiliate_type   ?? "percent")}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_4,           p.commission_4_type           ?? "percent")}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_5,           p.commission_5_type           ?? "percent")}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{fmtCommission(p.commission_6,           p.commission_6_type           ?? "percent")}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Link href={`/dashboard/productos/${p.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
                         {isOwner ? "Editar →" : "Ver →"}
