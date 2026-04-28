@@ -45,24 +45,25 @@ function toContactRow(c: HoldedContact) {
   };
 }
 
-// Holded's list API returns status:0 for all emitted (non-draft) invoices.
-// Real payment status must be derived from paymentsPending / dueDate.
+// Holded raw.status field:
+//   0 = emitida (not yet paid — pending or overdue based on dueDate)
+//   1 = cobrada (fully paid)
+//   3 = anulada (cancelled/void)
+// NOTE: paymentsPending can have floating-point errors (~1e-14) instead of exact 0.
 function computeInvoiceStatus(d: HoldedDocument): number {
   const raw = d as Record<string, unknown>;
-  const isDraft = raw.draft === true;
-  if (isDraft) return 0;
 
-  const pending = typeof raw.paymentsPending === "number" ? raw.paymentsPending : null;
-  const paid    = typeof raw.paymentsTotal   === "number" ? raw.paymentsTotal   : null;
-  const total   = docAmount(d);
+  if (raw.draft === true) return 0; // borrador
 
-  if (pending !== null && pending <= 0)                   return 3; // Cobrada
-  if (paid    !== null && total > 0 && paid >= total)     return 3; // Cobrada
+  const holdedStatus = typeof raw.status === "number" ? raw.status : null;
 
+  if (holdedStatus === 1) return 3; // cobrada
+  if (holdedStatus === 3) return 0; // anulada — treat as void/draft
+
+  // holdedStatus === 0: emitida — differentiate pending vs overdue by dueDate
   const nowSec = Math.floor(Date.now() / 1000);
-  if (d.dueDate && d.dueDate < nowSec)                    return 2; // Vencida
-
-  return 1; // Pendiente
+  if (d.dueDate && d.dueDate < nowSec) return 2; // vencida
+  return 1; // pendiente
 }
 
 function toInvoiceRow(d: HoldedDocument, isCreditNote = false) {

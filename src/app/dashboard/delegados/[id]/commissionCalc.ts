@@ -102,9 +102,14 @@ export function buildCommissionBlock(
 
     const netCommission = subtotal - recommenderDeduction;
 
-    const approvedAtRaw = inv.raw?.approvedAt;
-    const paidAt = typeof approvedAtRaw === "number"
-      ? new Date(approvedAtRaw * 1000).toISOString()
+    // paymentsDetail contains actual payment records with dates (Unix timestamps).
+    // Take the last entry (most recent payment) as the effective collection date.
+    const paymentsDetail = inv.raw?.paymentsDetail as Array<{ date?: number }> | null | undefined;
+    const lastPayment = paymentsDetail && paymentsDetail.length > 0
+      ? paymentsDetail[paymentsDetail.length - 1]
+      : null;
+    const paidAt = lastPayment && typeof lastPayment.date === "number"
+      ? new Date(lastPayment.date * 1000).toISOString()
       : null;
 
     invoiceCommissions.push({
