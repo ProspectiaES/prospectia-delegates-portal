@@ -60,9 +60,12 @@ function computeInvoiceStatus(d: HoldedDocument): number {
   if (holdedStatus === 1) return 3; // cobrada
   if (holdedStatus === 3) return 0; // anulada — treat as void/draft
 
-  // holdedStatus === 0: emitida — differentiate pending vs overdue by dueDate
+  // holdedStatus === 0: emitida — differentiate pending vs overdue.
+  // Use dueDate when available; fall back to invoice date (Spanish norm: due on issuance
+  // unless an explicit payment term is set, so unpaid past-date = overdue).
   const nowSec = Math.floor(Date.now() / 1000);
-  if (d.dueDate && d.dueDate < nowSec) return 2; // vencida
+  const effectiveDue = d.dueDate ?? d.date;
+  if (effectiveDue && effectiveDue < nowSec) return 2; // vencida
   return 1; // pendiente
 }
 
