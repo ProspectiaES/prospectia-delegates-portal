@@ -239,18 +239,18 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     // Credit notes for any contact ever assigned to this delegate (not period-limited —
     // a CN issued this month can cancel an invoice from a prior month)
     contactIds.length > 0
-      ? supabase.from("holded_invoices").select("doc_num_ref")
-          .in("contact_id", contactIds).eq("is_credit_note", true).not("doc_num_ref", "is", null)
+      ? supabase.from("holded_invoices").select("from_invoice_id")
+          .in("contact_id", contactIds).eq("is_credit_note", true).not("from_invoice_id", "is", null)
       : Promise.resolve({ data: [] }),
     contactIds.length > 0
       ? supabase.from("holded_contacts").select("id, recommender_id").in("id", contactIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  // Build set of invoice doc_numbers cancelled by a CN
-  const cancelledDocNumbers = new Set(
-    ((cnRes.data ?? []) as { doc_num_ref: string | null }[])
-      .map((r) => r.doc_num_ref)
+  // Build set of invoice IDs cancelled by a CN — matched by Holded's own from.id pointer
+  const cancelledIds = new Set(
+    ((cnRes.data ?? []) as { from_invoice_id: string | null }[])
+      .map((r) => r.from_invoice_id)
       .filter(Boolean) as string[]
   );
 
@@ -282,7 +282,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   };
 
   const paidMonthInvoices = ((paidMonthInvRes.data ?? []) as PaidInvoice[])
-    .filter((inv) => !inv.doc_number || !cancelledDocNumbers.has(inv.doc_number));
+    .filter((inv) => !cancelledIds.has(inv.id));
 
   const delegateBlock = buildCommissionBlock(
     "Delegado", paidMonthInvoices, productMap, recommenderMap, recommenderNameMap, "delegate"
@@ -304,15 +304,15 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", kolContactIds).eq("status", 3).eq("is_credit_note", false)
           .gte("date", periodStart).lte("date", periodEnd),
-        supabase.from("holded_invoices").select("doc_num_ref")
-          .in("contact_id", kolContactIds).eq("is_credit_note", true).not("doc_num_ref", "is", null),
+        supabase.from("holded_invoices").select("from_invoice_id")
+          .in("contact_id", kolContactIds).eq("is_credit_note", true).not("from_invoice_id", "is", null),
       ]);
-      const kolCancelledDocs = new Set(
-        ((kolCnRes.data ?? []) as { doc_num_ref: string | null }[])
-          .map((r) => r.doc_num_ref).filter(Boolean) as string[]
+      const kolCancelledIds = new Set(
+        ((kolCnRes.data ?? []) as { from_invoice_id: string | null }[])
+          .map((r) => r.from_invoice_id).filter(Boolean) as string[]
       );
       kolPaidInvoices = ((kolInvRes.data ?? []) as PaidInvoice[])
-        .filter((inv) => !inv.doc_number || !kolCancelledDocs.has(inv.doc_number));
+        .filter((inv) => !kolCancelledIds.has(inv.id));
     }
     commissionBlocks.push(
       buildCommissionBlock("KOL", kolPaidInvoices, productMap, kolRecommenderMap, recommenderNameMap, "kol")

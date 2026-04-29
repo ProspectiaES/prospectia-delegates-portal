@@ -84,7 +84,13 @@ function toInvoiceRow(d: HoldedDocument, isCreditNote = false) {
     total:               docAmount(d),
     status:              computeInvoiceStatus(d),
     is_credit_note:      isCreditNote,
-    doc_num_ref:         isCreditNote ? ((raw.docNumRef as string) ?? null) : null,
+    // from_invoice_id: Holded stores the source invoice under raw.from.id (docType="invoice").
+    // This is the only reliable link — docNumRef does not exist in Holded's CN payload.
+    from_invoice_id: isCreditNote
+      ? (((raw.from as Record<string, unknown>)?.docType === "invoice"
+          ? (raw.from as Record<string, unknown>)?.id
+          : null) as string | null ?? null)
+      : null,
     description:         d.desc ?? d.notes ?? null,
     raw:                 d,
     last_synced_at:      new Date().toISOString(),
