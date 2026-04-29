@@ -45,6 +45,32 @@ function toContactRow(c: HoldedContact) {
   };
 }
 
+// Extracts base imponible (before taxes). Tries raw.subtotal first,
+// falls back to summing product lines (units × price × (1 - discount)).
+function extractSubtotal(d: HoldedDocument): number | null {
+  if (typeof d.subtotal === "number" && d.subtotal >= 0) return d.subtotal;
+  const raw = d as Record<string, unknown>;
+  const products = raw.products as Array<Record<string, unknown>> | undefined;
+  if (!products?.length) return null;
+  return products.reduce((s, p) => {
+    return s + (Number(p.units) || 0) * (Number(p.price) || 0) * (1 - (Number(p.discount) || 0) / 100);
+  }, 0);
+}
+
+// Returns total units and free-of-charge (price=0) units from product lines.
+function extractUnits(d: HoldedDocument): { units_total: number; units_foc: number } {
+  const raw = d as Record<string, unknown>;
+  const products = raw.products as Array<Record<string, unknown>> | undefined;
+  if (!products?.length) return { units_total: 0, units_foc: 0 };
+  let total = 0, foc = 0;
+  for (const p of products) {
+    const u = Number(p.units) || 0;
+    total += u;
+    if (!Number(p.price)) foc += u;
+  }
+  return { units_total: total, units_foc: foc };
+}
+
 // Returns the latest payment date for a cobrada invoice.
 // Holded's actual field name is `paymentsDetail`; `payments` is a legacy alias.
 // Falls back to `approvedAt` when paymentsDetail is absent/empty.
@@ -100,6 +126,8 @@ function toInvoiceRow(d: HoldedDocument, isCreditNote = false) {
                            : null,
     date_paid:           extractDatePaid(d),
     total:               docAmount(d),
+    subtotal:            extractSubtotal(d),
+    ...extractUnits(d),
     status:              computeInvoiceStatus(d),
     is_credit_note:      isCreditNote,
     // from_invoice_id: Holded stores the source invoice under raw.from.id (docType="invoice").
@@ -237,6 +265,8 @@ export async function runStatusSync(db: SupabaseClient): Promise<{
                           ? new Date(d.dateLastModified * 1000).toISOString()
                           : null,
     date_paid:          extractDatePaid(d),
+    subtotal:           extractSubtotal(d),
+    ...extractUnits(d),
     raw:                d,
     last_synced_at:     new Date().toISOString(),
   }));

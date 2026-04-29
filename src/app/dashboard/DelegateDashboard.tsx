@@ -15,28 +15,53 @@ export interface InvoiceRow {
   date_last_modified: string | null;
   date_paid: string | null;
   total: number;
+  subtotal: number | null;
+  units_total: number;
   status: number;
 }
 
+export interface CommissionTier {
+  id: number;
+  label: string;
+  min_units: number;
+  max_units: number | null;
+  rate: number;
+  sort_order: number;
+}
+
+export interface BonusConfig {
+  id: number;
+  label: string;
+  target_units: number;
+  bonus_amount: number;
+  period_year: number | null;
+}
+
 export interface DelegateDashboardProps {
-  period:          { year: number; month: number };
-  totalClients:    number;
-  newClients:      number;
-  dormantClients:  number;
-  emittedCount:    number;
-  emittedTotal:    number;
-  paidCount:       number;
-  paidTotal:       number;
-  overdueCount:    number;
-  overdueTotal:    number;
-  pendingCount:    number;
-  pendingTotal:    number;
-  ordersCount:     number;
-  ordersBilled:    number;
-  ordersInProcess: number;
-  overdueRows:     InvoiceRow[];
-  pendingRows:     InvoiceRow[];
-  paidRows:        InvoiceRow[];
+  period:               { year: number; month: number };
+  totalClients:         number;
+  newClients:           number;
+  dormantClients:       number;
+  emittedCount:         number;
+  emittedTotal:         number;
+  paidCount:            number;
+  paidTotal:            number;
+  overdueCount:         number;
+  overdueTotal:         number;
+  pendingCount:         number;
+  pendingTotal:         number;
+  ordersCount:          number;
+  ordersBilled:         number;
+  ordersInProcess:      number;
+  overdueRows:          InvoiceRow[];
+  pendingRows:          InvoiceRow[];
+  paidRows:             InvoiceRow[];
+  // Commission
+  unitsInPeriod:        number;
+  unitsYtd:             number;
+  paidSubtotalPeriod:   number;
+  tiers:                CommissionTier[];
+  bonusConfig:          BonusConfig | null;
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -141,6 +166,33 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest px-0.5">
       {children}
     </p>
+  );
+}
+
+// ─── Commission helpers ───────────────────────────────────────────────────────
+
+function getCurrentTier(tiers: CommissionTier[], unitsYtd: number): CommissionTier | null {
+  if (!tiers.length) return null;
+  const sorted = [...tiers].sort((a, b) => b.min_units - a.min_units);
+  return sorted.find(t => unitsYtd >= t.min_units) ?? null;
+}
+
+function getNextTier(tiers: CommissionTier[], current: CommissionTier | null): CommissionTier | null {
+  if (!tiers.length) return null;
+  const sorted = [...tiers].sort((a, b) => a.min_units - b.min_units);
+  if (!current) return sorted[0] ?? null;
+  const idx = sorted.findIndex(t => t.id === current.id);
+  return sorted[idx + 1] ?? null;
+}
+
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+
+function ProgressBar({ pct, color = "red" }: { pct: number; color?: "red" | "green" | "amber" }) {
+  const fill = { red: "bg-[#8E0E1A]", green: "bg-emerald-500", amber: "bg-amber-400" }[color];
+  return (
+    <div className="w-full bg-[#F3F4F6] rounded-full h-1.5 overflow-hidden">
+      <div className={`h-full rounded-full transition-all ${fill}`} style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
   );
 }
 
@@ -315,7 +367,19 @@ export function DelegateDashboard(props: DelegateDashboardProps) {
     pendingCount, pendingTotal,
     ordersCount, ordersBilled, ordersInProcess,
     overdueRows, pendingRows, paidRows,
+    unitsInPeriod, unitsYtd, paidSubtotalPeriod,
+    tiers, bonusConfig,
   } = props;
+
+  const currentTier   = getCurrentTier(tiers, unitsYtd);
+  const nextTier      = getNextTier(tiers, currentTier);
+  const currentRate   = currentTier ? Number(currentTier.rate) : null;
+  const liquidable    = currentRate != null ? paidSubtotalPeriod * (currentRate / 100) : null;
+  const unitsToNext   = nextTier ? Math.max(0, nextTier.min_units - unitsYtd) : null;
+  const bonusPct      = bonusConfig && bonusConfig.target_units > 0
+    ? Math.min(100, Math.round((unitsYtd / bonusConfig.target_units) * 100))
+    : null;
+  const unitsToBonus  = bonusConfig ? Math.max(0, bonusConfig.target_units - unitsYtd) : null;
 
   const [openPanel, setOpenPanel] = useState<AccordionKey>(
     overdueCount > 0 ? "overdue" : null
@@ -397,6 +461,71 @@ export function DelegateDashboard(props: DelegateDashboardProps) {
           <KpiCard label="Facturados"              value={fmtNum(ordersBilled)}    sub="convertidos a factura" variant="success" />
           <KpiCard label="En proceso"              value={fmtNum(ordersInProcess)} sub="pendientes de facturar" />
         </div>
+      </section>
+
+      {/* ── Comisiones ───────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <SectionLabel>Comisiones</SectionLabel>
+
+        {tiers.length === 0 && !bonusConfig ? (
+          <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-8 text-center shadow-sm">
+            <p className="text-sm text-[#6B7280]">Sin tramos de comisión configurados.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Row 1: period units · current tier · liquidable */}
+            <div className="grid grid-cols-3 gap-4">
+              <KpiCard
+                label="Unidades cobradas en mes"
+                value={fmtNum(unitsInPeriod)}
+                sub="unidades pagadas en período"
+              />
+              <KpiCard
+                label="Tramo actual"
+                value={currentRate != null ? `${currentRate.toFixed(2).replace(".", ",")}%` : "—"}
+                sub={currentTier?.label ?? (tiers.length > 0 ? "Por debajo del primer tramo" : "Sin tramos")}
+                variant={currentTier ? "success" : "default"}
+              />
+              <KpiCard
+                label="Importe liquidable (provisional)"
+                value={liquidable != null ? fmtEuro(liquidable) : "—"}
+                sub={`sobre ${fmtEuro(paidSubtotalPeriod)} base imponible cobrada`}
+                variant={liquidable != null && liquidable > 0 ? "success" : "default"}
+              />
+            </div>
+
+            {/* Row 2: YTD units · to next tier · bonus progress */}
+            <div className="grid grid-cols-3 gap-4">
+              <KpiCard
+                label="Unidades acumuladas (año)"
+                value={fmtNum(unitsYtd)}
+                sub="pagadas desde 1 de enero"
+              />
+              <KpiCard
+                label="Unidades para siguiente tramo"
+                value={unitsToNext != null ? fmtNum(unitsToNext) : "—"}
+                sub={nextTier ? `siguiente: ${nextTier.label}` : (currentTier ? "Tramo máximo alcanzado" : "—")}
+                variant={unitsToNext === 0 ? "success" : "default"}
+              />
+              {bonusConfig ? (
+                <div className="relative rounded-xl border bg-white border-[#E5E7EB] px-5 py-4 flex flex-col gap-2 overflow-hidden shadow-sm">
+                  <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest pl-1">{bonusConfig.label}</p>
+                  <p className="text-[1.75rem] font-bold leading-none tabular-nums text-[#0A0A0A]">
+                    {bonusPct != null ? `${bonusPct}%` : "—"}
+                  </p>
+                  <ProgressBar pct={bonusPct ?? 0} color={bonusPct != null && bonusPct >= 100 ? "green" : "red"} />
+                  <p className="text-xs text-[#6B7280]">
+                    {bonusPct != null && bonusPct >= 100
+                      ? `Bonus conseguido: ${fmtEuro(Number(bonusConfig.bonus_amount))}`
+                      : `Faltan ${fmtNum(unitsToBonus ?? 0)} uds · objetivo ${fmtNum(bonusConfig.target_units)} uds → ${fmtEuro(Number(bonusConfig.bonus_amount))}`}
+                  </p>
+                </div>
+              ) : (
+                <div />
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── Acciones rápidas ─────────────────────────────────────────── */}

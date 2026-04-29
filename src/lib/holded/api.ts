@@ -70,6 +70,8 @@ export interface HoldedDocument {
   dateLastModified?: number;
   total?: number;
   amount?: number;
+  /** Base amount before taxes (base imponible) */
+  subtotal?: number;
   /** 0=draft  1=pending  2=overdue  3=paid */
   status: number;
   desc?: string;
