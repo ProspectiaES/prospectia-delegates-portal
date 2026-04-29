@@ -4,9 +4,8 @@ APP_DIR="/var/www/portal"
 
 echo "Actualizando portal..."
 
-# Download latest tarball from GitHub API (Bearer token works from any machine)
+# Repo is public — no auth token required
 curl -sL \
-  -H "Authorization: Bearer ${GH_TOKEN}" \
   "https://api.github.com/repos/ProspectiaES/prospectia-delegates-portal/tarball/main" \
   | tar -xz -C "$APP_DIR" --strip-components=1
 
