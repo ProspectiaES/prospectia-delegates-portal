@@ -6,13 +6,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let userProfile: { id: string; full_name: string; role: string; avatar_url: string | null } | null = null;
+  let userProfile: { id: string; full_name: string; role: string; avatar_url: string | null; created_at: string } | null = null;
 
   if (user) {
     const admin = createAdminClient();
     const { data } = await admin
       .from("profiles")
-      .select("id, full_name, role, avatar_url")
+      .select("id, full_name, role, avatar_url, created_at")
       .eq("id", user.id)
       .maybeSingle();
     userProfile = data ?? null;

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
+import { useWeather, wmoLookup } from "@/lib/weather";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ const IconLogout = () => (
   </svg>
 );
 
-// ─── Role badge ───────────────────────────────────────────────────────────────
+// ─── Role config ──────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER:       "Owner",
@@ -105,7 +107,229 @@ const ROLE_COLOR: Record<string, string> = {
   CLIENT:      "bg-[#F3F4F6] text-[#6B7280]",
 };
 
-type UserProps = { id: string; full_name: string; role: string; avatar_url: string | null } | null;
+type UserProps = {
+  id: string;
+  full_name: string;
+  role: string;
+  avatar_url: string | null;
+  created_at: string;
+} | null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function antigüedad(createdAt: string): string {
+  const d     = new Date(createdAt);
+  const now   = new Date();
+  const months =
+    (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  if (months < 1)  return "Nuevo";
+  if (months < 12) return `${months} mes${months !== 1 ? "es" : ""}`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return m === 0 ? `${y} año${y !== 1 ? "s" : ""}` : `${y}a ${m}m`;
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("es-ES", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
+}
+
+function greeting(name: string, hour: number) {
+  const first = name?.split(" ")[0] ?? "";
+  if (hour >= 6  && hour < 12) return { saludo: "Buenos días",   nombre: first };
+  if (hour >= 12 && hour < 21) return { saludo: "Buenas tardes", nombre: first };
+  return                              { saludo: "Buenas noches",  nombre: first };
+}
+
+// ─── Identity panel ───────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setDone(true);
+      setTimeout(() => setDone(false), 1500);
+    });
+  }
+  return (
+    <button
+      onClick={copy}
+      title="Copiar ID"
+      className="ml-1 shrink-0 p-0.5 rounded text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors"
+    >
+      {done ? (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="4" y="1" width="7" height="8" rx="1" />
+          <rect x="1" y="3" width="7" height="8" rx="1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function MiniClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dayStr  = now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
+  const timeStr = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  const { saludo, nombre } = greeting(now.toString(), now.getHours());
+
+  return { dayStr, timeStr, saludo, nombre, hour: now.getHours() };
+}
+
+function IdentityPanel({ user, open, onToggle }: {
+  user: NonNullable<UserProps>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { weather } = useWeather();
+  const { dayStr, timeStr, saludo, nombre } = MiniClock();
+
+  const weatherInfo = weather ? wmoLookup(weather.code) : null;
+
+  return (
+    <div className="border-b border-[#E5E7EB] shrink-0">
+      {/* Panel header — always visible */}
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-2 hover:bg-[#FEF9F9] transition-colors duration-150"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* Tiny avatar */}
+          {user.avatar_url ? (
+            <Image
+              src={user.avatar_url}
+              alt={user.full_name}
+              width={20}
+              height={20}
+              className="w-5 h-5 rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <div className="w-5 h-5 rounded-full bg-[#8E0E1A] flex items-center justify-center shrink-0">
+              <span className="text-[9px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
+            </div>
+          )}
+          <span className="text-[11px] font-semibold text-[#374151] truncate">{user.full_name}</span>
+        </div>
+        <svg
+          width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
+          strokeWidth="1.5" className={`shrink-0 text-[#9CA3AF] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M2 4.5l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Expanded panel */}
+      {open && (
+        <div className="px-4 pb-4 space-y-3 bg-[#FAFAFA]">
+
+          {/* Date + time */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#8E0E1A" strokeWidth="1.5">
+                <rect x="1" y="2" width="10" height="9" rx="1.5" />
+                <path d="M4 1v2M8 1v2M1 5h10" strokeLinecap="round" />
+              </svg>
+              <span className="text-[11px] text-[#6B7280] capitalize">{dayStr}</span>
+            </div>
+            <span className="text-[12px] font-bold text-[#0A0A0A] tabular-nums">{timeStr}</span>
+          </div>
+
+          {/* Weather */}
+          {weatherInfo && weather && (
+            <div className="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#6B7280" strokeWidth="1.5">
+                <path d="M9 7a3 3 0 10-5.83 1H3a2 2 0 000 4h6a2 2 0 100-4h-.17z" />
+              </svg>
+              <span className="text-[12px] font-bold text-[#374151]">{weather.temp}°</span>
+              {weather.city && (
+                <span className="text-[11px] text-[#9CA3AF] truncate">{weather.city}</span>
+              )}
+              <span className="text-[11px] text-[#6B7280] truncate">{weatherInfo.label}</span>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-widest">Identidad</span>
+            <div className="flex-1 h-px bg-[#E5E7EB]" />
+          </div>
+
+          {/* Greeting */}
+          <p className="text-[12px] text-[#6B7280]">
+            {saludo},{" "}
+            <span className="font-semibold text-[#8E0E1A]">{nombre}</span>
+          </p>
+
+          {/* Avatar + name + role */}
+          <Link href="/dashboard/perfil" className="flex items-center gap-2.5 group">
+            <div className="relative shrink-0">
+              {user.avatar_url ? (
+                <Image
+                  src={user.avatar_url}
+                  alt={user.full_name}
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 rounded-lg object-cover ring-1 ring-[#E5E7EB]"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-[#8E0E1A] flex items-center justify-center">
+                  <span className="text-sm font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
+                </div>
+              )}
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-[#0A0A0A] truncate group-hover:text-[#8E0E1A] transition-colors leading-tight">
+                {user.full_name}
+              </p>
+              <span className={[
+                "inline-flex items-center mt-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold leading-4",
+                ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
+              ].join(" ")}>
+                {ROLE_LABEL[user.role] ?? user.role}
+              </span>
+            </div>
+          </Link>
+
+          {/* Alta + Antigüedad */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Alta</p>
+              <p className="text-[11px] font-medium text-[#374151] mt-0.5">{fmtDate(user.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Antigüedad</p>
+              <p className="text-[11px] font-medium text-[#374151] mt-0.5">{antigüedad(user.created_at)}</p>
+            </div>
+          </div>
+
+          {/* Prospectia ID */}
+          <div>
+            <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">
+              Prospectia ID
+            </p>
+            <div className="flex items-start gap-1">
+              <p className="text-[10px] font-mono text-[#6B7280] break-all leading-tight flex-1">
+                {user.id}
+              </p>
+              <CopyButton text={user.id} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Navigation tree ──────────────────────────────────────────────────────────
 
@@ -153,7 +377,9 @@ const sections = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Sidebar({ user }: { user?: UserProps }) {
-  const pathname = usePathname();
+  const pathname  = usePathname();
+  const [panelOpen, setPanelOpen] = useState(true);
+  const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
 
   return (
     <aside className="w-56 h-full flex flex-col bg-white border-r border-[#E5E7EB] shrink-0">
@@ -173,8 +399,13 @@ export function Sidebar({ user }: { user?: UserProps }) {
         </div>
       </div>
 
+      {/* Identity panel */}
+      {user && (
+        <IdentityPanel user={user} open={panelOpen} onToggle={togglePanel} />
+      )}
+
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto" aria-label="Navegación principal">
+      <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
         {sections.map(({ label, items }) => (
           <div key={label}>
             <p className="px-3 mb-1 text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest">
@@ -212,54 +443,6 @@ export function Sidebar({ user }: { user?: UserProps }) {
           </div>
         ))}
       </nav>
-
-      {/* User identity badge */}
-      {user && (
-        <div className="px-2 pb-2 shrink-0">
-          <Link
-            href="/dashboard/perfil"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-[8px] hover:bg-[#F3F4F6] transition-colors duration-150 group"
-          >
-            {/* Avatar */}
-            <div className="relative w-8 h-8 shrink-0">
-              {user.avatar_url ? (
-                <Image
-                  src={user.avatar_url}
-                  alt={user.full_name}
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-white ring-offset-0"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-[#8E0E1A] flex items-center justify-center ring-2 ring-white">
-                  <span className="text-[11px] font-bold text-white select-none">
-                    {user.full_name?.charAt(0) ?? "?"}
-                  </span>
-                </div>
-              )}
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-            </div>
-
-            {/* Name + role */}
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-semibold text-[#0A0A0A] truncate leading-tight">
-                {user.full_name || "—"}
-              </p>
-              <span className={[
-                "inline-flex items-center mt-0.5 px-1.5 py-0 rounded-full text-[10px] font-semibold leading-4",
-                ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
-              ].join(" ")}>
-                {ROLE_LABEL[user.role] ?? user.role}
-              </span>
-            </div>
-
-            {/* Chevron */}
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-[#D1D5DB] group-hover:text-[#9CA3AF] transition-colors">
-              <path d="M4.5 9l3-3-3-3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-        </div>
-      )}
 
       {/* Logout */}
       <div className="px-2 py-3 border-t border-[#E5E7EB] shrink-0">
