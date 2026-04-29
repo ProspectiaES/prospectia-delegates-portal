@@ -11,6 +11,7 @@ export interface DelegateInvoice {
   contact_name: string | null;
   date: string | null;
   due_date: string | null;
+  date_paid: string | null;
   total: number;
   status: number;
 }
@@ -49,7 +50,7 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
 
   const filtered = invoices.filter((inv) => {
     if (tab === "cobradas")   return inv.status === 3;
-    if (tab === "periodo")    return inv.status === 3 && !!inv.date && inv.date >= periodStart && inv.date <= periodEnd;
+    if (tab === "periodo")    return inv.status === 3 && !!inv.date_paid && inv.date_paid >= periodStart && inv.date_paid <= periodEnd;
     if (tab === "pendientes") return inv.status === 1;
     if (tab === "vencidas")   return inv.status === 2;
     return true;
@@ -64,7 +65,7 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
         {TABS.map(({ key, label }) => {
           const count = key === "todas" ? invoices.length : invoices.filter((inv) => {
             if (key === "cobradas")   return inv.status === 3;
-            if (key === "periodo")    return inv.status === 3 && !!inv.date && inv.date >= periodStart && inv.date <= periodEnd;
+            if (key === "periodo")    return inv.status === 3 && !!inv.date_paid && inv.date_paid >= periodStart && inv.date_paid <= periodEnd;
             if (key === "pendientes") return inv.status === 1;
             if (key === "vencidas")   return inv.status === 2;
             return false;

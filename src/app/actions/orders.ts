@@ -93,23 +93,22 @@ export async function submitOrder(
   const units         = formData.getAll("units[]")         as string[];
   const discounts     = formData.getAll("discount[]")      as string[];
 
-  if (productIds.length === 0) return { error: "Añade al menos un producto" };
+  const lines = productIds
+    .map((pid, i) => {
+      const baseTaxes = productTaxes[i] ? productTaxes[i].split(",").filter(Boolean) : [];
+      const taxes = recargo ? addRecargoTaxes(baseTaxes) : baseTaxes;
+      return {
+        productId: pid || undefined,
+        name:     productNames[i]  ?? "",
+        units:    Number(units[i]) || 1,
+        price:    Number(productPrices[i]) || 0,
+        discount: Number(discounts[i])    || 0,
+        taxes,
+      };
+    })
+    .filter(l => l.productId);
 
-  const lines = productIds.map((pid, i) => {
-    const baseTaxes = productTaxes[i] ? productTaxes[i].split(",").filter(Boolean) : [];
-    const taxes = recargo
-      ? addRecargoTaxes(baseTaxes)
-      : baseTaxes;
-
-    return {
-      productId: pid || undefined,
-      name:     productNames[i]  ?? "",
-      units:    Number(units[i]) || 1,
-      price:    Number(productPrices[i]) || 0,
-      discount: Number(discounts[i])    || 0,
-      taxes,
-    };
-  });
+  if (lines.length === 0) return { error: "Añade al menos un producto" };
 
   // ── Create salesorder in Holded ──────────────────────────────────────────
   const notes = (formData.get("notes") as string)?.trim() || undefined;
@@ -126,6 +125,19 @@ export async function submitOrder(
     });
 
     if (!result?.id) return { error: "Holded no devolvió ID de pedido" };
+
+    // Mirror to Supabase immediately so the pedidos list reflects the new order
+    const admin = createAdminClient();
+    await admin.from("holded_salesorders").upsert({
+      id:           result.id,
+      contact_id:   contactId,
+      contact_name: contactName,
+      date:         new Date().toISOString(),
+      total:        lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0),
+      status:       0,
+      raw:          { id: result.id, contactId, products: lines },
+      last_synced_at: new Date().toISOString(),
+    }, { onConflict: "id" });
 
     revalidatePath("/dashboard/pedidos");
     revalidatePath(`/dashboard/clientes/${contactId}`);

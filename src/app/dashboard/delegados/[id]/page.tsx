@@ -132,8 +132,9 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     contactIds.length > 0
       ? supabase
           .from("holded_invoices")
-          .select("id, doc_number, contact_id, contact_name, date, due_date, total, status")
+          .select("id, doc_number, contact_id, contact_name, date, due_date, date_paid, total, status")
           .in("contact_id", contactIds)
+          .eq("is_credit_note", false)
           .order("date", { ascending: false })
       : Promise.resolve({ data: [] as DelegateInvoice[] }),
     supabase
@@ -234,7 +235,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     contactIds.length > 0
       ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", contactIds).eq("status", 3).eq("is_credit_note", false)
-          .gte("date", periodStart).lte("date", periodEnd)
+          .gte("date_paid", periodStart).lte("date_paid", periodEnd)
       : Promise.resolve({ data: [] }),
     // Credit notes for any contact ever assigned to this delegate (not period-limited —
     // a CN issued this month can cancel an invoice from a prior month)
@@ -303,7 +304,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
       const [kolInvRes, kolCnRes] = await Promise.all([
         supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
           .in("contact_id", kolContactIds).eq("status", 3).eq("is_credit_note", false)
-          .gte("date", periodStart).lte("date", periodEnd),
+          .gte("date_paid", periodStart).lte("date_paid", periodEnd),
         supabase.from("holded_invoices").select("from_invoice_id")
           .in("contact_id", kolContactIds).eq("is_credit_note", true).not("from_invoice_id", "is", null),
       ]);
@@ -330,7 +331,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   const kpiCobradas   = invoices.filter((inv) => inv.status === 3);
   const kpiPendientes = invoices.filter((inv) => inv.status === 1);
   const kpiVencidas   = invoices.filter((inv) => inv.status === 2);
-  const periodo       = kpiCobradas.filter((inv) => !!inv.date && inv.date >= periodStart && inv.date <= periodEnd);
+  const periodo       = kpiCobradas.filter((inv) => !!inv.date_paid && inv.date_paid >= periodStart && inv.date_paid <= periodEnd);
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">

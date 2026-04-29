@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getProfile } from "@/lib/profile";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { orderStatus } from "@/lib/holded/api";
@@ -13,15 +15,46 @@ function fmtDate(iso: string | null) {
 }
 
 export default async function PedidosPage() {
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+
+  let contactIds: string[] | null = null;
+  if (profile?.role === "DELEGATE") {
+    const admin = createAdminClient();
+    const { data: links } = await admin
+      .from("contact_delegates")
+      .select("contact_id")
+      .eq("delegate_id", profile.id);
+    contactIds = (links ?? []).map(r => r.contact_id as string);
+  }
 
   // Show open orders (not fully invoiced — status < 3)
-  const { data, count } = await supabase
+  let query = supabase
     .from("holded_salesorders")
-    .select("id, doc_number, contact_name, date, total, status", { count: "exact" })
+    .select("id, doc_number, contact_id, contact_name, date, total, status", { count: "exact" })
     .lt("status", 3)
     .order("date", { ascending: false });
 
+  if (contactIds !== null) {
+    if (contactIds.length === 0) {
+      return (
+        <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Pedidos en curso</h1>
+              <p className="mt-1 text-sm text-[#6B7280]">Sin pedidos en curso</p>
+            </div>
+            <Link href="/dashboard/pedidos/nuevo" className="h-9 px-4 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] transition-colors shadow-sm">
+              + Nuevo pedido
+            </Link>
+          </div>
+          <Card><CardContent className="py-12 text-center"><p className="text-sm text-[#6B7280]">Aún no tienes pedidos.</p></CardContent></Card>
+        </div>
+      );
+    }
+    query = query.in("contact_id", contactIds);
+  }
+
+  const { data, count } = await query;
   const orders = data ?? [];
 
   return (

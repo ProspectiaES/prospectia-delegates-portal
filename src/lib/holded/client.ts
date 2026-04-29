@@ -17,6 +17,8 @@ export async function holdedFetch<T>(
   const apiKey = process.env.HOLDED_API_KEY;
   if (!apiKey) throw new Error("HOLDED_API_KEY is not configured");
 
+  const isReadRequest = !options?.method || options.method === "GET";
+
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
@@ -24,8 +26,7 @@ export async function holdedFetch<T>(
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    // Cache 5 min — fresh enough for a dashboard, avoids hammering the API
-    next: { revalidate: 300 },
+    ...(isReadRequest ? { next: { revalidate: 300 } } : { cache: "no-store" }),
   });
 
   if (!res.ok) {
