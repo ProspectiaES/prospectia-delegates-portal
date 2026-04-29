@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SyncButton } from "@/components/SyncButton";
+import { DelegateDashboard, type InvoiceRow } from "./DelegateDashboard";
 import { getProfile } from "@/lib/profile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,11 +52,135 @@ const statusVariant: Record<number, "neutral" | "warning" | "danger" | "success"
   0: "neutral", 1: "warning", 2: "danger", 3: "success",
 };
 
+// ─── Delegate data loader ─────────────────────────────────────────────────────
+
+async function loadDelegateData(delegateId: string, year: number, month: number) {
+  const admin = createAdminClient();
+  const periodStart = new Date(year, month - 1, 1);
+  const periodEnd   = new Date(year, month, 0, 23, 59, 59); // last day of month
+
+  // 1. Delegate's contact IDs
+  const { data: links } = await admin
+    .from("contact_delegates")
+    .select("contact_id")
+    .eq("delegate_id", delegateId);
+  const contactIds = (links ?? []).map(r => r.contact_id as string);
+
+  if (contactIds.length === 0) {
+    return { contactIds, contacts: [], invoices: [], orders: [] };
+  }
+
+  // 2. All contacts, invoices, orders in parallel
+  const [{ data: contacts }, { data: invoices }, { data: orders }] = await Promise.all([
+    admin
+      .from("holded_contacts")
+      .select("id, first_synced_at")
+      .in("id", contactIds),
+    admin
+      .from("holded_invoices")
+      .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, total, status")
+      .in("contact_id", contactIds)
+      .eq("is_credit_note", false)
+      .order("date", { ascending: false }),
+    admin
+      .from("holded_salesorders")
+      .select("id, contact_id, status, date")
+      .in("contact_id", contactIds),
+  ]);
+
+  return {
+    contactIds,
+    contacts:  contacts  ?? [],
+    invoices:  (invoices ?? []) as InvoiceRow[],
+    orders:    orders    ?? [],
+    periodStart,
+    periodEnd,
+  };
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+export default async function DashboardPage(
+  { searchParams }: { searchParams: Promise<{ month?: string }> }
+) {
+  const params  = await searchParams;
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
   const isOwner = profile?.role === "OWNER";
+
+  // ── Delegate branch ─────────────────────────────────────────────────────────
+  const isDelegate = profile?.role === "DELEGATE";
+  if (isDelegate && profile) {
+    const now   = new Date();
+    let year    = now.getFullYear();
+    let month   = now.getMonth() + 1;
+
+    if (params.month && /^\d{4}-\d{2}$/.test(params.month)) {
+      const [y, m] = params.month.split("-").map(Number);
+      if (y >= 2020 && m >= 1 && m <= 12) { year = y; month = m; }
+    }
+
+    const { contacts, invoices, orders, periodStart, periodEnd } =
+      await loadDelegateData(profile.id, year, month);
+
+    const today = new Date();
+    const ninetyDaysAgo = new Date(today.getTime() - 90 * 86_400_000);
+
+    // Period invoices
+    const periodInvoices = invoices.filter(inv => {
+      const d = new Date(inv.date);
+      return d >= (periodStart!) && d <= (periodEnd!);
+    });
+
+    // Client KPIs
+    const totalClients   = contacts.length;
+    const newClients     = contacts.filter(c =>
+      c.first_synced_at && new Date(c.first_synced_at) >= (periodStart!) && new Date(c.first_synced_at) <= (periodEnd!)
+    ).length;
+    const activeContactIds = new Set(invoices.map(i => i.contact_id).filter(Boolean));
+    const dormantClients = contacts.filter(c => {
+      const lastInv = invoices
+        .filter(i => i.contact_id === c.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      return !lastInv || new Date(lastInv.date) < ninetyDaysAgo;
+    }).length;
+
+    // Billing KPIs
+    const paidPeriod    = periodInvoices.filter(i => i.status === 3);
+    const overdueAll    = invoices.filter(i => i.status === 2);
+    const pendingAll    = invoices.filter(i => i.status === 1);
+
+    // Order KPIs
+    const periodOrders  = (orders as Array<{ id: string; contact_id: string; status: number; date: string }>)
+      .filter(o => { const d = new Date(o.date); return d >= (periodStart!) && d <= (periodEnd!); });
+
+    const sum = (arr: InvoiceRow[]) => arr.reduce((s, r) => s + (Number(r.total) || 0), 0);
+
+    void activeContactIds; // used implicitly via dormantClients
+
+    return (
+      <DelegateDashboard
+        period={{ year, month }}
+        totalClients={totalClients}
+        newClients={newClients}
+        dormantClients={dormantClients}
+        emittedCount={periodInvoices.length}
+        emittedTotal={sum(periodInvoices)}
+        paidCount={paidPeriod.length}
+        paidTotal={sum(paidPeriod)}
+        overdueCount={overdueAll.length}
+        overdueTotal={sum(overdueAll)}
+        pendingCount={pendingAll.length}
+        pendingTotal={sum(pendingAll)}
+        ordersCount={periodOrders.length}
+        ordersBilled={periodOrders.filter(o => o.status === 3).length}
+        ordersInProcess={periodOrders.filter(o => o.status < 3).length}
+        overdueRows={overdueAll}
+        pendingRows={pendingAll}
+        paidRows={paidPeriod}
+      />
+    );
+  }
+  // ── End delegate branch ─────────────────────────────────────────────────────
 
   const [
     { count: totalContacts },
