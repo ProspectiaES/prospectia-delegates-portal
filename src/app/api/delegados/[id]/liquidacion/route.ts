@@ -42,7 +42,7 @@ export async function GET(
   // Delegate profile
   const { data: delegateData } = await admin
     .from("profiles")
-    .select("id, full_name, delegate_name, role, is_kol, email, phone, nif, address, city, postal_code, iban")
+    .select("id, full_name, delegate_name, role, is_kol, email, phone, nif, address, city, postal_code, iban, contact_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -182,7 +182,10 @@ export async function GET(
       .select("id, recommender_id")
       .eq("kol_id", id);
 
-    const kolContactIds = (kolContactsData ?? []).map((c: { id: string }) => c.id);
+    // Exclude the KOL's own contact — a KOL must not earn commission on themselves
+    const kolContactIds = (kolContactsData ?? [])
+      .map((c: { id: string }) => c.id)
+      .filter((cid) => !delegateData.contact_id || cid !== delegateData.contact_id);
     const kolRecommenderMap: Record<string, string | null> = {};
     for (const c of kolContactsData ?? []) {
       kolRecommenderMap[(c as { id: string; recommender_id: string | null }).id] =
