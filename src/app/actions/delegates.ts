@@ -138,3 +138,31 @@ export async function saveAffiliateDelegates(
   revalidatePath(`/dashboard/delegados/${delegateId}`);
   return { success: true };
 }
+
+export async function setAffiliateDelegate(
+  _prevState: SaveDelegatesState | null,
+  formData: FormData
+): Promise<SaveDelegatesState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: profile } = await supabase
+    .from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+  const affiliateId = formData.get("affiliate_id") as string;
+  const delegateId  = (formData.get("delegate_id") as string) || null;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("bixgrow_affiliates")
+    .update({ delegate_id: delegateId })
+    .eq("id", affiliateId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/afiliados/${affiliateId}`);
+  if (delegateId) revalidatePath(`/dashboard/delegados/${delegateId}`);
+  return { success: true };
+}

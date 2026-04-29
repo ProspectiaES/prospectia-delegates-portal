@@ -406,13 +406,19 @@ export function Sidebar({ user }: { user?: UserProps }) {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
-        {sections.map(({ label, items }) => (
+        {sections.map(({ label, items }) => {
+          const visibleItems = items.filter(item => {
+            if (item.href === "/dashboard/productos") return user?.role === "OWNER";
+            return true;
+          });
+          if (visibleItems.length === 0) return null;
+          return (
           <div key={label}>
             <p className="px-3 mb-1 text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest">
               {label}
             </p>
             <ul className="space-y-0.5">
-              {items.map(({ href, label: itemLabel, Icon, exact }) => {
+              {visibleItems.map(({ href, label: itemLabel, Icon, exact }) => {
                 const isActive = exact ? pathname === href : pathname.startsWith(href);
                 return (
                   <li key={href}>
@@ -441,7 +447,8 @@ export function Sidebar({ user }: { user?: UserProps }) {
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Logout */}

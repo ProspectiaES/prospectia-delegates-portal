@@ -67,6 +67,8 @@ export async function submitOrder(
       contactId   = result.id;
       contactName = name;
 
+      const recommenderId = (formData.get("recommender_id") as string)?.trim() || null;
+
       // Mirror the new contact into Supabase so it appears immediately
       const admin = createAdminClient();
       await admin.from("holded_contacts").upsert({
@@ -74,6 +76,7 @@ export async function submitOrder(
         name:           contactName,
         email:          email ?? null,
         phone:          phone ?? null,
+        recommender_id: recommenderId,
         raw:            { id: contactId, name: contactName, email, phone },
         last_synced_at: new Date().toISOString(),
       }, { onConflict: "id" });

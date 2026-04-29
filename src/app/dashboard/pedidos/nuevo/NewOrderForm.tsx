@@ -29,6 +29,64 @@ interface Props {
   userRole: string;
 }
 
+// ─── Recommender search (inline, uses already-loaded contacts list) ────────────
+
+function RecommenderField({ contacts, excludeId }: { contacts: Contact[]; excludeId?: string }) {
+  const [search, setSearch]       = useState("");
+  const [selected, setSelected]   = useState<Contact | null>(null);
+  const [open, setOpen]           = useState(false);
+
+  const filtered = search.length >= 2
+    ? contacts.filter(c =>
+        c.id !== excludeId &&
+        c.name.toLowerCase().includes(search.toLowerCase())
+      ).slice(0, 10)
+    : [];
+
+  return (
+    <div className="col-span-2 space-y-1">
+      <label className="block text-xs font-medium text-[#374151]">
+        Recomendador
+        <span className="ml-1 text-[10px] font-normal text-[#9CA3AF]">(opcional)</span>
+      </label>
+
+      {selected ? (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
+          <span className="text-xs font-medium text-[#0A0A0A] flex-1 truncate">{selected.name}</span>
+          <button type="button" onClick={() => { setSelected(null); setSearch(""); }}
+            className="text-[#9CA3AF] hover:text-[#8E0E1A] text-sm leading-none">×</button>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder="Buscar cliente recomendador…"
+            className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
+          />
+          {open && filtered.length > 0 && (
+            <ul className="absolute z-10 top-full mt-1 left-0 right-0 bg-white border border-[#E5E7EB] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {filtered.map(c => (
+                <li key={c.id}>
+                  <button type="button" onMouseDown={e => e.preventDefault()}
+                    onClick={() => { setSelected(c); setSearch(""); setOpen(false); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-[#F9FAFB] border-b border-[#F3F4F6] last:border-0">
+                    {c.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <input type="hidden" name="recommender_id" value={selected?.id ?? ""} />
+    </div>
+  );
+}
+
 interface OrderLine {
   key: number;
   productId: string;
@@ -302,6 +360,9 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole }: P
                   <label className={labelCls}>Teléfono</label>
                   <input name="new_phone" type="tel" className={inputCls} />
                 </div>
+
+                {/* Recomendador */}
+                <RecommenderField contacts={contacts} />
 
                 {/* Payment method */}
                 <div className="col-span-2">

@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getProfile } from "@/lib/profile";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { AffiliateDelegateSelect } from "./AffiliateDelegateSelect";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,17 +81,25 @@ interface PageProps {
 
 export default async function AfiliadoDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = profile?.role === "OWNER";
 
-  const [{ data: affData }, { data: ordersData }, { data: paymentsData }] = await Promise.all([
-    supabase.from("bixgrow_affiliates").select("*").eq("id", id).maybeSingle(),
-    supabase.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
-    supabase.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
-  ]);
+  const admin = createAdminClient();
+
+  const [{ data: affData }, { data: ordersData }, { data: paymentsData }, { data: delegatesData }] =
+    await Promise.all([
+      supabase.from("bixgrow_affiliates").select("*").eq("id", id).maybeSingle(),
+      supabase.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
+      supabase.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
+      isOwner
+        ? admin.from("profiles").select("id, full_name, delegate_name").eq("role", "DELEGATE").order("full_name")
+        : Promise.resolve({ data: [] }),
+    ]);
 
   if (!affData) notFound();
 
-  const aff      = affData as Affiliate;
+  const aff       = affData as Affiliate;
+  const delegates = (delegatesData ?? []) as { id: string; full_name: string; delegate_name: string | null }[];
   const orders   = (ordersData   ?? []) as Order[];
   const payments = (paymentsData ?? []) as Payment[];
 
@@ -183,6 +194,19 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
                 <p className="text-xs text-[#9CA3AF]">Se vincula automáticamente por email al recibir datos.</p>
               </div>
             )}
+          {isOwner && (
+            <div className="border-t border-[#F3F4F6]">
+              <div className="px-5 pt-3 pb-1">
+                <p className="text-xs font-semibold text-[#374151]">Delegado asignado</p>
+                <p className="text-[11px] text-[#9CA3AF]">Solo visible para OWNER</p>
+              </div>
+              <AffiliateDelegateSelect
+                affiliateId={aff.id}
+                currentDelegateId={(aff as Affiliate & { delegate_id?: string | null }).delegate_id ?? null}
+                delegates={delegates}
+              />
+            </div>
+          )}
           </CardContent>
         </Card>
 
