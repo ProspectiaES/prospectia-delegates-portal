@@ -74,6 +74,8 @@ export interface HoldedDocument {
   status: number;
   desc?: string;
   notes?: string;
+  /** Payment records; present on cobrada invoices */
+  payments?: Array<{ date?: number; amount?: number; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 

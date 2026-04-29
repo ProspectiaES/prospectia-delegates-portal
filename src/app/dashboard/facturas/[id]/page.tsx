@@ -52,6 +52,7 @@ interface DbInvoice {
   date: string | null;
   due_date: string | null;
   date_last_modified: string | null;
+  date_paid: string | null;
   total: number;
   status: number;
   description: string | null;
@@ -92,7 +93,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
 
   const { data } = await supabase
     .from("holded_invoices")
-    .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, total, status, description, last_synced_at, raw")
+    .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at, raw")
     .eq("id", id)
     .maybeSingle();
 
@@ -160,7 +161,11 @@ export default async function FacturaDetailPage({ params }: PageProps) {
                     {fmtDate(inv.due_date)}
                   </span>
                 )},
-                { label: "Modificado",  value: fmtDate(inv.date_last_modified) },
+                ...(inv.status === 3 ? [{ label: "Fecha cobro", value: (
+                  <span className="text-emerald-700 font-semibold">
+                    {fmtDate(inv.date_paid ?? inv.date_last_modified)}
+                  </span>
+                )}] : []),
                 { label: "Descripción", value: inv.description ?? raw.desc ?? "—" },
                 ...(raw.notes ? [{ label: "Notas", value: raw.notes as string }] : []),
               ].map(({ label, value }) => (

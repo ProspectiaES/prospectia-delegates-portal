@@ -78,7 +78,7 @@ async function loadDelegateData(delegateId: string, year: number, month: number)
       .in("id", contactIds),
     admin
       .from("holded_invoices")
-      .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, total, status")
+      .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status")
       .in("contact_id", contactIds)
       .eq("is_credit_note", false)
       .order("date", { ascending: false }),
@@ -125,9 +125,18 @@ export default async function DashboardPage(
     const today = new Date();
     const ninetyDaysAgo = new Date(today.getTime() - 90 * 86_400_000);
 
-    // Period invoices
-    const periodInvoices = invoices.filter(inv => {
+    // Invoices emitted (date) within period
+    const emittedPeriod = invoices.filter(inv => {
       const d = new Date(inv.date);
+      return d >= (periodStart!) && d <= (periodEnd!);
+    });
+
+    // Invoices whose payment date (date_paid) falls within the period — these are liquidatable
+    const paidPeriod = invoices.filter(inv => {
+      if (inv.status !== 3) return false;
+      const dp = (inv as InvoiceRow & { date_paid?: string | null }).date_paid;
+      if (!dp) return false;
+      const d = new Date(dp);
       return d >= (periodStart!) && d <= (periodEnd!);
     });
 
@@ -144,8 +153,7 @@ export default async function DashboardPage(
       return !lastInv || new Date(lastInv.date) < ninetyDaysAgo;
     }).length;
 
-    // Billing KPIs
-    const paidPeriod    = periodInvoices.filter(i => i.status === 3);
+    // Billing KPIs — overdue and pending are absolute (not period-filtered)
     const overdueAll    = invoices.filter(i => i.status === 2);
     const pendingAll    = invoices.filter(i => i.status === 1);
 
@@ -163,8 +171,8 @@ export default async function DashboardPage(
         totalClients={totalClients}
         newClients={newClients}
         dormantClients={dormantClients}
-        emittedCount={periodInvoices.length}
-        emittedTotal={sum(periodInvoices)}
+        emittedCount={emittedPeriod.length}
+        emittedTotal={sum(emittedPeriod)}
         paidCount={paidPeriod.length}
         paidTotal={sum(paidPeriod)}
         overdueCount={overdueAll.length}

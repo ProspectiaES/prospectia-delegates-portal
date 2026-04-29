@@ -13,6 +13,7 @@ export interface InvoiceRow {
   date: string;
   due_date: string | null;
   date_last_modified: string | null;
+  date_paid: string | null;
   total: number;
   status: number;
 }
@@ -264,8 +265,8 @@ function InvoiceTable({
                 </>
               )}
               {mode === "paid" && (
-                <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap tabular-nums">
-                  {fmtDate(row.date_last_modified ?? row.date)}
+                <td className="px-4 py-3 text-emerald-700 whitespace-nowrap tabular-nums font-medium">
+                  {fmtDate(row.date_paid ?? row.date_last_modified ?? null)}
                 </td>
               )}
             </tr>

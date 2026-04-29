@@ -45,6 +45,21 @@ function toContactRow(c: HoldedContact) {
   };
 }
 
+// Returns the latest payment date from the payments array (unix seconds → ISO string).
+// Falls back to dateLastModified for cobrada invoices that lack an explicit payments list.
+function extractDatePaid(d: HoldedDocument): string | null {
+  if (!d.payments || d.payments.length === 0) {
+    // If Holded marks it as cobrada but sends no payments array, use dateLastModified
+    const raw = d as Record<string, unknown>;
+    if (typeof raw.status === "number" && raw.status === 1 && d.dateLastModified) {
+      return new Date(d.dateLastModified * 1000).toISOString();
+    }
+    return null;
+  }
+  const maxTs = Math.max(...d.payments.map(p => typeof p.date === "number" ? p.date : 0));
+  return maxTs > 0 ? new Date(maxTs * 1000).toISOString() : null;
+}
+
 // Holded raw.status field:
 //   0 = emitida (not yet paid — pending or overdue based on dueDate)
 //   1 = cobrada (fully paid)
@@ -81,6 +96,7 @@ function toInvoiceRow(d: HoldedDocument, isCreditNote = false) {
     date_last_modified:  d.dateLastModified
                            ? new Date(d.dateLastModified * 1000).toISOString()
                            : null,
+    date_paid:           extractDatePaid(d),
     total:               docAmount(d),
     status:              computeInvoiceStatus(d),
     is_credit_note:      isCreditNote,
@@ -218,6 +234,7 @@ export async function runStatusSync(db: SupabaseClient): Promise<{
     date_last_modified: d.dateLastModified
                           ? new Date(d.dateLastModified * 1000).toISOString()
                           : null,
+    date_paid:          extractDatePaid(d),
     raw:                d,
     last_synced_at:     new Date().toISOString(),
   }));

@@ -16,6 +16,7 @@ interface DbInvoice {
   date: string | null;
   due_date: string | null;
   date_last_modified: string | null;
+  date_paid: string | null;
   total: number;
   status: number;
   description: string | null;
@@ -78,7 +79,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   let query = supabase
     .from("holded_invoices")
     .select(
-      "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, total, status, description, last_synced_at",
+      "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at",
       { count: "exact" }
     )
     .order("date", { ascending: false })
@@ -189,7 +190,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "Modificado", "Importe", "Estado", ""].map((h) => (
+                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "F. Cobro", "Importe", "Estado", ""].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
@@ -232,8 +233,11 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                           {fmtDate(inv.due_date)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#6B7280]">
-                        {fmtDate(inv.date_last_modified)}
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                        {inv.status === 3
+                          ? <span className="text-emerald-700 font-medium">{fmtDate(inv.date_paid ?? inv.date_last_modified)}</span>
+                          : <span className="text-[#9CA3AF]">—</span>
+                        }
                       </td>
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap text-right font-semibold text-[#0A0A0A]">
                         {fmtCurrency(inv.total)}
