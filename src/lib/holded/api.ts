@@ -168,6 +168,8 @@ export async function getPaymentMethods(): Promise<HoldedPaymentMethod[]> {
 
 export interface HoldedContactCreatePayload {
   name: string;
+  code?: string;       // NIF / CIF
+  isperson?: 0 | 1;   // 0 = empresa, 1 = persona física
   email?: string;
   phone?: string;
   mobile?: string;

@@ -15,20 +15,23 @@ interface Product {
   price: number | null;
   total: number | null;
   taxes: string[];
+  price_pvp: number | null;
+  price_pvd: number | null;
+  price_pvl: number | null;
 }
+
+type Tarifa = "pvp" | "pvl" | "pvd";
 
 interface Props {
   paymentMethods: PaymentMethod[];
   contacts: Contact[];
   products: Product[];
+  userRole: string;
 }
 
 interface OrderLine {
   key: number;
   productId: string;
-  productName: string;
-  productPrice: number;
-  productTaxes: string;
   units: number;
   discount: number;
 }
@@ -38,51 +41,110 @@ interface OrderLine {
 const fmtEuro = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
 
-const GIRO_KEYWORDS = ["giro"];
 function isGiro(name: string) {
-  return GIRO_KEYWORDS.some(k => name.toLowerCase().includes(k));
+  return name.toLowerCase().includes("giro");
+}
+
+function effectiveBasePrice(p: Product, tarifa: Tarifa): number {
+  if (tarifa === "pvp") return p.price_pvp ?? p.price ?? 0;
+  if (tarifa === "pvd") return p.price_pvd ?? p.price ?? 0;
+  if (tarifa === "pvl") return p.price_pvl ?? p.price ?? 0;
+  return p.price ?? 0;
+}
+
+function priceWithTax(p: Product, tarifa: Tarifa): number {
+  const base = effectiveBasePrice(p, tarifa);
+  if (!p.price || p.price === 0) return base;
+  const multiplier = (p.total ?? p.price) / p.price;
+  return base * multiplier;
+}
+
+// ─── Radio group helper ────────────────────────────────────────────────────────
+
+function RadioGroup({
+  name, value, onChange, options, required, label, hint,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-[#374151] mb-1.5">
+        {label} {required && <span className="text-[#8E0E1A]">*</span>}
+      </p>
+      {hint && <p className="text-[11px] text-[#9CA3AF] mb-1.5">{hint}</p>}
+      <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden w-fit">
+        {options.map(opt => (
+          <label
+            key={opt.value}
+            className={[
+              "flex items-center gap-1.5 h-8 px-3 text-xs font-medium cursor-pointer transition-colors select-none",
+              value === opt.value
+                ? "bg-[#8E0E1A] text-white"
+                : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]",
+            ].join(" ")}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={opt.value}
+              checked={value === opt.value}
+              onChange={() => onChange(opt.value)}
+              required={required && value === ""}
+              className="sr-only"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
+export function NewOrderForm({ paymentMethods, contacts, products, userRole }: Props) {
   const [state, action, pending] = useActionState<OrderFormState | null, FormData>(submitOrder, null);
 
   // Client mode
-  const [clientMode, setClientMode]         = useState<"existing" | "new">("existing");
-  const [selectedContactId, setContactId]   = useState("");
+  const [clientMode, setClientMode]           = useState<"existing" | "new">("existing");
+  const [selectedContactId, setContactId]     = useState("");
   const [selectedContactName, setContactName] = useState("");
-  const [contactSearch, setContactSearch]   = useState("");
+  const [contactSearch, setContactSearch]     = useState("");
 
-  // New client fields
-  const [paymentMethodId, setPaymentMethodId] = useState(paymentMethods[0]?.id ?? "");
-  const [recargo, setRecargo]                 = useState(false);
-  const [showIban, setShowIban]               = useState(false);
+  // New contact fields
+  const [tipoContacto, setTipoContacto]         = useState<"company" | "person">("company");
+  const [paymentMethodId, setPaymentMethodId]   = useState(paymentMethods[0]?.id ?? "");
+  const [showIban, setShowIban]                 = useState(false);
+
+  // Recargo — mandatory, no default
+  const [recargo, setRecargo] = useState<"true" | "false" | "">("");
+
+  // Tarifa
+  const [tarifa, setTarifa] = useState<Tarifa>("pvp");
 
   // Product lines
-  const [lines, setLines] = useState<OrderLine[]>([{ key: 0, productId: "", productName: "", productPrice: 0, productTaxes: "", units: 1, discount: 0 }]);
-  const nextKey = () => Date.now();
+  const [lines, setLines] = useState<OrderLine[]>([{ key: 0, productId: "", units: 1, discount: 0 }]);
 
   const filteredContacts = contactSearch.length >= 2
     ? contacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase())).slice(0, 15)
     : [];
 
   function addLine() {
-    setLines(prev => [...prev, { key: nextKey(), productId: "", productName: "", productPrice: 0, productTaxes: "", units: 1, discount: 0 }]);
+    setLines(prev => [...prev, { key: Date.now(), productId: "", units: 1, discount: 0 }]);
   }
 
   function removeLine(key: number) {
     setLines(prev => prev.filter(l => l.key !== key));
   }
 
-  function setLineProduct(key: number, p: Product) {
-    setLines(prev => prev.map(l => l.key !== key ? l : {
-      ...l,
-      productId:    p.id,
-      productName:  p.name,
-      productPrice: p.price ?? 0,
-      productTaxes: (p.taxes ?? []).join(","),
-    }));
+  function setLineProduct(key: number, productId: string) {
+    setLines(prev => prev.map(l => l.key !== key ? l : { ...l, productId }));
   }
 
   function setLineField(key: number, field: "units" | "discount", value: number) {
@@ -90,10 +152,18 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
   }
 
   const orderTotal = lines.reduce((sum, l) => {
-    const product = products.find(p => p.id === l.productId);
-    const priceWithTax = product?.total ?? l.productPrice;
-    return sum + priceWithTax * l.units * (1 - l.discount / 100);
+    const p = products.find(p => p.id === l.productId);
+    if (!p) return sum;
+    return sum + priceWithTax(p, tarifa) * l.units * (1 - l.discount / 100);
   }, 0);
+
+  const TARIFA_OPTIONS: { value: Tarifa; label: string; desc: string }[] = [
+    { value: "pvp", label: "PVP", desc: "Precio Venta Público" },
+    { value: "pvl", label: "PVL", desc: "Precio Punto de Venta" },
+    ...(userRole === "OWNER"
+      ? [{ value: "pvd" as Tarifa, label: "PVD", desc: "Precio Distribuidor" }]
+      : []),
+  ];
 
   if (state?.success) {
     return (
@@ -117,28 +187,28 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
     );
   }
 
+  const inputCls = "w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10";
+  const labelCls = "block text-xs font-medium text-[#374151] mb-1";
+
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} className="space-y-6">
       {state?.error && (
         <div className="rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-sm text-[#8E0E1A]">
           {state.error}
         </div>
       )}
 
-      {/* ── Section 1: Client ─────────────────────────────────────────── */}
+      {/* ── Section 1: Cliente ────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm">
         <div className="px-5 py-4 border-b border-[#F3F4F6] flex items-center justify-between">
           <h2 className="text-sm font-bold text-[#0A0A0A]">Cliente</h2>
           <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden text-xs font-medium">
-            {(["existing", "new"] as const).map((m) => (
+            {(["existing", "new"] as const).map(m => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setClientMode(m)}
-                className={[
-                  "h-7 px-3 transition-colors",
-                  clientMode === m ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]",
-                ].join(" ")}
+                className={["h-7 px-3 transition-colors", clientMode === m ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"].join(" ")}
               >
                 {m === "existing" ? "Existente" : "Nuevo cliente"}
               </button>
@@ -147,122 +217,181 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
         </div>
 
         <input type="hidden" name="client_mode" value={clientMode} />
-        <input type="hidden" name="recargo_equivalencia" value={String(recargo)} />
 
         <div className="px-5 py-4 space-y-4">
           {clientMode === "existing" ? (
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-[#374151]">Buscar cliente</label>
-              <input
-                type="text"
-                value={contactSearch}
-                onChange={e => { setContactSearch(e.target.value); setContactId(""); setContactName(""); }}
-                placeholder="Escribe 2+ caracteres…"
-                className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
-              />
-              {filteredContacts.length > 0 && !selectedContactId && (
-                <ul className="border border-[#E5E7EB] rounded-lg overflow-hidden shadow-sm">
-                  {filteredContacts.map(c => (
-                    <li key={c.id}>
-                      <button
-                        type="button"
-                        onClick={() => { setContactId(c.id); setContactName(c.name); setContactSearch(c.name); }}
-                        className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#F9FAFB] transition-colors border-b border-[#F3F4F6] last:border-0"
-                      >
-                        {c.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {selectedContactId && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                  <span className="text-xs font-semibold text-emerald-700 flex-1">{selectedContactName}</span>
-                  <button type="button" onClick={() => { setContactId(""); setContactName(""); setContactSearch(""); }} className="text-[10px] text-[#9CA3AF] hover:text-[#8E0E1A]">✕</button>
-                </div>
-              )}
-              <input type="hidden" name="contact_id"   value={selectedContactId} />
-              <input type="hidden" name="contact_name" value={selectedContactName} />
-
-              {/* Recargo de equivalencia for existing client */}
-              <div className="flex items-center justify-between pt-2">
-                <label className="text-xs font-medium text-[#374151]">¿Recargo de equivalencia?</label>
-                <button
-                  type="button"
-                  onClick={() => setRecargo(r => !r)}
-                  className={["relative inline-flex h-5 w-9 rounded-full transition-colors", recargo ? "bg-[#8E0E1A]" : "bg-[#E5E7EB]"].join(" ")}
-                >
-                  <span className={["absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform", recargo ? "translate-x-4" : ""].join(" ")} />
-                </button>
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Buscar cliente</label>
+                <input
+                  type="text"
+                  value={contactSearch}
+                  onChange={e => { setContactSearch(e.target.value); setContactId(""); setContactName(""); }}
+                  placeholder="Escribe 2+ caracteres…"
+                  className={inputCls}
+                />
+                {filteredContacts.length > 0 && !selectedContactId && (
+                  <ul className="mt-1 border border-[#E5E7EB] rounded-lg overflow-hidden shadow-sm">
+                    {filteredContacts.map(c => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => { setContactId(c.id); setContactName(c.name); setContactSearch(c.name); }}
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#F9FAFB] transition-colors border-b border-[#F3F4F6] last:border-0"
+                        >
+                          {c.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {selectedContactId && (
+                  <div className="mt-1 flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                    <span className="text-xs font-semibold text-emerald-700 flex-1">{selectedContactName}</span>
+                    <button type="button" onClick={() => { setContactId(""); setContactName(""); setContactSearch(""); }} className="text-[10px] text-[#9CA3AF] hover:text-[#8E0E1A]">✕</button>
+                  </div>
+                )}
+                <input type="hidden" name="contact_id"   value={selectedContactId} />
+                <input type="hidden" name="contact_name" value={selectedContactName} />
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-[#374151] mb-1">Nombre <span className="text-[#8E0E1A]">*</span></label>
-                <input name="new_name" type="text" required className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[#374151] mb-1">Email</label>
-                <input name="new_email" type="email" className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[#374151] mb-1">Teléfono</label>
-                <input name="new_phone" type="tel" className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10" />
-              </div>
-
-              {/* Payment method */}
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-[#374151] mb-1">Forma de pago <span className="text-[#8E0E1A]">*</span></label>
-                <select
-                  name="payment_method_id"
-                  value={paymentMethodId}
-                  onChange={e => { setPaymentMethodId(e.target.value); setShowIban(isGiro(paymentMethods.find(p => p.id === e.target.value)?.name ?? "")); }}
-                  className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm bg-white focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
-                >
-                  {paymentMethods.map(pm => (
-                    <option key={pm.id} value={pm.id}>{pm.name}</option>
+            <div className="space-y-4">
+              {/* Empresa / Persona */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-[#374151]">Tipo:</span>
+                <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden">
+                  {(["company", "person"] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTipoContacto(t)}
+                      className={["h-7 px-3 text-xs font-medium transition-colors", tipoContacto === t ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"].join(" ")}
+                    >
+                      {t === "company" ? "Empresa" : "Persona"}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <input type="hidden" name="tipo_contacto" value={tipoContacto} />
               </div>
 
-              {/* IBAN — shown when payment method contains "giro" */}
-              {showIban && (
+              <div className="grid grid-cols-2 gap-3">
+                {/* Nombre */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-[#374151] mb-1">
-                    IBAN <span className="text-[#8E0E1A]">*</span>
-                    <span className="text-[#9CA3AF] font-normal ml-1">(obligatorio para giro bancario)</span>
+                  <label className={labelCls}>
+                    {tipoContacto === "company" ? "Razón social" : "Nombre completo"}{" "}
+                    <span className="text-[#8E0E1A]">*</span>
                   </label>
-                  <input
-                    name="new_iban"
-                    type="text"
-                    required={showIban}
-                    placeholder="ES12 0000 0000 0000 0000 0000"
-                    className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm font-mono focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
-                  />
+                  <input name="new_name" type="text" required className={inputCls} />
                 </div>
-              )}
 
-              {/* Recargo de equivalencia */}
-              <div className="col-span-2 flex items-center justify-between py-1">
-                <div>
-                  <p className="text-xs font-medium text-[#374151]">¿Recargo de equivalencia?</p>
-                  <p className="text-[11px] text-[#9CA3AF]">Aplica recargo sobre IVA en cada línea de producto</p>
+                {/* NIF / CIF */}
+                <div className="col-span-2">
+                  <label className={labelCls}>
+                    {tipoContacto === "company" ? "CIF" : "NIF / DNI"}
+                  </label>
+                  <input name="new_nif" type="text" placeholder={tipoContacto === "company" ? "B12345678" : "12345678A"} className={inputCls} />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setRecargo(r => !r)}
-                  className={["relative inline-flex h-5 w-9 rounded-full transition-colors", recargo ? "bg-[#8E0E1A]" : "bg-[#E5E7EB]"].join(" ")}
-                >
-                  <span className={["absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform", recargo ? "translate-x-4" : ""].join(" ")} />
-                </button>
+
+                {/* Email + Phone */}
+                <div>
+                  <label className={labelCls}>Email</label>
+                  <input name="new_email" type="email" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Teléfono</label>
+                  <input name="new_phone" type="tel" className={inputCls} />
+                </div>
+
+                {/* Payment method */}
+                <div className="col-span-2">
+                  <label className={labelCls}>Forma de pago <span className="text-[#8E0E1A]">*</span></label>
+                  <select
+                    name="payment_method_id"
+                    value={paymentMethodId}
+                    onChange={e => {
+                      setPaymentMethodId(e.target.value);
+                      setShowIban(isGiro(paymentMethods.find(p => p.id === e.target.value)?.name ?? ""));
+                    }}
+                    className={inputCls + " bg-white"}
+                  >
+                    {paymentMethods.map(pm => (
+                      <option key={pm.id} value={pm.id}>{pm.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* IBAN — giro only */}
+                {showIban && (
+                  <div className="col-span-2">
+                    <label className={labelCls}>
+                      IBAN <span className="text-[#8E0E1A]">*</span>
+                      <span className="text-[#9CA3AF] font-normal ml-1">(obligatorio para giro bancario)</span>
+                    </label>
+                    <input
+                      name="new_iban"
+                      type="text"
+                      required={showIban}
+                      placeholder="ES12 0000 0000 0000 0000 0000"
+                      className={inputCls + " font-mono"}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
+
+          {/* Recargo de equivalencia — always visible, mandatory */}
+          <div className="pt-2 border-t border-[#F3F4F6]">
+            <RadioGroup
+              name="recargo_equivalencia"
+              label="Recargo de equivalencia"
+              hint="Aplica recargo sobre IVA en cada línea de producto"
+              required
+              value={recargo}
+              onChange={v => setRecargo(v as "true" | "false")}
+              options={[
+                { value: "true",  label: "Sí" },
+                { value: "false", label: "No" },
+              ]}
+            />
+            {recargo === "" && state?.error?.includes("recargo") && (
+              <p className="mt-1 text-[11px] text-[#8E0E1A]">Obligatorio</p>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ── Section 2: Products ───────────────────────────────────────── */}
+      {/* ── Section 2: Tarifa ─────────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-[#0A0A0A] mb-0.5">Tarifa</h2>
+            <p className="text-[11px] text-[#9CA3AF]">Determina el precio de cada producto en el pedido</p>
+          </div>
+          <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden shrink-0">
+            {TARIFA_OPTIONS.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setTarifa(t.value)}
+                title={t.desc}
+                className={["h-8 px-3 text-xs font-semibold transition-colors", tarifa === t.value ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"].join(" ")}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <input type="hidden" name="tarifa" value={tarifa} />
+        {/* Show selected tarifa description */}
+        <p className="mt-2 text-xs text-[#6B7280]">
+          {TARIFA_OPTIONS.find(t => t.value === tarifa)?.desc}
+          {tarifa === "pvd" && <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">Solo OWNER</span>}
+        </p>
+      </section>
+
+      {/* ── Section 3: Productos ──────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm">
         <div className="px-5 py-4 border-b border-[#F3F4F6] flex items-center justify-between">
           <h2 className="text-sm font-bold text-[#0A0A0A]">Productos</h2>
@@ -273,20 +402,18 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
 
         <div className="divide-y divide-[#F3F4F6]">
           {lines.map((line, idx) => {
-            const selectedProduct = products.find(p => p.id === line.productId);
-            const priceWithTax    = selectedProduct?.total ?? line.productPrice;
-            const lineTotal       = priceWithTax * line.units * (1 - line.discount / 100);
+            const product  = products.find(p => p.id === line.productId);
+            const pvtax    = product ? priceWithTax(product, tarifa) : 0;
+            const lineTotal = pvtax * line.units * (1 - line.discount / 100);
+
             return (
               <div key={line.key} className="px-5 py-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-semibold text-[#9CA3AF] w-5 shrink-0">{idx + 1}</span>
                   <div className="flex-1">
                     <select
-                      onChange={e => {
-                        const p = products.find(p => p.id === e.target.value);
-                        if (p) setLineProduct(line.key, p);
-                      }}
-                      className="w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm bg-white focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
+                      onChange={e => setLineProduct(line.key, e.target.value)}
+                      className={inputCls + " bg-white"}
                       defaultValue=""
                     >
                       <option value="" disabled>Selecciona un producto…</option>
@@ -304,16 +431,16 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
                   )}
                 </div>
 
-                {/* Hidden inputs */}
+                {/* Hidden inputs for action */}
                 <input type="hidden" name="product_id[]"    value={line.productId} />
-                <input type="hidden" name="product_name[]"  value={line.productName} />
-                <input type="hidden" name="product_price[]" value={selectedProduct?.price ?? line.productPrice} />
-                <input type="hidden" name="product_taxes[]" value={line.productTaxes} />
+                <input type="hidden" name="product_name[]"  value={product?.name ?? ""} />
+                <input type="hidden" name="product_price[]" value={product ? effectiveBasePrice(product, tarifa) : 0} />
+                <input type="hidden" name="product_taxes[]" value={(product?.taxes ?? []).join(",")} />
 
                 {line.productId && (
                   <div className="flex items-center gap-3 pl-7">
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-[#6B7280] whitespace-nowrap">Unidades</label>
+                      <label className="text-xs text-[#6B7280] whitespace-nowrap">Uds.</label>
                       <input
                         name="units[]"
                         type="number"
@@ -338,7 +465,12 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
                       />
                     </div>
                     <div className="ml-auto text-right">
-                      <p className="text-[10px] text-[#9CA3AF]">{fmtEuro(priceWithTax)} / ud · IVA incl.</p>
+                      <p className="text-[10px] text-[#9CA3AF]">
+                        {fmtEuro(pvtax)} / ud · IVA incl.
+                        {product && effectiveBasePrice(product, tarifa) !== (product.price ?? 0) && (
+                          <span className="ml-1 text-[#8E0E1A] font-semibold">{tarifa.toUpperCase()}</span>
+                        )}
+                      </p>
                       <p className="text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(lineTotal)}</p>
                     </div>
                   </div>
@@ -354,7 +486,7 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
         </div>
       </section>
 
-      {/* ── Section 3: Notes + submit ─────────────────────────────────── */}
+      {/* ── Section 4: Notes + submit ──────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4 space-y-3">
         <label className="block text-xs font-medium text-[#374151]">Notas del pedido</label>
         <textarea
@@ -368,8 +500,9 @@ export function NewOrderForm({ paymentMethods, contacts, products }: Props) {
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={pending}
-          className="h-10 px-6 rounded-xl bg-[#8E0E1A] text-sm font-bold text-white hover:bg-[#6B0A14] disabled:opacity-60 transition-colors shadow-sm"
+          disabled={pending || recargo === ""}
+          className="h-10 px-6 rounded-xl bg-[#8E0E1A] text-sm font-bold text-white hover:bg-[#6B0A14] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+          title={recargo === "" ? "Debes seleccionar recargo de equivalencia" : undefined}
         >
           {pending ? "Creando pedido…" : "Crear pedido en Holded"}
         </button>

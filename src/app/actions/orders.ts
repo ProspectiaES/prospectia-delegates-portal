@@ -35,8 +35,10 @@ export async function submitOrder(
   } else {
     // Create new contact in Holded
     const name            = (formData.get("new_name")    as string)?.trim();
+    const nif             = (formData.get("new_nif")     as string)?.trim() || undefined;
     const email           = (formData.get("new_email")   as string)?.trim() || undefined;
     const phone           = (formData.get("new_phone")   as string)?.trim() || undefined;
+    const tipoContacto    = (formData.get("tipo_contacto") as string) ?? "company";
     const paymentMethodId = formData.get("payment_method_id") as string;
     const iban            = (formData.get("new_iban")    as string)?.trim() || undefined;
 
@@ -45,6 +47,8 @@ export async function submitOrder(
     try {
       const result = await createContact({
         name,
+        code:     nif,
+        isperson: tipoContacto === "person" ? 1 : 0,
         email,
         phone,
         type: "client",

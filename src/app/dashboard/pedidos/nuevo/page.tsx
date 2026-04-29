@@ -1,22 +1,30 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPaymentMethods } from "@/lib/holded/api";
 import { NewOrderForm } from "./NewOrderForm";
 
 export default async function NuevoPedidoPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: contactsData }, { data: productsData }, paymentMethods] = await Promise.all([
-    supabase.from("holded_contacts").select("id, name").order("name"),
-    supabase.from("holded_products").select("id, name, sku, price, total, taxes").order("name"),
-    getPaymentMethods(),
-  ]);
+  const admin = createAdminClient();
+
+  const [{ data: contactsData }, { data: productsData }, { data: profileData }, paymentMethods] =
+    await Promise.all([
+      admin.from("holded_contacts").select("id, name").order("name"),
+      admin.from("holded_products").select("id, name, sku, price, total, taxes, price_pvp, price_pvd, price_pvl").order("name"),
+      user ? admin.from("profiles").select("role").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+      getPaymentMethods(),
+    ]);
 
   const contacts = (contactsData ?? []) as { id: string; name: string }[];
   const products = (productsData ?? []) as {
     id: string; name: string; sku: string | null;
     price: number | null; total: number | null; taxes: string[];
+    price_pvp: number | null; price_pvd: number | null; price_pvl: number | null;
   }[];
+  const userRole = (profileData as { role?: string } | null)?.role ?? "DELEGATE";
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
@@ -32,6 +40,7 @@ export default async function NuevoPedidoPage() {
         paymentMethods={paymentMethods}
         contacts={contacts}
         products={products}
+        userRole={userRole}
       />
     </div>
   );
