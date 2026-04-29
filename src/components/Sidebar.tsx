@@ -172,7 +172,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function MiniClock() {
+function MiniClock(fullName: string) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -181,9 +181,9 @@ function MiniClock() {
 
   const dayStr  = now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
   const timeStr = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-  const { saludo, nombre } = greeting(now.toString(), now.getHours());
+  const { saludo, nombre } = greeting(fullName, now.getHours());
 
-  return { dayStr, timeStr, saludo, nombre, hour: now.getHours() };
+  return { dayStr, timeStr, saludo, nombre };
 }
 
 function IdentityPanel({ user, open, onToggle }: {
@@ -192,7 +192,7 @@ function IdentityPanel({ user, open, onToggle }: {
   onToggle: () => void;
 }) {
   const { weather } = useWeather();
-  const { dayStr, timeStr, saludo, nombre } = MiniClock();
+  const { dayStr, timeStr, saludo, nombre } = MiniClock(user.full_name);
 
   const weatherInfo = weather ? wmoLookup(weather.code) : null;
 

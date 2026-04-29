@@ -123,7 +123,7 @@ function AvatarUpload({ profileId, currentUrl }: { profileId: string; currentUrl
             <path d="M4 14l3-3 2.5 2.5L13 9l3 3V16H4v-2zm6-8a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
           </svg>
         )}
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFile} />
+        <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
       </label>
 
       {/* Hidden form to persist avatar URL */}
