@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useEffect, useActionState } from "react";
 import { submitOrder } from "@/app/actions/orders";
 import type { OrderFormState } from "@/app/actions/orders";
 
@@ -180,8 +180,12 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole }: P
   const [paymentMethodId, setPaymentMethodId]   = useState(paymentMethods[0]?.id ?? "");
   const [showIban, setShowIban]                 = useState(false);
 
-  // Recargo — mandatory, no default
+  // Recargo — mandatory for new clients; auto-false for existing
   const [recargo, setRecargo] = useState<"true" | "false" | "">("");
+
+  useEffect(() => {
+    setRecargo(clientMode === "existing" ? "false" : "");
+  }, [clientMode]);
 
   // Tarifa
   const [tarifa, setTarifa] = useState<Tarifa>("pvp");
@@ -399,27 +403,32 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole }: P
                   </div>
                 )}
               </div>
+
+              {/* Recargo de equivalencia — nuevo cliente only */}
+              <div className="pt-3 border-t border-[#F3F4F6]">
+                <RadioGroup
+                  name="recargo_equivalencia"
+                  label="Recargo de equivalencia"
+                  hint="Aplica recargo sobre IVA en cada línea de producto"
+                  required
+                  value={recargo}
+                  onChange={v => setRecargo(v as "true" | "false")}
+                  options={[
+                    { value: "true",  label: "Sí" },
+                    { value: "false", label: "No" },
+                  ]}
+                />
+                {recargo === "" && (
+                  <p className="mt-1 text-[11px] text-[#8E0E1A]">Obligatorio</p>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Recargo de equivalencia — always visible, mandatory */}
-          <div className="pt-2 border-t border-[#F3F4F6]">
-            <RadioGroup
-              name="recargo_equivalencia"
-              label="Recargo de equivalencia"
-              hint="Aplica recargo sobre IVA en cada línea de producto"
-              required
-              value={recargo}
-              onChange={v => setRecargo(v as "true" | "false")}
-              options={[
-                { value: "true",  label: "Sí" },
-                { value: "false", label: "No" },
-              ]}
-            />
-            {recargo === "" && state?.error?.includes("recargo") && (
-              <p className="mt-1 text-[11px] text-[#8E0E1A]">Obligatorio</p>
-            )}
-          </div>
+          {/* Hidden recargo for existing clients */}
+          {clientMode === "existing" && (
+            <input type="hidden" name="recargo_equivalencia" value="false" />
+          )}
         </div>
       </section>
 
@@ -561,9 +570,9 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole }: P
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={pending || recargo === ""}
+          disabled={pending || (clientMode === "new" && recargo === "")}
           className="h-10 px-6 rounded-xl bg-[#8E0E1A] text-sm font-bold text-white hover:bg-[#6B0A14] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-          title={recargo === "" ? "Debes seleccionar recargo de equivalencia" : undefined}
+          title={clientMode === "new" && recargo === "" ? "Debes seleccionar recargo de equivalencia" : undefined}
         >
           {pending ? "Creando pedido…" : "Crear pedido en Holded"}
         </button>

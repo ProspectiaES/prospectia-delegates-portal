@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
@@ -108,9 +109,23 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   if (!contactData) notFound();
 
-  const isOwner = profile?.role === "OWNER";
+  const isOwner    = profile?.role === "OWNER";
+  const isDelegate = profile?.role === "DELEGATE";
+
+  // Delegate: verify contact belongs to their universe
+  if (isDelegate && profile) {
+    const admin = createAdminClient();
+    const { data: link } = await admin
+      .from("contact_delegates")
+      .select("contact_id")
+      .eq("delegate_id", profile.id)
+      .eq("contact_id", id)
+      .maybeSingle();
+    if (!link) notFound();
+  }
 
   // Owner-only: load delegates + current assignments + all affiliates + KOL/Coord/Com6 profiles
+  // Delegate: load their assigned affiliates for affiliate+recommender widgets
   let allDelegates: { id: string; full_name: string }[] = [];
   let assignedIds: string[] = [];
   let allAffiliates: { id: string; email: string; first_name: string | null; last_name: string | null; referral_code: string | null }[] = [];
@@ -119,13 +134,14 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   let com6Profiles:  { id: string; display_name: string }[] = [];
 
   if (isOwner) {
+    const admin = createAdminClient();
     const [delegatesRes, assignmentsRes, affiliatesRes, kolRes, coordRes, com6Res] = await Promise.all([
-      supabase.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
-      supabase.from("contact_delegates").select("delegate_id").eq("contact_id", id),
-      supabase.from("bixgrow_affiliates").select("id, email, first_name, last_name, referral_code").order("email"),
-      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "KOL").order("full_name"),
-      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "COORDINATOR").order("full_name"),
-      supabase.from("profiles").select("id, full_name, delegate_name").eq("role", "COM6").order("full_name"),
+      admin.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
+      admin.from("contact_delegates").select("delegate_id").eq("contact_id", id),
+      admin.from("bixgrow_affiliates").select("id, email, first_name, last_name, referral_code").order("email"),
+      admin.from("profiles").select("id, full_name, delegate_name").eq("role", "KOL").order("full_name"),
+      admin.from("profiles").select("id, full_name, delegate_name").eq("role", "COORDINATOR").order("full_name"),
+      admin.from("profiles").select("id, full_name, delegate_name").eq("role", "COM6").order("full_name"),
     ]);
     allDelegates  = (delegatesRes.data  ?? []) as typeof allDelegates;
     assignedIds   = (assignmentsRes.data ?? []).map((r) => r.delegate_id);
@@ -133,6 +149,14 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     kolProfiles   = (kolRes.data   ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
     coordProfiles = (coordRes.data ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
     com6Profiles  = (com6Res.data  ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
+  } else if (isDelegate && profile) {
+    const admin = createAdminClient();
+    const { data: affiliatesRes } = await admin
+      .from("bixgrow_affiliates")
+      .select("id, email, first_name, last_name, referral_code")
+      .eq("delegate_id", profile.id)
+      .order("email");
+    allAffiliates = (affiliatesRes ?? []) as typeof allAffiliates;
   }
 
   const contact = contactData as DbContact;
@@ -182,9 +206,11 @@ export default async function ClienteDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <p className="text-xs text-[#9CA3AF] text-right shrink-0 ml-4">
-            Sync: {fmtDate(contact.last_synced_at)}
-          </p>
+          {isOwner && (
+            <p className="text-xs text-[#9CA3AF] text-right shrink-0 ml-4">
+              Sync: {fmtDate(contact.last_synced_at)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -194,7 +220,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Datos del contacto</CardTitle>
-            <span className="text-xs text-[#9CA3AF]">Editable · se guarda en Holded</span>
+            {isOwner && <span className="text-xs text-[#9CA3AF]">Editable · se guarda en Holded</span>}
           </CardHeader>
           <CardContent>
             <ContactEditForm contact={{
@@ -255,12 +281,11 @@ export default async function ClienteDetailPage({ params }: PageProps) {
             </Card>
           )}
 
-          {/* Affiliate assignment — owner only */}
-          {isOwner && (
+          {/* Affiliate assignment — owner + delegate */}
+          {(isOwner || isDelegate) && (
             <Card>
               <CardHeader>
                 <CardTitle>Afiliado asignado</CardTitle>
-                <span className="text-xs text-[#9CA3AF]">Solo visible para ti</span>
               </CardHeader>
               <CardContent className="p-0">
                 <AffiliateSelect
@@ -272,12 +297,11 @@ export default async function ClienteDetailPage({ params }: PageProps) {
             </Card>
           )}
 
-          {/* Recommender — owner only */}
-          {isOwner && (
+          {/* Recommender — owner + delegate */}
+          {(isOwner || isDelegate) && (
             <Card>
               <CardHeader>
                 <CardTitle>Recomendador</CardTitle>
-                <span className="text-xs text-[#9CA3AF]">Solo visible para ti</span>
               </CardHeader>
               <CardContent className="p-0">
                 <RecommenderSelect

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SyncButton } from "@/components/SyncButton";
@@ -48,9 +49,35 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   const typeStr = params.type ?? "";
 
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
-  const isOwner = profile?.role === "OWNER";
-  const from    = (page - 1) * PAGE_SIZE;
-  const to       = from + PAGE_SIZE - 1;
+  const isOwner    = profile?.role === "OWNER";
+  const isDelegate = profile?.role === "DELEGATE";
+  const from = (page - 1) * PAGE_SIZE;
+  const to   = from + PAGE_SIZE - 1;
+
+  // Delegates see only their assigned contacts
+  let delegateContactIds: string[] | null = null;
+  if (isDelegate && profile) {
+    const admin = createAdminClient();
+    const { data: links } = await admin
+      .from("contact_delegates")
+      .select("contact_id")
+      .eq("delegate_id", profile.id);
+    delegateContactIds = (links ?? []).map(r => r.contact_id as string);
+  }
+
+  // Early-exit: delegate with zero contacts
+  if (delegateContactIds !== null && delegateContactIds.length === 0) {
+    return (
+      <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+        <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Clientes</h1>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-sm font-medium text-[#0A0A0A]">Aún no tienes clientes asignados.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   let query = supabase
     .from("holded_contacts")
@@ -61,6 +88,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
     .order("name", { ascending: true })
     .range(from, to);
 
+  if (delegateContactIds !== null) query = query.in("id", delegateContactIds);
   if (search)  query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,code.ilike.%${search}%`);
   if (typeStr) query = query.eq("type", parseInt(typeStr, 10));
 
@@ -88,7 +116,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Clientes</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            {total > 0 ? `${total.toLocaleString("es-ES")} contactos importados de Holded` : "Sin datos"}
+            {total > 0 ? `${total.toLocaleString("es-ES")} cliente${total !== 1 ? "s" : ""}` : "Sin datos"}
           </p>
         </div>
         {isOwner && <SyncButton endpoint="/api/holded/sync" label="Sincronizar" />}

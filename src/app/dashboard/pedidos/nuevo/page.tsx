@@ -10,21 +10,38 @@ export default async function NuevoPedidoPage() {
 
   const admin = createAdminClient();
 
-  const [{ data: contactsData }, { data: productsData }, { data: profileData }, paymentMethods] =
+  const [{ data: productsData }, { data: profileData }, paymentMethods] =
     await Promise.all([
-      admin.from("holded_contacts").select("id, name").order("name"),
       admin.from("holded_products").select("id, name, sku, price, total, taxes, price_pvp, price_pvd, price_pvl").order("name"),
-      user ? admin.from("profiles").select("role").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+      user ? admin.from("profiles").select("id, role").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null }),
       getPaymentMethods(),
     ]);
 
-  const contacts = (contactsData ?? []) as { id: string; name: string }[];
+  const userRole = (profileData as { id?: string; role?: string } | null)?.role ?? "DELEGATE";
+
+  // Delegates only see their own contacts
+  let contactsData: { id: string; name: string }[] = [];
+  if (userRole === "DELEGATE" && user) {
+    const { data: links } = await admin
+      .from("contact_delegates")
+      .select("contact_id")
+      .eq("delegate_id", user.id);
+    const ids = (links ?? []).map(r => r.contact_id as string);
+    if (ids.length > 0) {
+      const { data } = await admin.from("holded_contacts").select("id, name").in("id", ids).order("name");
+      contactsData = (data ?? []) as { id: string; name: string }[];
+    }
+  } else {
+    const { data } = await admin.from("holded_contacts").select("id, name").order("name");
+    contactsData = (data ?? []) as { id: string; name: string }[];
+  }
+
+  const contacts = contactsData;
   const products = (productsData ?? []) as {
     id: string; name: string; sku: string | null;
     price: number | null; total: number | null; taxes: string[];
     price_pvp: number | null; price_pvd: number | null; price_pvl: number | null;
   }[];
-  const userRole = (profileData as { role?: string } | null)?.role ?? "DELEGATE";
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">

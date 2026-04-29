@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/profile";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { KpiCard } from "@/components/ui/KpiCard";
@@ -38,12 +39,19 @@ const statusVariant: Record<string, "success" | "warning" | "neutral"> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AfiliadosPage() {
-  const supabase = await createClient();
+  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isDelegate = profile?.role === "DELEGATE";
 
-  const { data: affiliatesData } = await supabase
+  let affiliatesQuery = supabase
     .from("bixgrow_affiliates")
     .select("id, referral_code, email, first_name, last_name, program, status, contact_id, bixgrow_orders(commission, status)")
     .order("created_at", { ascending: false });
+
+  if (isDelegate && profile) {
+    affiliatesQuery = affiliatesQuery.eq("delegate_id", profile.id);
+  }
+
+  const { data: affiliatesData } = await affiliatesQuery;
 
   const affiliates = (affiliatesData ?? []) as Affiliate[];
 
