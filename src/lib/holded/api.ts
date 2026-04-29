@@ -74,7 +74,9 @@ export interface HoldedDocument {
   status: number;
   desc?: string;
   notes?: string;
-  /** Payment records; present on cobrada invoices */
+  /** Payment records on cobrada invoices — Holded API field name is paymentsDetail */
+  paymentsDetail?: Array<{ date?: number; amount?: number; [key: string]: unknown }>;
+  /** Legacy alias kept for compatibility */
   payments?: Array<{ date?: number; amount?: number; [key: string]: unknown }>;
   [key: string]: unknown;
 }

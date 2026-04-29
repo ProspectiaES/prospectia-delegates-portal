@@ -45,19 +45,21 @@ function toContactRow(c: HoldedContact) {
   };
 }
 
-// Returns the latest payment date from the payments array (unix seconds → ISO string).
-// Falls back to dateLastModified for cobrada invoices that lack an explicit payments list.
+// Returns the latest payment date for a cobrada invoice.
+// Holded's actual field name is `paymentsDetail`; `payments` is a legacy alias.
+// Falls back to `approvedAt` when paymentsDetail is absent/empty.
 function extractDatePaid(d: HoldedDocument): string | null {
-  if (!d.payments || d.payments.length === 0) {
-    // If Holded marks it as cobrada but sends no payments array, use dateLastModified
-    const raw = d as Record<string, unknown>;
-    if (typeof raw.status === "number" && raw.status === 1 && d.dateLastModified) {
-      return new Date(d.dateLastModified * 1000).toISOString();
-    }
-    return null;
+  const paymentsList = d.paymentsDetail ?? d.payments;
+  if (paymentsList && paymentsList.length > 0) {
+    const maxTs = Math.max(...paymentsList.map(p => typeof p.date === "number" ? p.date : 0));
+    if (maxTs > 0) return new Date(maxTs * 1000).toISOString();
   }
-  const maxTs = Math.max(...d.payments.map(p => typeof p.date === "number" ? p.date : 0));
-  return maxTs > 0 ? new Date(maxTs * 1000).toISOString() : null;
+  if (d.status === 1) {
+    const raw = d as Record<string, unknown>;
+    const approvedAt = typeof raw.approvedAt === "number" ? raw.approvedAt : 0;
+    if (approvedAt > 0) return new Date(approvedAt * 1000).toISOString();
+  }
+  return null;
 }
 
 // Holded raw.status field:

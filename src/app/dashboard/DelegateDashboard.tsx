@@ -206,12 +206,21 @@ function AccordionPanel({
   );
 }
 
+function paidPeriodLabel(datePaid: string | null, period: { year: number; month: number }): "current" | string {
+  if (!datePaid) return "";
+  const d = new Date(datePaid);
+  if (d.getFullYear() === period.year && d.getMonth() + 1 === period.month) return "current";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function InvoiceTable({
   rows,
   mode,
+  period,
 }: {
   rows: InvoiceRow[];
   mode: "overdue" | "pending" | "paid";
+  period?: { year: number; month: number };
 }) {
   return (
     <table className="w-full text-sm">
@@ -226,11 +235,13 @@ function InvoiceTable({
           {mode === "pending" && <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">Vencimiento</th>}
           {mode === "pending" && <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">Días restantes</th>}
           {mode === "paid"    && <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">Fecha cobro</th>}
+          {mode === "paid"    && <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">Período</th>}
         </tr>
       </thead>
       <tbody className="divide-y divide-[#F3F4F6]">
         {rows.map(row => {
-          const due = effectiveDue(row);
+          const due   = effectiveDue(row);
+          const label = mode === "paid" && period ? paidPeriodLabel(row.date_paid, period) : "";
           return (
             <tr key={row.id} className="hover:bg-[#FAFAFA] transition-colors">
               <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap tabular-nums">{fmtDate(row.date)}</td>
@@ -265,9 +276,24 @@ function InvoiceTable({
                 </>
               )}
               {mode === "paid" && (
-                <td className="px-4 py-3 text-emerald-700 whitespace-nowrap tabular-nums font-medium">
-                  {fmtDate(row.date_paid ?? row.date_last_modified ?? null)}
-                </td>
+                <>
+                  <td className="px-4 py-3 text-emerald-700 whitespace-nowrap tabular-nums font-medium">
+                    {row.date_paid ? fmtDate(row.date_paid) : <span className="text-[#D1D5DB]">—</span>}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {label === "current" ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700">
+                        en período
+                      </span>
+                    ) : label ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#F3F4F6] text-[#6B7280]">
+                        cobrada {label}
+                      </span>
+                    ) : (
+                      <span className="text-[#D1D5DB] text-xs">—</span>
+                    )}
+                  </td>
+                </>
               )}
             </tr>
           );
@@ -427,17 +453,18 @@ export function DelegateDashboard(props: DelegateDashboardProps) {
           <InvoiceTable rows={pendingRows} mode="pending" />
         </AccordionPanel>
 
-        {/* Cobradas en período */}
+        {/* Cobradas */}
         <AccordionPanel
           id="paid"
           open={openPanel === "paid"}
           onToggle={() => toggle("paid")}
-          title="Facturas cobradas en período"
+          title="Facturas cobradas"
+          badge={paidCount > 0 ? `${paidCount} en período` : undefined}
           badgeVariant="success"
-          count={paidCount}
-          total={paidTotal}
+          count={paidRows.length}
+          total={paidRows.reduce((s, r) => s + r.total, 0)}
         >
-          <InvoiceTable rows={paidRows} mode="paid" />
+          <InvoiceTable rows={paidRows} mode="paid" period={period} />
         </AccordionPanel>
 
         {overdueCount === 0 && pendingCount === 0 && paidCount === 0 && (

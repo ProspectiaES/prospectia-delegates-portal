@@ -131,12 +131,10 @@ export default async function DashboardPage(
       return d >= (periodStart!) && d <= (periodEnd!);
     });
 
-    // Invoices whose payment date (date_paid) falls within the period — these are liquidatable
+    // Invoices whose payment date falls within the period — these are liquidatable
     const paidPeriod = invoices.filter(inv => {
-      if (inv.status !== 3) return false;
-      const dp = (inv as InvoiceRow & { date_paid?: string | null }).date_paid;
-      if (!dp) return false;
-      const d = new Date(dp);
+      if (inv.status !== 3 || !inv.date_paid) return false;
+      const d = new Date(inv.date_paid);
       return d >= (periodStart!) && d <= (periodEnd!);
     });
 
@@ -153,9 +151,12 @@ export default async function DashboardPage(
       return !lastInv || new Date(lastInv.date) < ninetyDaysAgo;
     }).length;
 
+    // All paid invoices (for full history table)
+    const allPaidRows = invoices.filter(i => i.status === 3);
+
     // Billing KPIs — overdue and pending are absolute (not period-filtered)
-    const overdueAll    = invoices.filter(i => i.status === 2);
-    const pendingAll    = invoices.filter(i => i.status === 1);
+    const overdueAll  = invoices.filter(i => i.status === 2);
+    const pendingAll  = invoices.filter(i => i.status === 1);
 
     // Order KPIs
     const periodOrders  = (orders as Array<{ id: string; contact_id: string; status: number; date: string }>)
@@ -184,7 +185,7 @@ export default async function DashboardPage(
         ordersInProcess={periodOrders.filter(o => o.status < 3).length}
         overdueRows={overdueAll}
         pendingRows={pendingAll}
-        paidRows={paidPeriod}
+        paidRows={allPaidRows}
       />
     );
   }
