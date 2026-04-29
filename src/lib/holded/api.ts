@@ -150,6 +150,86 @@ export async function getAllProducts(): Promise<HoldedProduct[]> {
   return all;
 }
 
+// ─── Payment methods ─────────────────────────────────────────────────────────
+
+export interface HoldedPaymentMethod {
+  id: string;
+  name: string;
+  dueDays: string;
+  bankId: string;
+}
+
+export async function getPaymentMethods(): Promise<HoldedPaymentMethod[]> {
+  const data = await holdedFetch<HoldedPaymentMethod[]>("/invoicing/v1/paymentmethods");
+  return Array.isArray(data) ? data : [];
+}
+
+// ─── Contact create ───────────────────────────────────────────────────────────
+
+export interface HoldedContactCreatePayload {
+  name: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  /** 'client' | 'provider' | etc. */
+  type?: string;
+  iban?: string;
+  customFields?: { field: string; value: string }[];
+  billAddress?: {
+    address?: string;
+    city?: string;
+    postalCode?: string;
+    province?: string;
+    country?: string;
+    countryCode?: string;
+  };
+  defaults?: {
+    paymentMethod?: string;
+    language?: string;
+    currency?: string;
+    discount?: number;
+  };
+}
+
+export async function createContact(
+  payload: HoldedContactCreatePayload
+): Promise<{ id: string; status: number }> {
+  return holdedFetch<{ id: string; status: number }>("/invoicing/v1/contacts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Sales order create ───────────────────────────────────────────────────────
+
+export interface HoldedOrderLine {
+  productId?: string;
+  name: string;
+  units: number;
+  price: number;
+  discount?: number;
+  taxes?: string[];
+}
+
+export interface HoldedSalesOrderPayload {
+  contactId: string;
+  contactName?: string;
+  date: number;       // Unix timestamp (seconds)
+  currency?: string;
+  language?: string;
+  notes?: string;
+  products: HoldedOrderLine[];
+}
+
+export async function createSalesOrder(
+  payload: HoldedSalesOrderPayload
+): Promise<{ id: string; status: number }> {
+  return holdedFetch<{ id: string; status: number }>(
+    "/invoicing/v1/documents/salesorder",
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
 // ─── Contact mutations ───────────────────────────────────────────────────────
 
 export interface HoldedContactUpdatePayload {
@@ -199,5 +279,17 @@ export function docStatus(status: number): {
     case 2:  return { label: "Vencida",   variant: "danger"  };
     case 1:  return { label: "Pendiente", variant: "warning" };
     default: return { label: "Borrador",  variant: "neutral" };
+  }
+}
+
+export function orderStatus(status: number): {
+  label: string;
+  variant: "success" | "warning" | "danger" | "neutral";
+} {
+  switch (status) {
+    case 3:  return { label: "Facturado",  variant: "success" };
+    case 2:  return { label: "Aprobado",   variant: "success" };
+    case 1:  return { label: "Pendiente",  variant: "warning" };
+    default: return { label: "Borrador",   variant: "neutral" };
   }
 }

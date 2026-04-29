@@ -46,6 +46,23 @@ const IconAfiliados = () => (
   </svg>
 );
 
+const IconPedidos = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d="M2 3h12l-1.5 8H3.5L2 3z" strokeLinejoin="round" />
+    <circle cx="6" cy="14" r="1" fill="currentColor" stroke="none" />
+    <circle cx="11" cy="14" r="1" fill="currentColor" stroke="none" />
+    <path d="M2 3L1 1H0" strokeLinecap="round" />
+  </svg>
+);
+
+const IconPerfil = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <circle cx="8" cy="5.5" r="2.5" />
+    <path d="M2 13c0-2.761 2.686-5 6-5s6 2.239 6 5" strokeLinecap="round" />
+    <path d="M11 2l1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const IconDelegados = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <circle cx="8" cy="4.5" r="2" />
@@ -83,6 +100,12 @@ const sections = [
     ],
   },
   {
+    label: "Ventas",
+    items: [
+      { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
+    ],
+  },
+  {
     label: "Delegados",
     items: [
       { href: "/dashboard/delegados", label: "Delegados",  Icon: IconDelegados, exact: false },
@@ -92,6 +115,12 @@ const sections = [
     label: "Afiliados",
     items: [
       { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
+    ],
+  },
+  {
+    label: "Cuenta",
+    items: [
+      { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
     ],
   },
 ];

@@ -135,17 +135,40 @@ async function upsertBatched<T extends Record<string, unknown>>(
   }
 }
 
-// ─── Full sync (contacts + invoices) ─────────────────────────────────────────
+function toSalesOrderRow(d: HoldedDocument) {
+  return {
+    id:             d.id,
+    doc_number:     d.docNumber        ?? null,
+    contact_id:     d.contact          ?? null,
+    contact_name:   d.contactName      ?? null,
+    date:           d.date ? new Date(d.date * 1000).toISOString() : null,
+    due_date:       d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
+    total:          docAmount(d),
+    // Holded salesorder status: 0=draft 1=pending 2=approved 3=invoiced
+    // raw.shippingStatus or raw.invoicedStatus may also indicate full invoicing;
+    // we rely on Holded updating status to 3 when the order is fully invoiced.
+    status:         typeof (d as Record<string,unknown>).status === "number"
+                      ? (d as Record<string,unknown>).status as number
+                      : 0,
+    description:    (d as Record<string,unknown>).desc as string ?? null,
+    raw:            d,
+    last_synced_at: new Date().toISOString(),
+  };
+}
+
+// ─── Full sync (contacts + invoices + salesorders + products) ─────────────────
 
 export async function runFullSync(db: SupabaseClient): Promise<{
   contacts: number;
   invoices: number;
+  salesorders: number;
   products: number;
 }> {
-  const [contacts, invoices, creditNotes, products] = await Promise.all([
+  const [contacts, invoices, creditNotes, salesorders, products] = await Promise.all([
     getAllContacts(),
     getAllDocuments("invoice"),
     getAllDocuments("creditnote"),
+    getAllDocuments("salesorder"),
     getAllProducts(),
   ]);
 
@@ -155,12 +178,18 @@ export async function runFullSync(db: SupabaseClient): Promise<{
   ];
 
   await Promise.all([
-    upsertBatched(db, "holded_contacts", contacts.map(toContactRow)),
-    upsertBatched(db, "holded_invoices",  allInvoiceRows),
-    upsertBatched(db, "holded_products",  products.map(toProductRow)),
+    upsertBatched(db, "holded_contacts",    contacts.map(toContactRow)),
+    upsertBatched(db, "holded_invoices",    allInvoiceRows),
+    upsertBatched(db, "holded_salesorders", salesorders.map(toSalesOrderRow)),
+    upsertBatched(db, "holded_products",    products.map(toProductRow)),
   ]);
 
-  return { contacts: contacts.length, invoices: invoices.length + creditNotes.length, products: products.length };
+  return {
+    contacts:    contacts.length,
+    invoices:    invoices.length + creditNotes.length,
+    salesorders: salesorders.length,
+    products:    products.length,
+  };
 }
 
 // ─── Status-only sync (invoices, page 1 only — covers recent activity) ───────

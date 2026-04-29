@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
+import { orderStatus } from "@/lib/holded/api";
 import { ContactEditForm } from "./ContactEditForm";
 import { DelegateAssignment } from "./DelegateAssignment";
 import { AffiliateSelect } from "./AffiliateSelect";
@@ -82,7 +84,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
-  const [profile, { data: contactData }, { data: invoicesData }] = await Promise.all([
+  const [profile, { data: contactData }, { data: invoicesData }, { data: ordersData }] = await Promise.all([
     getProfile(),
     supabase
       .from("holded_contacts")
@@ -95,6 +97,13 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       .eq("contact_id", id)
       .order("date", { ascending: false })
       .limit(10),
+    // Open salesorders (not fully invoiced)
+    supabase
+      .from("holded_salesorders")
+      .select("id, doc_number, date, total, status")
+      .eq("contact_id", id)
+      .lt("status", 3)
+      .order("date", { ascending: false }),
   ]);
 
   if (!contactData) notFound();
@@ -128,6 +137,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   const contact = contactData as DbContact;
   const invoices = (invoicesData ?? []) as DbInvoice[];
+  const openOrders = (ordersData ?? []) as { id: string; doc_number: string | null; date: string | null; total: number; status: number }[];
 
   // Load current recommender name (for display)
   let currentRecommender: { id: string; name: string; code: string | null; email: string | null; city: string | null } | null = null;
@@ -391,6 +401,61 @@ export default async function ClienteDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* ── Pedidos en curso ─────────────────────────────────────────── */}
+      {(() => {
+        const fmtEuro = (n: number) =>
+          new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
+        const fmtDate = (iso: string | null) =>
+          iso ? new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+
+        const badge = openOrders.length > 0
+          ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{openOrders.length} abierto{openOrders.length !== 1 ? "s" : ""}</span>
+          : undefined;
+
+        return (
+          <CollapsibleCard title="Pedidos en curso" subtitle="Pendientes de facturar" badge={badge} defaultOpen={openOrders.length > 0}>
+            {openOrders.length === 0 ? (
+              <div className="px-5 py-6 text-center space-y-2">
+                <p className="text-xs text-[#9CA3AF]">Sin pedidos en curso para este cliente.</p>
+                <Link href="/dashboard/pedidos/nuevo" className="text-xs font-medium text-[#8E0E1A] hover:underline">
+                  Crear pedido →
+                </Link>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                    {["Pedido", "Fecha", "Importe", "Estado"].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F3F4F6]">
+                  {openOrders.map(o => {
+                    const st = orderStatus(o.status);
+                    return (
+                      <tr key={o.id} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="px-4 py-3 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
+                          {o.doc_number ?? <span className="text-[#D1D5DB]">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">{fmtDate(o.date)}</td>
+                        <td className="px-4 py-3 tabular-nums font-semibold text-[#0A0A0A] whitespace-nowrap">{fmtEuro(o.total)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Badge variant={st.variant === "success" ? "success" : st.variant === "warning" ? "warning" : "neutral"}>
+                            {st.label}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </CollapsibleCard>
+        );
+      })()}
+
     </div>
   );
 }
