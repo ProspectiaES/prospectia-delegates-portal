@@ -30,15 +30,34 @@ interface Props {
 
 const TASK_LABELS = [
   "Llamar al cliente",
+  "Enviar WhatsApp / mensaje",
   "Enviar email de seguimiento",
   "Enviar muestra o catálogo",
   "Proponer reunión o visita",
+  "Hacer visita presencial",
+  "Enviar propuesta de precio especial",
   "Informar de novedades del catálogo",
+  "Solicitar feedback sobre últimos pedidos",
 ] as const;
 type TaskKey = typeof TASK_LABELS[number];
 
+const KEY_QUESTIONS = [
+  "¿Cuál fue la última conversación que tuviste con este cliente y qué quedó pendiente?",
+  "¿Qué necesidad específica puedes resolver hoy con tu catálogo actual?",
+  "¿Has presentado alguna novedad de producto que pueda despertar su interés?",
+  "¿Existe alguna razón concreta por la que este cliente dejó de comprar?",
+  "¿Podrías ofrecer una condición especial para reactivar la relación este mes?",
+  "¿Cuándo fue la última vez que contactaste a este cliente de forma proactiva?",
+] as const;
+
 type CRMStatus = "sin_contactar" | "en_seguimiento" | "reactivado";
-interface CRMState { tasks: Set<TaskKey>; notes: string; status: CRMStatus; }
+interface CRMState {
+  tasks:        Set<TaskKey>;
+  otrosChecked: boolean;
+  otrosText:    string;
+  notes:        string;
+  status:       CRMStatus;
+}
 
 const STATUS_OPTIONS: { value: CRMStatus; label: string; activeCls: string; dotCls: string }[] = [
   { value: "sin_contactar",  label: "Sin contactar",  activeCls: "border-[#9CA3AF] bg-[#F3F4F6] text-[#374151]", dotCls: "bg-[#9CA3AF]" },
@@ -186,8 +205,8 @@ function DormantRow({ c }: { c: ContactWithActivity }) {
 
 function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMState; onOpen: () => void }) {
   const sev         = dormantSeverity(c.daysSinceActivity);
-  const done        = crm.tasks.size;
-  const total       = TASK_LABELS.length;
+  const done        = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
+  const total       = TASK_LABELS.length + 1; // +1 for Otros
   const statusOpt   = STATUS_OPTIONS.find(o => o.value === crm.status)!;
 
   return (
@@ -219,12 +238,11 @@ function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMSt
               {done}/{total}
             </span>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-0.5">
             {TASK_LABELS.map((task, i) => (
-              <div key={i}
-                className={`h-1.5 flex-1 rounded-full transition-colors ${crm.tasks.has(task) ? "bg-emerald-500" : "bg-[#E5E7EB]"}`}
-              />
+              <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${crm.tasks.has(task) ? "bg-emerald-500" : "bg-[#E5E7EB]"}`} />
             ))}
+            <div className={`h-1.5 flex-1 rounded-full transition-colors ${crm.otrosChecked ? "bg-emerald-500" : "bg-[#E5E7EB]"}`} />
           </div>
         </div>
 
@@ -255,8 +273,10 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
   onClose: () => void;
 }) {
   const sev   = dormantSeverity(c.daysSinceActivity);
-  const done  = crm.tasks.size;
-  const total = TASK_LABELS.length;
+  const done  = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
+  const total = TASK_LABELS.length + 1; // +1 for Otros
+
+  const [questionsOpen, setQuestionsOpen] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -346,10 +366,11 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
             </div>
 
             {/* Progress bar */}
-            <div className="flex gap-1.5 mb-5">
+            <div className="flex gap-1 mb-5">
               {TASK_LABELS.map((task, i) => (
                 <div key={i} className={`h-2 flex-1 rounded-full transition-colors duration-200 ${crm.tasks.has(task) ? "bg-emerald-500" : "bg-[#E5E7EB]"}`} />
               ))}
+              <div className={`h-2 flex-1 rounded-full transition-colors duration-200 ${crm.otrosChecked ? "bg-emerald-500" : "bg-[#E5E7EB]"}`} />
             </div>
 
             <ul className="space-y-2">
@@ -380,6 +401,43 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
                   </li>
                 );
               })}
+
+              {/* Otros */}
+              <li>
+                <div className={`rounded-xl border-2 transition-all ${
+                  crm.otrosChecked
+                    ? "border-emerald-200 bg-emerald-50/50"
+                    : "border-[#E5E7EB] bg-white"
+                }`}>
+                  <label className="flex items-center gap-4 px-4 py-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={crm.otrosChecked}
+                      onChange={() => onUpdate({ otrosChecked: !crm.otrosChecked })}
+                      className="w-5 h-5 rounded accent-[#8E0E1A] cursor-pointer shrink-0"
+                    />
+                    <span className={`text-sm flex-1 font-medium ${crm.otrosChecked ? "text-[#374151]" : "text-[#374151]"}`}>
+                      Otros
+                    </span>
+                    {crm.otrosChecked && (
+                      <svg className="shrink-0 text-emerald-500" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </label>
+                  {crm.otrosChecked && (
+                    <div className="px-4 pb-4">
+                      <input
+                        type="text"
+                        value={crm.otrosText}
+                        onChange={e => onUpdate({ otrosText: e.target.value })}
+                        placeholder="Describe la acción realizada…"
+                        className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm text-[#374151] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-all bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </li>
             </ul>
 
             {allDone && (
@@ -387,6 +445,36 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
                 <p className="text-sm font-semibold text-emerald-700">¡Todas las tareas completadas!</p>
                 <p className="text-xs text-emerald-600 mt-0.5">Considera actualizar el estado a «Reactivado» si hubo respuesta positiva.</p>
               </div>
+            )}
+          </div>
+
+          {/* Key questions */}
+          <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setQuestionsOpen(o => !o)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F9FAFB] transition-colors text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-[#374151]">Key questions</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Preguntas para reflexionar antes de contactar</p>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
+                className={`shrink-0 text-[#9CA3AF] transition-transform duration-200 ${questionsOpen ? "rotate-180" : ""}`}>
+                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {questionsOpen && (
+              <ol className="divide-y divide-[#F3F4F6] border-t border-[#E5E7EB]">
+                {KEY_QUESTIONS.map((q, i) => (
+                  <li key={i} className="flex items-start gap-4 px-5 py-4">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-[#F3F4F6] text-[#6B7280] text-[11px] font-bold flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="text-sm text-[#374151] leading-relaxed">{q}</p>
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
 
@@ -444,7 +532,7 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
     .sort((a, b) => (b.daysSinceActivity ?? 9999) - (a.daysSinceActivity ?? 9999));
 
   const [crmData, setCrmData] = useState<Map<string, CRMState>>(
-    () => new Map(contacts.map(c => [c.id, { tasks: new Set<TaskKey>(), notes: "", status: "sin_contactar" as CRMStatus }]))
+    () => new Map(contacts.map(c => [c.id, { tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus }]))
   );
   const [modalId,      setModalId]      = useState<string | null>(null);
   const [nuevosOpen,   setNuevosOpen]   = useState(true);
@@ -461,16 +549,18 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
   const criticalCount = dormidos.filter(c => (c.daysSinceActivity ?? 999) > 90).length;
   const monthLabel    = new Date(periodStart).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
+  const emptyCRM = (): CRMState => ({ tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus });
+
   const updateCRM = (id: string, update: Partial<CRMState>) =>
     setCrmData(prev => {
       const next = new Map(prev);
-      const cur  = next.get(id) ?? { tasks: new Set<TaskKey>(), notes: "", status: "sin_contactar" as CRMStatus };
+      const cur  = next.get(id) ?? emptyCRM();
       next.set(id, { ...cur, ...update });
       return next;
     });
 
   const modalClient = modalId ? contacts.find(c => c.id === modalId) ?? null : null;
-  const modalCRM    = modalId ? (crmData.get(modalId) ?? { tasks: new Set<TaskKey>(), notes: "", status: "sin_contactar" as CRMStatus }) : null;
+  const modalCRM    = modalId ? (crmData.get(modalId) ?? emptyCRM()) : null;
 
   return (
     <>
@@ -519,7 +609,7 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
                 <DormantCRMCard
                   key={c.id}
                   c={c}
-                  crm={crmData.get(c.id) ?? { tasks: new Set(), notes: "", status: "sin_contactar" }}
+                  crm={crmData.get(c.id) ?? emptyCRM()}
                   onOpen={() => setModalId(c.id)}
                 />
               ))}
