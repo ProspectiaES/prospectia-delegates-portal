@@ -340,7 +340,7 @@ function ActivityForm({ prospectoId, email, senderEmail, templates }: {
 
 // ─── Email sender ─────────────────────────────────────────────────────────────
 
-function EmailSender({ prospectoId, email, templates }: { prospectoId: string; email: string | null; templates: EmailTemplate[] }) {
+function EmailSender({ prospectoId, email, senderEmail, templates }: { prospectoId: string; email: string | null; senderEmail: string | null; templates: EmailTemplate[] }) {
   const [open, setOpen]     = useState(false);
   const [tplId, setTplId]   = useState<string>("");
   const [subject, setSubject] = useState("");
@@ -391,7 +391,14 @@ function EmailSender({ prospectoId, email, templates }: { prospectoId: string; e
   return (
     <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-[#374151]">Enviar email a {email}</p>
+        <div>
+          <p className="text-xs font-semibold text-[#374151]">Para: {email}</p>
+          {senderEmail && (
+            <p className="text-[10px] text-[#9CA3AF] mt-0.5">
+              De: {senderEmail.endsWith("@prospectia.es") ? senderEmail : `notificaciones@prospectia.es`}
+            </p>
+          )}
+        </div>
         <button onClick={() => setOpen(false)} className="text-[#9CA3AF] hover:text-[#374151]">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M3 3l8 8M11 3l-8 8" strokeLinecap="round"/>
@@ -645,6 +652,7 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
         {/* Actions */}
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
           <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Acciones</p>
+          <EmailSender prospectoId={p.id} email={p.email} senderEmail={senderEmail} templates={templates} />
           <ConvertButton prospectoId={p.id} already={!!p.holded_contact_id} />
           {(canEdit || isOwner) && <DeleteButton prospectoId={p.id} />}
         </div>
