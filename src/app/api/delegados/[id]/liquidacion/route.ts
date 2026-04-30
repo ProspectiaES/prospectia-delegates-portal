@@ -87,8 +87,8 @@ export async function GET(
           .in("contact_id", contactIds)
           .eq("status", 3)
           .eq("is_credit_note", false)
-          .gte("date", periodStart)
-          .lte("date", periodEnd)
+          .gte("date_paid", periodStart)
+          .lte("date_paid", periodEnd)
       : Promise.resolve({ data: [] }),
     contactIds.length > 0
       ? supabase
@@ -201,8 +201,8 @@ export async function GET(
           .in("contact_id", kolContactIds)
           .eq("status", 3)
           .eq("is_credit_note", false)
-          .gte("date", periodStart)
-          .lte("date", periodEnd),
+          .gte("date_paid", periodStart)
+          .lte("date_paid", periodEnd),
         supabase
           .from("holded_invoices")
           .select("doc_num_ref")
