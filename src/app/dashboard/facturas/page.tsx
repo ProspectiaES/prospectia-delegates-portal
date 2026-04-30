@@ -94,6 +94,10 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const total      = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const now          = new Date();
+  const currentYear  = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
   const { data: allRows } = await supabase.from("holded_invoices").select("total, status");
   const filtered    = statusStr ? (allRows ?? []).filter((r) => r.status === parseInt(statusStr, 10)) : (allRows ?? []);
   const sumTotal    = filtered.reduce((s, r) => s + (r.total ?? 0), 0);
@@ -206,8 +210,16 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                     inv.status === 2 ||
                     (inv.status === 1 && inv.due_date && new Date(inv.due_date) < new Date());
 
+                  const paidDate = inv.status === 3 && inv.date_paid ? new Date(inv.date_paid) : null;
+                  const isPaidThisMonth = paidDate != null
+                    && paidDate.getFullYear() === currentYear
+                    && paidDate.getMonth() + 1 === currentMonth;
+
                   return (
-                    <tr key={inv.id} className="hover:bg-[#F9FAFB] transition-colors">
+                    <tr
+                      key={inv.id}
+                      className={`transition-colors ${isPaidThisMonth ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-[#F9FAFB]"}`}
+                    >
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A] font-mono text-xs">
                         <Link href={`/dashboard/facturas/${inv.id}`} className="hover:text-[#8E0E1A] transition-colors">
                           {inv.doc_number ?? (
@@ -234,10 +246,15 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap">
-                        {inv.status === 3
-                          ? <span className="text-emerald-700 font-medium">{fmtDate(inv.date_paid ?? inv.date_last_modified)}</span>
-                          : <span className="text-[#9CA3AF]">—</span>
-                        }
+                        {paidDate == null ? (
+                          <span className="text-[#9CA3AF]">—</span>
+                        ) : isPaidThisMonth ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
+                            ★ {fmtDate(inv.date_paid)}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 font-medium tabular-nums">{fmtDate(inv.date_paid)}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap text-right font-semibold text-[#0A0A0A]">
                         {fmtCurrency(inv.total)}
