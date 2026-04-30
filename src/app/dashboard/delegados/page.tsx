@@ -42,9 +42,9 @@ export default async function DelegadosPage() {
       .select("id, full_name, delegate_name, email, phone, city, created_at, is_private, kol_id, coordinator_id")
       .or("role.eq.DELEGATE,show_in_delegate_list.eq.true")
       .order("full_name"),
-    supabase.from("contact_delegates").select("delegate_id, contact_id"),
-    supabase.from("bixgrow_affiliates").select("delegate_id").not("delegate_id", "is", null),
-    supabase.from("holded_invoices").select("contact_id, total, status"),
+    admin.from("contact_delegates").select("delegate_id, contact_id"),
+    admin.from("bixgrow_affiliates").select("delegate_id").not("delegate_id", "is", null),
+    admin.from("holded_invoices").select("contact_id, total, status"),
   ]);
 
   const allRows = (delegatesRes.data ?? []) as DelegateRow[];
