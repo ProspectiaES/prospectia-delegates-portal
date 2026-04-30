@@ -416,9 +416,13 @@ export function Sidebar({ user }: { user?: UserProps }) {
       {/* Brand */}
       <div className="h-14 flex items-center px-4 border-b border-[#E5E7EB] shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-[6px] bg-[#8E0E1A] flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm leading-none select-none">P</span>
-          </div>
+          <Image
+            src="/OwlICO.png"
+            alt="Prospectia"
+            width={28}
+            height={28}
+            className="w-7 h-7 shrink-0 object-contain"
+          />
           <div>
             <p className="text-[12px] font-bold text-[#0A0A0A] tracking-wider leading-none uppercase">
               Prospectia
