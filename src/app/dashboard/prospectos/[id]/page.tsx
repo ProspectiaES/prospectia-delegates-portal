@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
-import { stageCfg } from "../ProspectosClient";
+import { stageCfg } from "../stages";
 import { ProspectoDetailClient, type ActivityRow, type ProspectoDetail, type EmailTemplate } from "./ProspectoDetailClient";
 
 interface PageProps {

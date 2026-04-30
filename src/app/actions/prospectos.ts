@@ -5,9 +5,7 @@ import { getProfile, isKolUser } from "@/lib/profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-export type ProspectoStage =
-  | "nuevo" | "contactado" | "interesado"
-  | "propuesta" | "negociacion" | "ganado" | "perdido";
+import type { ProspectoStage } from "@/app/dashboard/prospectos/stages";
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 

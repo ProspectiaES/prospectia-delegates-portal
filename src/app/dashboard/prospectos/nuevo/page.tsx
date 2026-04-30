@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { createProspecto } from "@/app/actions/prospectos";
-import { STAGES } from "../ProspectosClient";
+import { STAGES } from "../stages";
 
 export default async function NuevoProspectoPage() {
   const profile = await getProfile();

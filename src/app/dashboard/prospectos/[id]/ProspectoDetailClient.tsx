@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateProspectoStage, updateProspecto, addActivity, convertToHolded, deleteProspecto } from "@/app/actions/prospectos";
-import type { ProspectoStage } from "@/app/actions/prospectos";
-import { STAGES, stageCfg } from "../ProspectosClient";
+import { STAGES, stageCfg, type ProspectoStage } from "../stages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
