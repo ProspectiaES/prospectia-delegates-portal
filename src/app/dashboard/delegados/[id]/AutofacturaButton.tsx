@@ -93,7 +93,7 @@ export function AutofacturaButton({ delegateId, defaultMes }: Props) {
   const [irpfOn, setIrpfOn]     = useState(false);
   const [irpfPct, setIrpfPct]   = useState(15);
   const [recOn, setRecOn]       = useState(false);
-  const [recPct, setRecPct]     = useState(5.2);
+  const [recPct, setRecPct]     = useState(1.4);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
