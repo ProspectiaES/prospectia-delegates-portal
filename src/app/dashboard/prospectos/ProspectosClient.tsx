@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { updateProspectoStage } from "@/app/actions/prospectos";
 import { STAGES, stageCfg, type ProspectoStage } from "./stages";
+import { ExcelImportModal, type ImportRow } from "./ExcelImportModal";
 
 export type { ProspectoStage };
 export { STAGES, stageCfg };
@@ -133,66 +134,13 @@ function ListView({ prospectos, isOwner }: { prospectos: ProspectoRow[]; isOwner
   );
 }
 
-// ─── CSV Import ───────────────────────────────────────────────────────────────
-
-function CSVImport({ onImport }: { onImport: (rows: Array<{ name: string; email?: string; phone?: string; company?: string; city?: string }>) => Promise<void> }) {
-  const [dragging, setDragging] = useState(false);
-  const [status, setStatus]     = useState<string | null>(null);
-  const [pending, startT]       = useTransition();
-
-  function parseCSV(text: string) {
-    const lines = text.split(/\r?\n/).filter(Boolean);
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/["']/g, ""));
-    return lines.slice(1).map(line => {
-      const vals = line.split(",").map(v => v.trim().replace(/^["']|["']$/g, ""));
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = vals[i] ?? ""; });
-      return row;
-    }).filter(r => r.name || r.nombre);
-  }
-
-  async function handleFile(file: File) {
-    const text = await file.text();
-    const rows = parseCSV(text).map(r => ({
-      name:    r.name    || r.nombre    || "",
-      email:   r.email   || r.correo    || undefined,
-      phone:   r.phone   || r.telefono  || undefined,
-      company: r.company || r.empresa   || undefined,
-      city:    r.city    || r.ciudad    || undefined,
-    })).filter(r => r.name);
-
-    if (rows.length === 0) { setStatus("Sin datos válidos"); return; }
-    startT(async () => {
-      await onImport(rows);
-      setStatus(`${rows.length} prospectos importados`);
-    });
-  }
-
-  return (
-    <div
-      className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${dragging ? "border-[#8E0E1A] bg-[#FEF2F2]" : "border-[#E5E7EB] bg-[#FAFAFA]"}`}
-      onDragOver={e => { e.preventDefault(); setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-    >
-      <p className="text-sm font-medium text-[#374151]">Importar CSV</p>
-      <p className="text-xs text-[#9CA3AF] mt-1">Columnas: name, email, phone, company, city</p>
-      <label className="mt-3 inline-block cursor-pointer">
-        <span className="text-xs font-semibold text-[#8E0E1A] hover:underline">Seleccionar archivo</span>
-        <input type="file" accept=".csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-      </label>
-      {status && <p className="mt-2 text-xs text-emerald-700 font-medium">{status}</p>}
-      {pending && <p className="mt-2 text-xs text-[#9CA3AF]">Importando…</p>}
-    </div>
-  );
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
   prospectos: ProspectoRow[];
   isOwner: boolean;
-  onImportCSV: (rows: Array<{ name: string; email?: string; phone?: string; company?: string; city?: string }>) => Promise<void>;
+  onImportCSV: (rows: ImportRow[]) => Promise<void>;
 }
 
 export function ProspectosClient({ prospectos, isOwner, onImportCSV }: Props) {
@@ -242,16 +190,19 @@ export function ProspectosClient({ prospectos, isOwner, onImportCSV }: Props) {
           </button>
         </div>
         <button
-          onClick={() => setShowImport(v => !v)}
+          onClick={() => setShowImport(true)}
           className="h-9 px-3 rounded-lg border border-[#E5E7EB] bg-white text-xs font-medium text-[#6B7280] hover:border-[#0A0A0A] hover:bg-[#F9FAFB] transition-colors shadow-sm"
         >
-          Importar CSV
+          Importar Excel / CSV
         </button>
       </div>
 
-      {/* CSV import drop zone */}
+      {/* Excel import modal */}
       {showImport && (
-        <CSVImport onImport={async rows => { await onImportCSV(rows); setShowImport(false); }} />
+        <ExcelImportModal
+          onImport={async rows => { await onImportCSV(rows); }}
+          onClose={() => setShowImport(false)}
+        />
       )}
 
       {/* Stage summary pills */}

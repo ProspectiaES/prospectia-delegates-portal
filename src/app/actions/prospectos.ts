@@ -61,13 +61,15 @@ export async function updateProspecto(id: string, formData: FormData) {
 
   const admin = createAdminClient();
   await admin.from("prospectos").update({
-    name:    (formData.get("name")    as string).trim(),
-    email:   (formData.get("email")   as string | null)?.trim() || null,
-    phone:   (formData.get("phone")   as string | null)?.trim() || null,
-    company: (formData.get("company") as string | null)?.trim() || null,
-    city:    (formData.get("city")    as string | null)?.trim() || null,
-    notes:   (formData.get("notes")   as string | null)?.trim() || null,
-    stage:   formData.get("stage") as ProspectoStage,
+    name:      (formData.get("name")      as string).trim(),
+    email:     (formData.get("email")     as string | null)?.trim() || null,
+    phone:     (formData.get("phone")     as string | null)?.trim() || null,
+    company:   (formData.get("company")   as string | null)?.trim() || null,
+    city:      (formData.get("city")      as string | null)?.trim() || null,
+    whatsapp:  (formData.get("whatsapp")  as string | null)?.trim() || null,
+    website:   (formData.get("website")   as string | null)?.trim() || null,
+    notes:     (formData.get("notes")     as string | null)?.trim() || null,
+    stage:     formData.get("stage") as ProspectoStage,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
@@ -159,11 +161,12 @@ export async function deleteProspecto(id: string) {
   redirect("/dashboard/prospectos");
 }
 
-// ─── CSV Import ───────────────────────────────────────────────────────────────
+// ─── Import (Excel/CSV) ───────────────────────────────────────────────────────
 
 export async function importProspectosCSV(rows: Array<{
   name: string; email?: string; phone?: string;
-  company?: string; city?: string; source?: string;
+  company?: string; city?: string; whatsapp?: string;
+  website?: string; notes?: string; source?: string;
 }>) {
   const profile = await getProfile();
   if (!profile) return { error: "Sin sesión" };
@@ -171,13 +174,16 @@ export async function importProspectosCSV(rows: Array<{
   const admin = createAdminClient();
   const records = rows.map(r => ({
     delegate_id: profile.id,
-    name:    r.name.trim(),
-    email:   r.email?.trim()   || null,
-    phone:   r.phone?.trim()   || null,
-    company: r.company?.trim() || null,
-    city:    r.city?.trim()    || null,
-    stage:   "nuevo" as const,
-    source:  r.source?.trim()  || "csv",
+    name:      r.name.trim(),
+    email:     r.email?.trim()     || null,
+    phone:     r.phone?.trim()     || null,
+    company:   r.company?.trim()   || null,
+    city:      r.city?.trim()      || null,
+    whatsapp:  r.whatsapp?.trim()  || null,
+    website:   r.website?.trim()   || null,
+    notes:     r.notes?.trim()     || null,
+    stage:     "nuevo" as const,
+    source:    r.source?.trim()    || "excel",
   }));
 
   const { error } = await admin.from("prospectos").insert(records);

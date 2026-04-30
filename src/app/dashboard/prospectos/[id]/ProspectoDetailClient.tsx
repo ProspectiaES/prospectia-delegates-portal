@@ -34,6 +34,8 @@ export interface ProspectoDetail {
   company: string | null;
   city: string | null;
   country: string | null;
+  whatsapp: string | null;
+  website: string | null;
   stage: ProspectoStage;
   notes: string | null;
   source: string | null;
@@ -131,6 +133,16 @@ function EditForm({ p, onClose }: { p: ProspectoDetail; onClose: () => void }) {
         <div>
           <label className="block text-xs font-semibold text-[#374151] mb-1.5">Ciudad</label>
           <input name="city" defaultValue={p.city ?? ""}
+            className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#374151] mb-1.5">WhatsApp</label>
+          <input name="whatsapp" type="tel" defaultValue={p.whatsapp ?? ""}
+            className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#374151] mb-1.5">Web</label>
+          <input name="website" type="url" defaultValue={p.website ?? ""}
             className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm" />
         </div>
         <input type="hidden" name="stage" value={p.stage} />
@@ -590,6 +602,26 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
                 <div>
                   <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Ciudad</dt>
                   <dd className="text-xs text-[#374151] mt-0.5">{p.city}</dd>
+                </div>
+              )}
+              {p.whatsapp && (
+                <div>
+                  <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">WhatsApp</dt>
+                  <dd className="text-xs mt-0.5">
+                    <a href={`https://wa.me/${p.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline">
+                      {p.whatsapp}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {p.website && (
+                <div>
+                  <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Web</dt>
+                  <dd className="text-xs mt-0.5">
+                    <a href={p.website.startsWith("http") ? p.website : `https://${p.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-full">
+                      {p.website}
+                    </a>
+                  </dd>
                 </div>
               )}
               <div>
