@@ -20,6 +20,10 @@ export interface ContactWithActivity {
   daysSinceActivity: number | null;
 }
 
+// ─── CRM types ────────────────────────────────────────────────────────────────
+
+type CRMStatus = "sin_contactar" | "en_seguimiento" | "reactivado";
+
 export interface FollowupRecord {
   contact_id: string;
   status:     CRMStatus;
@@ -36,10 +40,6 @@ interface Props {
   initialFollowups: FollowupRecord[];
   prospectoMap:     Record<string, string>; // holded contact_id → prospecto.id
 }
-
-// ─── CRM types ────────────────────────────────────────────────────────────────
-
-type CRMStatus = "sin_contactar" | "en_seguimiento" | "reactivado";
 
 const TASK_LABELS = [
   "Llamar al cliente",
@@ -77,6 +77,24 @@ const STATUS_OPTIONS: { value: CRMStatus; label: string; activeCls: string; dotC
   { value: "reactivado",     label: "Reactivado",     activeCls: "border-emerald-500 bg-emerald-50 text-emerald-700", dotCls: "bg-emerald-500" },
 ];
 
+const STAGE_LABELS: Record<string, string> = {
+  nuevo:        "Nuevo",
+  contactado:   "Contactado",
+  interesado:   "Interesado",
+  propuesta:    "Propuesta",
+  negociacion:  "Negociación",
+  ganado:       "Cliente",
+  perdido:      "Perdido",
+};
+
+type CRMActivity = {
+  id: string;
+  type: string;
+  title: string;
+  completed_at: string | null;
+  scheduled_at: string | null;
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const typeLabel:   Record<number, string>                                          = { 0: "Contacto", 1: "Cliente", 2: "Proveedor", 3: "Acreedor", 4: "Deudor" };
@@ -87,6 +105,15 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function fmtRelative(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86_400_000);
+  if (d === 0) return "hoy";
+  if (d === 1) return "ayer";
+  if (d < 30)  return `hace ${d}d`;
+  return fmtDate(iso) ?? "—";
+}
+
 function dormantSeverity(days: number | null) {
   if (days === null || days >= 999)
     return { label: "Sin actividad", badgeCls: "bg-[#F3F4F6] text-[#6B7280]",       rowCls: "bg-[#F9FAFB]",    dotCls: "bg-[#9CA3AF]",  stripCls: "bg-[#E5E7EB]" };
@@ -95,6 +122,16 @@ function dormantSeverity(days: number | null) {
   if (days > 60)
     return { label: `${days}d`,      badgeCls: "bg-orange-100 text-orange-700",       rowCls: "bg-orange-50/30", dotCls: "bg-orange-500", stripCls: "bg-orange-500" };
   return   { label: `${days}d`,      badgeCls: "bg-amber-100 text-amber-700",         rowCls: "bg-amber-50/30",  dotCls: "bg-amber-500",  stripCls: "bg-amber-500" };
+}
+
+function activityTypeIcon(type: string) {
+  switch (type) {
+    case "call":    return <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M13.5 10.5c-.8-.8-1.9-1.3-3-1.3-.5 0-.9.1-1.3.3L7.8 8.1C8 7.7 8.1 7.3 8.1 6.8c0-1.1-.5-2.2-1.3-3L5.2 2.2c-.4-.4-1-.4-1.4 0L2.4 3.6c-.8.8-.8 2.1 0 3l9 9c.8.8 2.1.8 3 0l1.4-1.4c.4-.4.4-1 0-1.4l-2.3-2.3z" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "meeting": return <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="4" width="12" height="10" rx="2"/><path d="M5 4V3a1 1 0 012 0v1M9 4V3a1 1 0 012 0v1M2 8h12" strokeLinecap="round"/></svg>;
+    case "email":   return <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="4" width="12" height="9" rx="2"/><path d="M2 5l6 5 6-5" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "task":    return <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    default:        return <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 2a6 6 0 100 12A6 6 0 008 2zM8 7v2.5M8 11.5h.01" strokeLinecap="round"/></svg>;
+  }
 }
 
 const PAGE_SIZE = 25;
@@ -215,34 +252,34 @@ function DormantRow({ c }: { c: ContactWithActivity }) {
 
 // ─── CRM Card (dormant client) ────────────────────────────────────────────────
 
-function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMState; onOpen: () => void }) {
-  const sev         = dormantSeverity(c.daysSinceActivity);
-  const done        = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
-  const total       = TASK_LABELS.length + 1; // +1 for Otros
-  const statusOpt   = STATUS_OPTIONS.find(o => o.value === crm.status)!;
+function DormantCRMCard({ c, crm, prospectoId, onOpen }: {
+  c: ContactWithActivity; crm: CRMState; prospectoId?: string; onOpen: () => void;
+}) {
+  const sev       = dormantSeverity(c.daysSinceActivity);
+  const done      = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
+  const total     = TASK_LABELS.length + 1;
+  const statusOpt = STATUS_OPTIONS.find(o => o.value === crm.status)!;
 
   return (
     <button
       onClick={onOpen}
       className="w-full text-left rounded-xl border border-[#E5E7EB] bg-white shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all overflow-hidden group"
     >
-      {/* Urgency strip */}
       <div className={`h-1 w-full ${sev.stripCls}`} />
-
       <div className="p-4">
-        {/* Name + badge */}
         <div className="flex items-start justify-between gap-2 mb-1">
           <p className="text-sm font-semibold text-[#0A0A0A] leading-snug truncate">{c.name}</p>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${sev.badgeCls}`}>{sev.label}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {prospectoId && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">CRM</span>
+            )}
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sev.badgeCls}`}>{sev.label}</span>
+          </div>
         </div>
         {c.city && <p className="text-[11px] text-[#9CA3AF] mb-3">{c.city}</p>}
-
-        {/* Last activity */}
         <p className="text-[11px] text-[#9CA3AF] mb-3 truncate">
           {c.lastActivityDate ? `Último pedido: ${fmtDate(c.lastActivityDate)}` : "Sin actividad registrada"}
         </p>
-
-        {/* Task progress */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-medium text-[#6B7280]">Tareas de seguimiento</span>
@@ -257,15 +294,13 @@ function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMSt
             <div className={`h-1.5 flex-1 rounded-full transition-colors ${crm.otrosChecked ? "bg-emerald-500" : "bg-[#E5E7EB]"}`} />
           </div>
         </div>
-
-        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-[#F3F4F6]">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${statusOpt.dotCls}`} />
             <span className="text-[11px] text-[#6B7280]">{statusOpt.label}</span>
           </div>
           <span className="text-[11px] font-semibold text-[#8E0E1A] flex items-center gap-1 group-hover:gap-2 transition-all">
-            Abrir
+            Gestionar
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M3 13L13 3M13 3H8M13 3v5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -278,18 +313,25 @@ function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMSt
 
 // ─── CRM Full-screen modal ────────────────────────────────────────────────────
 
-function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
+function ClientCRMModal({ c, crm, onUpdate, onClose, saveState, prospectoId, onProspectoCreated }: {
   c: ContactWithActivity;
   crm: CRMState;
   onUpdate: (u: Partial<CRMState>) => void;
   onClose: () => void;
   saveState: "idle" | "saving" | "saved";
+  prospectoId?: string;
+  onProspectoCreated: (prospectoId: string) => void;
 }) {
   const sev   = dormantSeverity(c.daysSinceActivity);
   const done  = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
-  const total = TASK_LABELS.length + 1; // +1 for Otros
+  const total = TASK_LABELS.length + 1;
 
-  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [questionsOpen,     setQuestionsOpen]     = useState(false);
+  const [calendarAdded,     setCalendarAdded]     = useState<Set<TaskKey>>(new Set());
+  const [pendingCalendar,   setPendingCalendar]   = useState<TaskKey | null>(null);
+  const [creatingPros,      setCreatingPros]      = useState(false);
+  const [crmInfo,           setCrmInfo]           = useState<{ stage: string; activities: CRMActivity[] } | null>(null);
+  const [crmLoading,        setCrmLoading]        = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -298,10 +340,64 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
     return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
-  const toggleTask = (task: TaskKey) => {
-    const t = new Set(crm.tasks);
-    t.has(task) ? t.delete(task) : t.add(task);
-    onUpdate({ tasks: t });
+  // Load CRM data whenever prospectoId changes
+  const loadCrmData = useCallback(async (pid: string) => {
+    setCrmLoading(true);
+    try {
+      const res  = await fetch(`/api/followup/crm-data?prospecto_id=${pid}`);
+      const data = await res.json() as { prospecto: { stage: string } | null; activities: CRMActivity[] };
+      setCrmInfo({ stage: data.prospecto?.stage ?? "ganado", activities: data.activities });
+    } finally {
+      setCrmLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (prospectoId) loadCrmData(prospectoId);
+    else setCrmInfo(null);
+  }, [prospectoId, loadCrmData]);
+
+  const toggleTask = async (task: TaskKey) => {
+    const isChecked = crm.tasks.has(task);
+    const newTasks  = new Set(crm.tasks);
+    isChecked ? newTasks.delete(task) : newTasks.add(task);
+    onUpdate({ tasks: newTasks });
+
+    // Newly checked + CRM linked → immediately add to calendar
+    if (!isChecked && prospectoId) {
+      setPendingCalendar(task);
+      try {
+        const res = await fetch("/api/followup/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prospecto_id: prospectoId, task }),
+        });
+        if (res.ok) {
+          setCalendarAdded(prev => new Set([...prev, task]));
+          if (prospectoId) loadCrmData(prospectoId); // refresh CRM activity feed
+        }
+      } finally {
+        setPendingCalendar(null);
+      }
+    }
+  };
+
+  const handleCreateProspecto = async () => {
+    setCreatingPros(true);
+    try {
+      const res  = await fetch("/api/followup/create-prospecto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: c.id, contact_name: c.name }),
+      });
+      const data = await res.json() as { id?: string };
+      if (data.id) {
+        onProspectoCreated(data.id);
+        await loadCrmData(data.id);
+      }
+    } finally {
+      setCreatingPros(false);
+    }
   };
 
   const allDone = done === total;
@@ -333,7 +429,7 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
 
         <div className="flex items-center gap-3 shrink-0">
           {saveState === "saving" && (
-            <span className="text-[11px] text-[#9CA3AF] flex items-center gap-1">
+            <span className="text-[11px] text-[#9CA3AF] flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full border-2 border-[#9CA3AF] border-t-transparent animate-spin inline-block" />
               Guardando…
             </span>
@@ -360,7 +456,91 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
       <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
 
-          {/* Status */}
+          {/* ── CRM Integration ────────────────────────────────────────── */}
+          <div className={`bg-white rounded-xl border ${prospectoId ? "border-emerald-200" : "border-amber-200"} overflow-hidden`}>
+            <div className={`px-5 py-3 ${prospectoId ? "bg-emerald-50" : "bg-amber-50"} flex items-center justify-between`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${prospectoId ? "bg-emerald-500" : "bg-amber-400"}`} />
+                <p className={`text-sm font-semibold ${prospectoId ? "text-emerald-700" : "text-amber-700"}`}>
+                  {prospectoId ? "Vinculado al CRM" : "Sin conexión con CRM"}
+                </p>
+                {prospectoId && crmInfo && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-emerald-200 text-emerald-700 font-medium">
+                    {STAGE_LABELS[crmInfo.stage] ?? crmInfo.stage}
+                  </span>
+                )}
+              </div>
+              {prospectoId && (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/dashboard/prospectos/${prospectoId}`}
+                    className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1"
+                    target="_blank"
+                  >
+                    Prospecto
+                    <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 13L13 3M13 3H8M13 3v5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </Link>
+                  <Link
+                    href="/dashboard/calendario"
+                    className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                    target="_blank"
+                  >
+                    Calendario
+                    <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 13L13 3M13 3H8M13 3v5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* CRM activities feed */}
+            {prospectoId && (
+              <div className="px-5 py-4">
+                {crmLoading ? (
+                  <p className="text-[11px] text-[#9CA3AF]">Cargando actividades CRM…</p>
+                ) : crmInfo && crmInfo.activities.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-2">Últimas actividades CRM</p>
+                    {crmInfo.activities.map(a => (
+                      <div key={a.id} className="flex items-center gap-2.5">
+                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${a.completed_at ? "bg-emerald-100 text-emerald-600" : "bg-[#F3F4F6] text-[#9CA3AF]"}`}>
+                          {activityTypeIcon(a.type)}
+                        </span>
+                        <span className={`text-xs flex-1 truncate ${a.completed_at ? "text-[#374151]" : "text-[#6B7280]"}`}>{a.title}</span>
+                        <span className="text-[10px] text-[#9CA3AF] shrink-0">
+                          {a.completed_at ? fmtRelative(a.completed_at) : a.scheduled_at ? fmtDate(a.scheduled_at) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#9CA3AF]">Sin actividades registradas aún. Completa tareas para añadirlas al calendario.</p>
+                )}
+              </div>
+            )}
+
+            {/* No prospecto → create button */}
+            {!prospectoId && (
+              <div className="px-5 py-4">
+                <p className="text-xs text-[#6B7280] mb-3">
+                  Al vincular este cliente al CRM, las tareas completadas se añadirán automáticamente al calendario y podrás hacer seguimiento completo.
+                </p>
+                <button
+                  onClick={handleCreateProspecto}
+                  disabled={creatingPros}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                >
+                  {creatingPros ? (
+                    <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round"/></svg>
+                  )}
+                  {creatingPros ? "Creando prospecto…" : "Crear prospecto en CRM"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Status ─────────────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] mb-3">Estado del seguimiento</p>
             <div className="flex gap-2 flex-wrap">
@@ -381,7 +561,7 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
             </div>
           </div>
 
-          {/* Key questions — BEFORE tasks */}
+          {/* ── Key questions ───────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
             <button
               type="button"
@@ -419,10 +599,18 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
             )}
           </div>
 
-          {/* Tasks */}
+          {/* ── Tasks ──────────────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">Tareas de seguimiento</p>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">Tareas de seguimiento</p>
+                {prospectoId && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Las tareas completadas se añaden al calendario CRM
+                  </p>
+                )}
+              </div>
               <span className={`text-xs font-semibold tabular-nums px-2.5 py-1 rounded-full ${
                 allDone ? "bg-emerald-50 text-emerald-700" : done > 0 ? "bg-blue-50 text-blue-700" : "bg-[#F3F4F6] text-[#9CA3AF]"
               }`}>
@@ -440,7 +628,10 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
 
             <ul className="space-y-2">
               {TASK_LABELS.map(task => {
-                const isChecked = crm.tasks.has(task);
+                const isChecked   = crm.tasks.has(task);
+                const isPending   = pendingCalendar === task;
+                const addedToCal  = calendarAdded.has(task);
+
                 return (
                   <li key={task}>
                     <label className={`flex items-center gap-4 rounded-xl px-4 py-4 border-2 cursor-pointer transition-all ${
@@ -452,12 +643,25 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleTask(task)}
+                        disabled={isPending}
                         className="w-5 h-5 rounded accent-[#8E0E1A] cursor-pointer shrink-0"
                       />
                       <span className={`text-sm flex-1 ${isChecked ? "line-through text-[#9CA3AF]" : "text-[#374151] font-medium"}`}>
                         {task}
                       </span>
-                      {isChecked && (
+                      {isPending && (
+                        <span className="text-[10px] text-[#9CA3AF] flex items-center gap-1 shrink-0">
+                          <span className="w-2.5 h-2.5 rounded-full border border-[#9CA3AF] border-t-transparent animate-spin inline-block" />
+                          Añadiendo…
+                        </span>
+                      )}
+                      {!isPending && isChecked && addedToCal && prospectoId && (
+                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          En calendario
+                        </span>
+                      )}
+                      {!isPending && isChecked && !addedToCal && (
                         <svg className="shrink-0 text-emerald-500" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
@@ -481,9 +685,7 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
                       onChange={() => onUpdate({ otrosChecked: !crm.otrosChecked })}
                       className="w-5 h-5 rounded accent-[#8E0E1A] cursor-pointer shrink-0"
                     />
-                    <span className={`text-sm flex-1 font-medium ${crm.otrosChecked ? "text-[#374151]" : "text-[#374151]"}`}>
-                      Otros
-                    </span>
+                    <span className="text-sm flex-1 font-medium text-[#374151]">Otros</span>
                     {crm.otrosChecked && (
                       <svg className="shrink-0 text-emerald-500" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -513,7 +715,7 @@ function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
             )}
           </div>
 
-          {/* Notes */}
+          {/* ── Notes ──────────────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] mb-3">Notas de seguimiento</p>
             <textarea
@@ -550,8 +752,6 @@ function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimien
 
   return (
     <div className="space-y-3">
-
-      {/* Row 1 — main KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {mainTiles.map(({ value, label, sub, numCls, bg, border }) => (
           <div key={label} className={`rounded-xl border ${border} ${bg} px-4 py-4 flex flex-col items-center text-center shadow-sm`}>
@@ -562,10 +762,7 @@ function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimien
         ))}
       </div>
 
-      {/* Row 2 — ratio + CRM stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-        {/* Ratio bar */}
         <div className="sm:col-span-1 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm">
           <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-2.5">Distribución</p>
           <div className="h-3 rounded-full overflow-hidden flex">
@@ -579,20 +776,17 @@ function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimien
           </div>
         </div>
 
-        {/* En seguimiento */}
         <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 flex flex-col items-center text-center shadow-sm">
           <p className="text-3xl font-bold tabular-nums text-blue-600 leading-none">{enSeguimiento}</p>
           <p className="text-xs font-semibold text-[#374151] mt-2">En seguimiento</p>
           <p className="text-[10px] text-[#9CA3AF] mt-0.5">CRM activo</p>
         </div>
 
-        {/* Reactivados */}
         <div className={`rounded-xl border ${reactivados > 0 ? "border-emerald-100 bg-emerald-50" : "border-[#E5E7EB] bg-white"} px-4 py-4 flex flex-col items-center text-center shadow-sm`}>
           <p className={`text-3xl font-bold tabular-nums leading-none ${reactivados > 0 ? "text-emerald-600" : "text-[#9CA3AF]"}`}>{reactivados}</p>
           <p className="text-xs font-semibold text-[#374151] mt-2">Reactivados</p>
           <p className="text-[10px] text-[#9CA3AF] mt-0.5">marcados en CRM</p>
         </div>
-
       </div>
     </div>
   );
@@ -600,7 +794,7 @@ function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimien
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ClientesActivityList({ contacts, periodStart, periodEnd, initialFollowups, prospectoMap }: Props) {
+export function ClientesActivityList({ contacts, periodStart, periodEnd, initialFollowups, prospectoMap: initialProspectoMap }: Props) {
   const nuevos   = contacts.filter(c => c.firstInvoiceDate && c.firstInvoiceDate >= periodStart && c.firstInvoiceDate <= periodEnd);
   const activos  = contacts.filter(c => c.daysSinceActivity !== null && c.daysSinceActivity <= 30);
   const dormidos = contacts.filter(c => c.daysSinceActivity === null || c.daysSinceActivity > 30)
@@ -624,6 +818,9 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
     return map;
   });
 
+  // prospectoMap as state so it can be updated when a prospecto is created from the modal
+  const [pMap, setPMap] = useState<Record<string, string>>(initialProspectoMap);
+
   const [saveState,    setSaveState]    = useState<"idle" | "saving" | "saved">("idle");
   const [modalId,      setModalId]      = useState<string | null>(null);
   const [nuevosOpen,   setNuevosOpen]   = useState(true);
@@ -633,13 +830,9 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
   const [activosPage,  setActivosPage]  = useState(1);
   const [dormidosPage, setDormidosPage] = useState(1);
 
-  // Track which contacts need saving and which tasks are persisted in DB
-  const dirtyRef      = useRef<Set<string>>(new Set());
-  const persistedRef  = useRef<Map<string, Set<TaskKey>>>(
-    new Map(initialFollowups.map(f => [f.contact_id, new Set(f.tasks_done as TaskKey[])]))
-  );
+  const dirtyRef = useRef<Set<string>>(new Set());
 
-  // Debounced save: fires 1.5s after last crmData change
+  // Debounced state persistence (not activity creation — that's immediate in the modal)
   useEffect(() => {
     if (dirtyRef.current.size === 0) return;
     const dirty = [...dirtyRef.current];
@@ -649,21 +842,16 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
       await Promise.all(dirty.map(async id => {
         const state = crmData.get(id);
         if (!state) return;
-        const persisted = persistedRef.current.get(id) ?? new Set<TaskKey>();
-        const newly_completed = [...state.tasks].filter(t => !persisted.has(t));
-        persistedRef.current.set(id, new Set(state.tasks));
         await fetch("/api/followup/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contact_id:             id,
-            status:                 state.status,
-            tasks_done:             [...state.tasks],
-            otros_done:             state.otrosChecked,
-            otros_text:             state.otrosText,
-            notes:                  state.notes,
-            newly_completed_tasks:  newly_completed,
-            prospecto_id:           prospectoMap[id] ?? null,
+            contact_id: id,
+            status:     state.status,
+            tasks_done: [...state.tasks],
+            otros_done: state.otrosChecked,
+            otros_text: state.otrosText,
+            notes:      state.notes,
           }),
         });
       }));
@@ -671,7 +859,7 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
       setTimeout(() => setSaveState("idle"), 2000);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [crmData, prospectoMap]);
+  }, [crmData]);
 
   const nuevosSlice   = nuevos.slice((nuevosPage - 1)   * PAGE_SIZE, nuevosPage   * PAGE_SIZE);
   const activosSlice  = activos.slice((activosPage - 1)  * PAGE_SIZE, activosPage  * PAGE_SIZE);
@@ -697,7 +885,6 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
 
   return (
     <>
-      {/* Full-screen CRM modal */}
       {modalClient && modalCRM && (
         <ClientCRMModal
           c={modalClient}
@@ -705,12 +892,13 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
           onUpdate={u => updateCRM(modalClient.id, u)}
           onClose={() => setModalId(null)}
           saveState={saveState}
+          prospectoId={pMap[modalClient.id]}
+          onProspectoCreated={(prospectoId) => setPMap(prev => ({ ...prev, [modalClient.id]: prospectoId }))}
         />
       )}
 
       <div className="space-y-4">
 
-        {/* Card 1 — Summary */}
         <SummaryCard
           total={contacts.length}
           activos={activos.length}
@@ -721,13 +909,13 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
           reactivados={reactivados}
         />
 
-        {/* Card 2 — CRM grid for dormant clients */}
+        {/* CRM grid for dormant clients */}
         {dormidos.length > 0 && (
           <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#F3F4F6]">
               <div>
                 <p className="text-sm font-semibold text-[#374151]">Seguimiento — clientes dormidos</p>
-                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Haz clic en un cliente para gestionar sus tareas</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Haz clic en un cliente para gestionar sus tareas y vincularlo al CRM</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {criticalCount > 0 && (
@@ -746,6 +934,7 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd, initial
                   key={c.id}
                   c={c}
                   crm={crmData.get(c.id) ?? emptyCRM()}
+                  prospectoId={pMap[c.id]}
                   onOpen={() => setModalId(c.id)}
                 />
               ))}
