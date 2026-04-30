@@ -13,8 +13,6 @@ import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
 import { DelegateProfileAssignSelect } from "./DelegateProfileAssignSelect";
 import { RiesgoClientesCard } from "./RiesgoClientesCard";
 import { ActividadClientesCard } from "./ActividadClientesCard";
-import { DormantRecoveryCard } from "./DormantRecoveryCard";
-import { KeyQuestionsCard } from "./KeyQuestionsCard";
 import { ComisionesCard } from "./ComisionesCard";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { buildCommissionBlock } from "./commissionCalc";
@@ -647,14 +645,6 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
 
           {/* 1. Actividad clientes */}
           <ActividadClientesCard activos={activos} dormidos={dormidos} nuevos={nuevos} periodLabel={periodLabel} />
-
-          {/* 1b. Recovery suggestions for dormant clients */}
-          {dormidos.length > 0 && (
-            <DormantRecoveryCard dormidos={dormidos.map(c => ({ clientId: c.clientId, name: c.name, daysDormant: c.daysDormant }))} />
-          )}
-
-          {/* 1c. Key questions for the delegate */}
-          <KeyQuestionsCard />
 
           {/* 2. Riesgo clientes */}
           <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
