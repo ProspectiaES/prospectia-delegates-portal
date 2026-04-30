@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { updateProspectoStage, updateProspecto, addActivity, convertToHolded, deleteProspecto } from "@/app/actions/prospectos";
 import { STAGES, stageCfg, type ProspectoStage } from "../stages";
@@ -72,11 +73,17 @@ function fmtDate(iso: string) {
 function StageSelector({ current, prospectoId }: { current: ProspectoStage; prospectoId: string }) {
   const [pending, startT] = useTransition();
   const [stage, setStage] = useState(current);
+  const router = useRouter();
   const cfg = stageCfg(stage);
 
   function change(s: ProspectoStage) {
+    const prev = stage;
     setStage(s);
-    startT(() => updateProspectoStage(prospectoId, s));
+    startT(async () => {
+      const result = await updateProspectoStage(prospectoId, s);
+      if (result && "error" in result) setStage(prev);
+      else router.refresh();
+    });
   }
 
   return (

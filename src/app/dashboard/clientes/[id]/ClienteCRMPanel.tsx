@@ -121,10 +121,16 @@ export function ClienteCRMPanel({ prospectoId, initialStage, activities, notes }
 
   const changeStage = async (key: string) => {
     if (key === stage) return;
+    const prev = stage;
     setStage(key);
     setSavingStage(true);
-    await updateProspectoStage(prospectoId, key as Parameters<typeof updateProspectoStage>[1]);
+    const result = await updateProspectoStage(prospectoId, key as Parameters<typeof updateProspectoStage>[1]);
     setSavingStage(false);
+    if (result && "error" in result) {
+      setStage(prev);
+    } else {
+      router.refresh();
+    }
   };
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {

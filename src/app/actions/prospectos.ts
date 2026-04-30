@@ -42,15 +42,19 @@ export async function createProspecto(formData: FormData) {
 
 export async function updateProspectoStage(id: string, stage: ProspectoStage) {
   const profile = await getProfile();
-  if (!profile) return;
+  if (!profile) return { error: "Sin sesión" };
 
   const admin = createAdminClient();
-  await admin.from("prospectos")
+  const { error } = await admin.from("prospectos")
     .update({ stage, updated_at: new Date().toISOString() })
     .eq("id", id);
 
+  if (error) return { error: error.message };
+
   revalidatePath(`/dashboard/prospectos/${id}`);
   revalidatePath("/dashboard/prospectos");
+  revalidatePath(`/dashboard/clientes`);
+  return { ok: true };
 }
 
 // ─── Update fields ─────────────────────────────────────────────────────────────
