@@ -27,6 +27,7 @@ interface Props {
   contacts: Contact[];
   products: Product[];
   userRole: string;
+  defaultContactId?: string;
 }
 
 // ─── Recommender search (inline, uses already-loaded contacts list) ────────────
@@ -166,13 +167,15 @@ function RadioGroup({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function NewOrderForm({ paymentMethods, contacts, products, userRole }: Props) {
+export function NewOrderForm({ paymentMethods, contacts, products, userRole, defaultContactId }: Props) {
   const [state, action, pending] = useActionState<OrderFormState | null, FormData>(submitOrder, null);
+
+  const defaultContact = defaultContactId ? contacts.find(c => c.id === defaultContactId) : undefined;
 
   // Client mode
   const [clientMode, setClientMode]           = useState<"existing" | "new">("existing");
-  const [selectedContactId, setContactId]     = useState("");
-  const [selectedContactName, setContactName] = useState("");
+  const [selectedContactId, setContactId]     = useState(defaultContact?.id ?? "");
+  const [selectedContactName, setContactName] = useState(defaultContact?.name ?? "");
   const [contactSearch, setContactSearch]     = useState("");
 
   // New contact fields

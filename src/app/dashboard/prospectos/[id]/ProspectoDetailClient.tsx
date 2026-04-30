@@ -441,37 +441,96 @@ function EmailSender({ prospectoId, email, senderEmail, templates }: { prospecto
   );
 }
 
-// ─── Convert to Holded button ─────────────────────────────────────────────────
+// ─── Header actions: Holded + Crear pedido ───────────────────────────────────
 
-function ConvertButton({ prospectoId, already }: { prospectoId: string; already: boolean }) {
-  const [pending, startT] = useTransition();
-  const [result, setResult] = useState<{ ok?: boolean; error?: string } | null>(null);
+export function ProspectoHeaderActions({
+  prospectoId,
+  holdedContactId,
+}: {
+  prospectoId: string;
+  holdedContactId: string | null;
+}) {
+  const [pending, startT]   = useTransition();
+  const [error, setError]   = useState<string | null>(null);
+  const [showHint, setShowHint] = useState(false);
 
-  if (already) return (
-    <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M2 7l3 3 6-6" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-      Convertido en Holded
-    </span>
-  );
+  const isHolded = !!holdedContactId;
 
   return (
-    <div className="space-y-1">
-      <button
-        disabled={pending}
-        onClick={() => startT(async () => {
-          const r = await convertToHolded(prospectoId);
-          setResult({ ok: r?.success, error: r?.error });
-        })}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
-      >
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M7 1l4 4-4 4M11 5H3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        {pending ? "Enviando a Holded…" : "Convertir a cliente Holded"}
-      </button>
-      {result?.error && <p className="text-xs text-red-600">{result.error}</p>}
+    <div className="flex items-center gap-2 flex-wrap">
+
+      {/* Holded button */}
+      {isHolded ? (
+        <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M2 6.5l2.5 2.5 5-5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Cliente Holded
+        </span>
+      ) : (
+        <div className="flex flex-col items-start gap-1">
+          <button
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              startT(async () => {
+                const r = await convertToHolded(prospectoId);
+                if (r?.error) setError(r.error);
+              });
+            }}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 1l3.5 3.5L6 8M9.5 4.5H2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {pending ? "Convirtiendo…" : "Convertir a Holded"}
+          </button>
+          {error && <p className="text-[10px] text-red-600">{error}</p>}
+        </div>
+      )}
+
+      {/* Crear pedido button */}
+      {isHolded ? (
+        <a
+          href={`/dashboard/pedidos/nuevo?contact=${holdedContactId}`}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#8E0E1A] text-white text-xs font-semibold hover:bg-[#7a0b16] transition-colors shadow-sm"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M2 2h1.5l2 5.5h3L10 4H5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="5.5" cy="10" r="1" fill="currentColor" stroke="none"/>
+            <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/>
+          </svg>
+          Crear pedido
+        </a>
+      ) : (
+        <div className="relative">
+          <button
+            onClick={() => setShowHint(v => !v)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E5E7EB] bg-white text-xs font-medium text-[#9CA3AF] hover:border-[#9CA3AF] transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 2h1.5l2 5.5h3L10 4H5" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="5.5" cy="10" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            Crear pedido
+          </button>
+          {showHint && (
+            <div className="absolute top-full left-0 mt-1.5 z-10 w-64 rounded-lg border border-[#E5E7EB] bg-white shadow-lg p-3">
+              <p className="text-xs font-semibold text-[#374151]">Primero convierte a cliente Holded</p>
+              <p className="text-[11px] text-[#6B7280] mt-1">
+                Para crear un pedido necesitas convertir este prospecto a cliente en Holded. Usa el botón de la izquierda.
+              </p>
+              <button
+                onClick={() => setShowHint(false)}
+                className="mt-2 text-[10px] text-[#9CA3AF] hover:text-[#374151]"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -653,7 +712,6 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
           <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Acciones</p>
           <EmailSender prospectoId={p.id} email={p.email} senderEmail={senderEmail} templates={templates} />
-          <ConvertButton prospectoId={p.id} already={!!p.holded_contact_id} />
           {(canEdit || isOwner) && <DeleteButton prospectoId={p.id} />}
         </div>
       </div>

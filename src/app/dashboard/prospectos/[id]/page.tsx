@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { stageCfg } from "../stages";
-import { ProspectoDetailClient, type ActivityRow, type ProspectoDetail, type EmailTemplate } from "./ProspectoDetailClient";
+import { ProspectoDetailClient, ProspectoHeaderActions, type ActivityRow, type ProspectoDetail, type EmailTemplate } from "./ProspectoDetailClient";
 import { EmailTrackingPanel, type EmailSendRow } from "./EmailTrackingPanel";
 
 interface PageProps {
@@ -111,21 +111,20 @@ export default async function ProspectoDetailPage({ params, searchParams }: Page
       </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">{p.name}</h1>
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${cfg.bg} ${cfg.color}`}>
               {cfg.label}
             </span>
-            {p.holded_contact_id && (
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
-                Holded
-              </span>
-            )}
           </div>
           {p.company && <p className="mt-1 text-sm text-[#6B7280]">{p.company}</p>}
         </div>
+        <ProspectoHeaderActions
+          prospectoId={p.id}
+          holdedContactId={p.holded_contact_id}
+        />
       </div>
 
       {/* Main grid */}

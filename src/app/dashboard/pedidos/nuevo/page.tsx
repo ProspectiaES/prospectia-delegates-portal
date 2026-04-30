@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPaymentMethods } from "@/lib/holded/api";
 import { NewOrderForm } from "./NewOrderForm";
 
-export default async function NuevoPedidoPage() {
+export default async function NuevoPedidoPage({ searchParams }: { searchParams: Promise<{ contact?: string }> }) {
+  const { contact: defaultContactId } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -58,6 +59,7 @@ export default async function NuevoPedidoPage() {
         contacts={contacts}
         products={products}
         userRole={userRole}
+        defaultContactId={defaultContactId}
       />
     </div>
   );
