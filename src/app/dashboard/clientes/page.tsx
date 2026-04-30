@@ -152,7 +152,12 @@ export default async function ClientesPage({ searchParams }: PageProps) {
             {contacts.length > 0 ? `${contacts.length.toLocaleString("es-ES")} cliente${contacts.length !== 1 ? "s" : ""}` : "Sin datos"}
           </p>
         </div>
-        {isOwner && <SyncButton endpoint="/api/holded/sync" label="Sincronizar" />}
+        {isOwner && (
+          <div className="flex items-center gap-2">
+            <SyncButton endpoint="/api/admin/sync-clients-to-crm" label="Crear CRM" />
+            <SyncButton endpoint="/api/holded/sync" label="Sincronizar Holded" />
+          </div>
+        )}
       </div>
 
       {/* Filters */}
