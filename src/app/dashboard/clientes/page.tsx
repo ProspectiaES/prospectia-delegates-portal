@@ -1,58 +1,24 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SyncButton } from "@/components/SyncButton";
 import { getProfile } from "@/lib/profile";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DbContact {
-  id: string;
-  name: string;
-  code: string | null;
-  email: string | null;
-  phone: string | null;
-  mobile: string | null;
-  type: number | null;
-  tags: string[];
-  city: string | null;
-  province: string | null;
-  country: string | null;
-  address: string | null;
-  last_synced_at: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 50;
-
-const contactTypeLabel: Record<number, string> = {
-  0: "Contacto", 1: "Cliente", 2: "Proveedor", 3: "Acreedor", 4: "Deudor",
-};
-
-const contactTypeVariant: Record<number, "default" | "success" | "warning" | "neutral"> = {
-  0: "neutral", 1: "success", 2: "default", 3: "warning", 4: "warning",
-};
+import { ClientesActivityList, type ContactWithActivity } from "./ClientesActivityList";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  searchParams: Promise<{ page?: string; search?: string; type?: string }>;
+  searchParams: Promise<{ search?: string; type?: string }>;
 }
 
 export default async function ClientesPage({ searchParams }: PageProps) {
   const params  = await searchParams;
-  const page    = Math.max(1, parseInt(params.page  ?? "1", 10));
   const search  = (params.search ?? "").trim();
   const typeStr = params.type ?? "";
 
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
   const isOwner    = profile?.role === "OWNER";
   const isDelegate = profile?.role === "DELEGATE";
-  const from = (page - 1) * PAGE_SIZE;
-  const to   = from + PAGE_SIZE - 1;
 
   // Delegates see only their assigned contacts
   let delegateContactIds: string[] | null = null;
@@ -79,34 +45,72 @@ export default async function ClientesPage({ searchParams }: PageProps) {
     );
   }
 
+  // Fetch all matching contacts (no pagination — activity list handles it client-side)
   let query = supabase
     .from("holded_contacts")
-    .select(
-      "id, name, code, email, phone, mobile, type, tags, city, province, country, address, last_synced_at",
-      { count: "exact" }
-    )
-    .order("name", { ascending: true })
-    .range(from, to);
+    .select("id, name, code, email, phone, type, tags, city")
+    .order("name", { ascending: true });
 
   if (delegateContactIds !== null) query = query.in("id", delegateContactIds);
   if (search)  query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,code.ilike.%${search}%`);
   if (typeStr) query = query.eq("type", parseInt(typeStr, 10));
 
-  const { data, count, error } = await query;
+  const { data: rawContacts, error } = await query;
+  const contactList = rawContacts ?? [];
 
-  const contacts   = (data ?? []) as DbContact[];
-  const total      = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  function buildHref(overrides: Record<string, string>) {
-    const p = new URLSearchParams({
-      ...(search  ? { search }          : {}),
-      ...(typeStr ? { type: typeStr }   : {}),
-      page: String(page),
-      ...overrides,
-    });
-    return `/dashboard/clientes?${p.toString()}`;
+  // Fetch invoice activity: last and first invoice date per contact
+  const allContactIds = contactList.map(c => c.id);
+  let invDates: { contact_id: string | null; date: string | null }[] = [];
+  if (allContactIds.length > 0) {
+    const { data } = await supabase
+      .from("holded_invoices")
+      .select("contact_id, date")
+      .in("contact_id", allContactIds)
+      .eq("is_credit_note", false)
+      .not("date", "is", null);
+    invDates = (data ?? []) as typeof invDates;
   }
+
+  // Aggregate min/max date per contact
+  const activityMap = new Map<string, { first: string; last: string }>();
+  for (const inv of invDates) {
+    if (!inv.contact_id || !inv.date) continue;
+    const cur = activityMap.get(inv.contact_id);
+    if (!cur) {
+      activityMap.set(inv.contact_id, { first: inv.date, last: inv.date });
+    } else {
+      if (inv.date < cur.first) cur.first = inv.date;
+      if (inv.date > cur.last)  cur.last  = inv.date;
+    }
+  }
+
+  // Build ContactWithActivity[]
+  const now = new Date();
+  const contacts: ContactWithActivity[] = contactList.map(c => {
+    const activity         = activityMap.get(c.id);
+    const lastActivityDate = activity?.last ?? null;
+    const firstInvoiceDate = activity?.first ?? null;
+    const daysSinceActivity = lastActivityDate
+      ? Math.floor((now.getTime() - new Date(lastActivityDate).getTime()) / 86_400_000)
+      : null;
+    return {
+      id: c.id,
+      name: c.name,
+      code: c.code ?? null,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      type: c.type ?? null,
+      city: c.city ?? null,
+      tags: (c.tags as string[]) ?? [],
+      lastActivityDate,
+      firstInvoiceDate,
+      daysSinceActivity,
+    };
+  });
+
+  // Period: current month
+  const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
+  const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
@@ -116,7 +120,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Clientes</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            {total > 0 ? `${total.toLocaleString("es-ES")} cliente${total !== 1 ? "s" : ""}` : "Sin datos"}
+            {contacts.length > 0 ? `${contacts.length.toLocaleString("es-ES")} cliente${contacts.length !== 1 ? "s" : ""}` : "Sin datos"}
           </p>
         </div>
         {isOwner && <SyncButton endpoint="/api/holded/sync" label="Sincronizar" />}
@@ -181,108 +185,11 @@ export default async function ClientesPage({ searchParams }: PageProps) {
         </Card>
       )}
 
-      {/* Table */}
+      {/* Activity list */}
       {contacts.length > 0 && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["Nombre", "Código", "Email", "Teléfono", "Tipo", "Localidad", "Etiquetas", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
-                {contacts.map((c) => (
-                  <tr key={c.id} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap max-w-[200px] truncate">
-                      <Link href={`/dashboard/clientes/${c.id}`} className="hover:text-[#8E0E1A] transition-colors">
-                        {c.name || <span className="text-[#9CA3AF]">—</span>}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7280] tabular-nums whitespace-nowrap font-mono text-xs">
-                      {c.code || <span className="text-[#D1D5DB]">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap max-w-[200px] truncate">
-                      {c.email
-                        ? <a href={`mailto:${c.email}`} className="hover:text-[#8E0E1A] transition-colors">{c.email}</a>
-                        : <span className="text-[#D1D5DB]">—</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap tabular-nums">
-                      {c.phone || c.mobile || <span className="text-[#D1D5DB]">—</span>}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {c.type != null ? (
-                        <Badge variant={contactTypeVariant[c.type] ?? "neutral"}>
-                          {contactTypeLabel[c.type] ?? `Tipo ${c.type}`}
-                        </Badge>
-                      ) : (
-                        <span className="text-[#D1D5DB] text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">
-                      {[c.city, c.province].filter(Boolean).join(", ") || <span className="text-[#D1D5DB]">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {c.tags?.length > 0
-                          ? c.tags.slice(0, 3).map((t) => <Badge key={t} variant="neutral">{t}</Badge>)
-                          : <span className="text-[#D1D5DB] text-xs">—</span>
-                        }
-                        {c.tags?.length > 3 && (
-                          <Badge variant="neutral">+{c.tags.length - 3}</Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <Link
-                        href={`/dashboard/clientes/${c.id}`}
-                        className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors"
-                      >
-                        Ver →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="px-4 py-3 border-t border-[#E5E7EB] flex items-center justify-between">
-              <span className="text-xs text-[#6B7280]">
-                Página {page} de {totalPages} — {total.toLocaleString("es-ES")} contactos
-              </span>
-              <div className="flex items-center gap-2">
-                {page > 1 && (
-                  <a
-                    href={buildHref({ page: String(page - 1) })}
-                    className="h-7 px-3 rounded-lg border border-[#E5E7EB] text-xs text-[#6B7280] hover:text-[#0A0A0A] hover:border-[#0A0A0A] transition-colors flex items-center bg-white shadow-sm"
-                  >
-                    ← Anterior
-                  </a>
-                )}
-                {page < totalPages && (
-                  <a
-                    href={buildHref({ page: String(page + 1) })}
-                    className="h-7 px-3 rounded-lg border border-[#E5E7EB] text-xs text-[#6B7280] hover:text-[#0A0A0A] hover:border-[#0A0A0A] transition-colors flex items-center bg-white shadow-sm"
-                  >
-                    Siguiente →
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-        </Card>
+        <ClientesActivityList contacts={contacts} periodStart={periodStart} periodEnd={periodEnd} />
       )}
+
     </div>
   );
 }

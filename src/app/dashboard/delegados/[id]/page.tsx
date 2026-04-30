@@ -13,6 +13,8 @@ import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
 import { DelegateProfileAssignSelect } from "./DelegateProfileAssignSelect";
 import { RiesgoClientesCard } from "./RiesgoClientesCard";
 import { ActividadClientesCard } from "./ActividadClientesCard";
+import { DormantRecoveryCard } from "./DormantRecoveryCard";
+import { KeyQuestionsCard } from "./KeyQuestionsCard";
 import { ComisionesCard } from "./ComisionesCard";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { buildCommissionBlock } from "./commissionCalc";
@@ -229,6 +231,24 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         : 999,
     }))
     .sort((a, b) => b.daysDormant - a.daysDormant);
+
+  // Nuevos: clients whose earliest invoice falls within the current period
+  const clientFirstInvoice: Record<string, string> = {};
+  for (const inv of invoices) {
+    if (inv.contact_id && inv.date) {
+      if (!clientFirstInvoice[inv.contact_id] || inv.date < clientFirstInvoice[inv.contact_id]) {
+        clientFirstInvoice[inv.contact_id] = inv.date;
+      }
+    }
+  }
+  const nuevos = clients
+    .filter(c => {
+      const first = clientFirstInvoice[c.id];
+      return first && first >= periodStart && first <= periodEnd;
+    })
+    .map(c => ({ clientId: c.id, name: c.name, firstInvoiceDate: clientFirstInvoice[c.id] }));
+
+  const periodLabel = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
   // Commissions: load products + paid invoices this month (raw) + credit notes
   const [allProductsRes, paidMonthInvRes, cnRes, contactsWithRecRes] = await Promise.all([
@@ -626,7 +646,15 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         <div className="lg:col-span-2 space-y-3">
 
           {/* 1. Actividad clientes */}
-          <ActividadClientesCard activos={activos} dormidos={dormidos} />
+          <ActividadClientesCard activos={activos} dormidos={dormidos} nuevos={nuevos} periodLabel={periodLabel} />
+
+          {/* 1b. Recovery suggestions for dormant clients */}
+          {dormidos.length > 0 && (
+            <DormantRecoveryCard dormidos={dormidos.map(c => ({ clientId: c.clientId, name: c.name, daysDormant: c.daysDormant }))} />
+          )}
+
+          {/* 1c. Key questions for the delegate */}
+          <KeyQuestionsCard />
 
           {/* 2. Riesgo clientes */}
           <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
