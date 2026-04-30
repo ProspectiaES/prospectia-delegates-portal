@@ -91,6 +91,21 @@ const IconAdmin = () => (
   </svg>
 );
 
+const IconCRM = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d="M1 12.5C1 10.567 2.567 9 4.5 9h7C13.433 9 15 10.567 15 12.5v0" strokeLinecap="round"/>
+    <circle cx="8" cy="4.5" r="2.5"/>
+    <path d="M11 7.5l1.5 1.5M13 6l-1.5 1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconTemplates = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+    <path d="M5 6h6M5 9h4" strokeLinecap="round"/>
+  </svg>
+);
+
 // ─── Role config ──────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<string, string> = {
@@ -378,6 +393,13 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/delegados", label: "Delegados", Icon: IconDelegados, exact: false },
       ],
     }] : []),
+    {
+      label: "CRM",
+      items: [
+        { href: "/dashboard/prospectos", label: "Prospectos", Icon: IconCRM, exact: false },
+        ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
+      ],
+    },
     {
       label: "Afiliados",
       items: [
