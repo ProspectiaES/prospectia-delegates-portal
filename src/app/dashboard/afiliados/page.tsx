@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -39,10 +40,12 @@ const statusVariant: Record<string, "success" | "warning" | "neutral"> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AfiliadosPage() {
-  const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const [, profile] = await Promise.all([createClient(), getProfile()]);
   const isDelegate = profile?.role === "DELEGATE";
+  const admin = createAdminClient();
 
-  let affiliatesQuery = supabase
+  // Use admin to bypass OWNER-only RLS on bixgrow tables
+  let affiliatesQuery = admin
     .from("bixgrow_affiliates")
     .select("id, referral_code, email, first_name, last_name, program, status, contact_id, bixgrow_orders(commission, status)")
     .order("created_at", { ascending: false });
@@ -102,11 +105,13 @@ export default async function AfiliadosPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-sm font-medium text-[#0A0A0A]">Sin afiliados registrados</p>
-            <p className="mt-1 text-xs text-[#6B7280] max-w-sm mx-auto">
-              Configura el webhook de BixGrow apuntando a{" "}
-              <code className="font-mono text-[#8E0E1A]">https://dashboard.prospectia.es/api/bixgrow/webhook</code>
-              {" "}para empezar a recibir datos.
-            </p>
+            {!isDelegate && (
+              <p className="mt-1 text-xs text-[#6B7280] max-w-sm mx-auto">
+                Configura el webhook de BixGrow apuntando a{" "}
+                <code className="font-mono text-[#8E0E1A]">https://dashboard.prospectia.es/api/bixgrow/webhook</code>
+                {" "}para empezar a recibir datos.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -187,8 +192,8 @@ export default async function AfiliadosPage() {
         </Card>
       )}
 
-      {/* Webhook info */}
-      <Card>
+      {/* Webhook info — owner only */}
+      {!isDelegate && <Card>
         <CardHeader><CardTitle>Configuración webhook</CardTitle></CardHeader>
         <CardContent className="p-0">
           <ul className="divide-y divide-[#F3F4F6]">
@@ -207,7 +212,7 @@ export default async function AfiliadosPage() {
             ))}
           </ul>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }
