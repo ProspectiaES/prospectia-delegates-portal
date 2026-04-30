@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { ActivityTracker } from "@/components/ActivityTracker";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -24,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <main className="flex-1 overflow-y-auto bg-[#F5F5F7]">
         {children}
       </main>
+      <ActivityTracker />
     </div>
   );
 }
