@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SyncButton } from "@/components/SyncButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -132,9 +133,12 @@ function AnnualMetric({ label, value, sub, color = "default" }: {
 
 export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
   const { period, contacts, billing, orders, delegates, annual, lastSyncedAt } = kpis;
+  const router = useRouter();
 
   const now      = new Date();
   const isCurrent = period.year === now.getFullYear() && period.month === now.getMonth() + 1;
+  const nowParam  = monthParam(now.getFullYear(), now.getMonth() + 1);
+  const curParam  = monthParam(period.year, period.month);
 
   const prev = period.month === 1
     ? { year: period.year - 1, month: 12 }
@@ -142,6 +146,12 @@ export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
   const next = period.month === 12
     ? { year: period.year + 1, month: 1 }
     : { year: period.year, month: period.month + 1 };
+
+  function goToMonth(value: string) {
+    if (/^\d{4}-\d{2}$/.test(value)) {
+      router.push(value === nowParam ? "/dashboard" : `/dashboard?month=${value}`);
+    }
+  }
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
@@ -154,23 +164,26 @@ export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
         </div>
         <div className="flex items-center gap-3">
           {/* Period navigator */}
-          <div className="flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white overflow-hidden shadow-sm">
+          <div className="flex items-center rounded-lg border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
             <Link
               href={`/dashboard?month=${monthParam(prev.year, prev.month)}`}
-              className="h-8 w-8 flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
+              className="h-9 w-8 flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] transition-colors border-r border-[#E5E7EB]"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M8.5 10.5L5 7l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <span className="px-3 text-xs font-semibold text-[#374151] capitalize whitespace-nowrap">
-              {new Date(period.year, period.month - 1, 1)
-                .toLocaleDateString("es-ES", { month: "short", year: "2-digit" })}
-            </span>
+            <input
+              type="month"
+              value={curParam}
+              max={nowParam}
+              onChange={(e) => goToMonth(e.target.value)}
+              className="h-9 px-3 text-xs font-semibold text-[#374151] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F9FAFB] transition-colors w-[130px]"
+            />
             <Link
               href={`/dashboard?month=${monthParam(next.year, next.month)}`}
               className={[
-                "h-8 w-8 flex items-center justify-center text-[#6B7280] transition-colors",
+                "h-9 w-8 flex items-center justify-center text-[#6B7280] transition-colors border-l border-[#E5E7EB]",
                 isCurrent ? "opacity-30 pointer-events-none" : "hover:bg-[#F3F4F6]",
               ].join(" ")}
             >
@@ -179,6 +192,14 @@ export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
               </svg>
             </Link>
           </div>
+          {!isCurrent && (
+            <Link
+              href="/dashboard"
+              className="h-9 px-3 rounded-lg border border-[#E5E7EB] bg-white text-xs font-medium text-[#6B7280] hover:text-[#0A0A0A] hover:border-[#0A0A0A] transition-colors shadow-sm flex items-center"
+            >
+              Hoy
+            </Link>
+          )}
           <SyncButton lastSyncedAt={lastSyncedAt} endpoint="/api/holded/sync" label="Sincronizar" />
         </div>
       </div>
