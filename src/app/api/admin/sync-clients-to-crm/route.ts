@@ -59,7 +59,7 @@ export async function POST() {
     city:              (c.city as string | null) || null,
     country:           (c.country_code as string | null) || "ES",
     holded_contact_id: c.id,
-    stage:             "ganado" as const,
+    stage:             "seguimiento" as const,
     source:            "holded",
     converted_at:      (c.first_synced_at as string | null) ?? now,
   }));

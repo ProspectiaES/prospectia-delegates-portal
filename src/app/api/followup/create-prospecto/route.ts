@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     delegate_id:       profile.id,
     name:              contact_name,
     holded_contact_id: contact_id,
-    stage:             "ganado",
+    stage:             "seguimiento",
     source:            "holded",
     converted_at:      new Date().toISOString(),
   }).select("id").single();

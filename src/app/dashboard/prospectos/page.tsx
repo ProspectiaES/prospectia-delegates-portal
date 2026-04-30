@@ -45,10 +45,11 @@ export default async function ProspectosPage() {
   }
 
   const counts = {
-    total:       prospectos.length,
-    activos:     prospectos.filter(p => !["ganado", "perdido"].includes(p.stage)).length,
-    ganados:     prospectos.filter(p => p.stage === "ganado").length,
-    convertidos: prospectos.filter(p => p.holded_contact_id).length,
+    total:        prospectos.length,
+    activos:      prospectos.filter(p => !["ganado", "seguimiento", "perdido"].includes(p.stage)).length,
+    ganados:      prospectos.filter(p => p.stage === "ganado").length,
+    seguimiento:  prospectos.filter(p => p.stage === "seguimiento").length,
+    convertidos:  prospectos.filter(p => p.holded_contact_id).length,
   };
 
   return (
@@ -58,7 +59,7 @@ export default async function ProspectosPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Mis prospectos</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
-            {counts.total} total · {counts.activos} activos · {counts.ganados} ganados · {counts.convertidos} en Holded
+            {counts.total} total · {counts.activos} activos · {counts.ganados} ganados · {counts.seguimiento} seguimiento · {counts.convertidos} en Holded
           </p>
         </div>
         <Link

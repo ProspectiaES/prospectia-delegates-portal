@@ -27,13 +27,14 @@ export interface ClienteCRMPanelProps {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STAGES = [
-  { key: "nuevo",       label: "Nuevo",       active: "bg-[#F3F4F6] text-[#374151] border-[#9CA3AF]" },
-  { key: "contactado",  label: "Contactado",  active: "bg-blue-50 text-blue-700 border-blue-400" },
-  { key: "interesado",  label: "Interesado",  active: "bg-amber-50 text-amber-700 border-amber-400" },
-  { key: "propuesta",   label: "Propuesta",   active: "bg-orange-50 text-orange-700 border-orange-400" },
-  { key: "negociacion", label: "Negociación", active: "bg-purple-50 text-purple-700 border-purple-400" },
-  { key: "ganado",      label: "Cliente",     active: "bg-emerald-50 text-emerald-700 border-emerald-500" },
-  { key: "perdido",     label: "Perdido",     active: "bg-red-50 text-[#8E0E1A] border-[#8E0E1A]" },
+  { key: "nuevo",        label: "Nuevo",        active: "bg-[#F3F4F6] text-[#374151] border-[#9CA3AF]" },
+  { key: "contactado",   label: "Contactado",   active: "bg-blue-50 text-blue-700 border-blue-400" },
+  { key: "interesado",   label: "Interesado",   active: "bg-amber-50 text-amber-700 border-amber-400" },
+  { key: "propuesta",    label: "Propuesta",    active: "bg-orange-50 text-orange-700 border-orange-400" },
+  { key: "negociacion",  label: "Negociación",  active: "bg-purple-50 text-purple-700 border-purple-400" },
+  { key: "ganado",       label: "Ganado",       active: "bg-emerald-50 text-emerald-700 border-emerald-500" },
+  { key: "seguimiento",  label: "Seguimiento",  active: "bg-teal-50 text-teal-700 border-teal-500" },
+  { key: "perdido",      label: "Perdido",      active: "bg-red-50 text-[#8E0E1A] border-[#8E0E1A]" },
 ];
 
 const ACTIVITY_TYPES = [
