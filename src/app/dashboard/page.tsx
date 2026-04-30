@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OwnerDashboard, type OwnerKpis } from "./OwnerDashboard";
-import { getProfile } from "@/lib/profile";
+import { KolDashboard, loadKolData } from "./KolDashboard";
+import { getProfile, isKolUser } from "@/lib/profile";
 
 // ─── Owner data loader ────────────────────────────────────────────────────────
 
@@ -154,7 +155,13 @@ export default async function DashboardPage(
     return <OwnerDashboard kpis={kpis} />;
   }
 
-  // ── Delegate branch — redirect to their own profile page ────────────────────
+  // ── KOL delegate branch — network dashboard ─────────────────────────────────
+  if (profile && isKolUser(profile)) {
+    const data = await loadKolData(profile, year, month);
+    return <KolDashboard profile={profile} year={year} month={month} data={data} />;
+  }
+
+  // ── Regular delegate branch — redirect to their own profile page ─────────────
   if (profile?.role === "DELEGATE") {
     redirect(`/dashboard/delegados/${profile.id}`);
   }

@@ -350,11 +350,11 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       label: "General",
       items: [
         {
-          href:  isDelegate ? `/dashboard/delegados/${userId}` : "/dashboard",
+          href:  (isDelegate && !isKol && !isCoordinator) ? `/dashboard/delegados/${userId}` : "/dashboard",
           label: "Dashboard",
           Icon:  IconDashboard,
-          exact: !isDelegate,
-          startsWith: isDelegate ? `/dashboard/delegados/${userId}` : undefined,
+          exact: !(isDelegate && !isKol && !isCoordinator),
+          startsWith: (isDelegate && !isKol && !isCoordinator) ? `/dashboard/delegados/${userId}` : undefined,
         },
       ],
     },
