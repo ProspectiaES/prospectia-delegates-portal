@@ -20,6 +20,11 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   const isOwner    = profile?.role === "OWNER";
   const isDelegate = profile?.role === "DELEGATE";
 
+  // Non-owners default to type=1 (clients only); OWNER can see all via ?type=all
+  const effectiveType = isOwner
+    ? (typeStr === "all" ? "" : typeStr || "")
+    : "1";
+
   // Delegates see only their assigned contacts
   let delegateContactIds: string[] | null = null;
   if (isDelegate && profile) {
@@ -52,8 +57,8 @@ export default async function ClientesPage({ searchParams }: PageProps) {
     .order("name", { ascending: true });
 
   if (delegateContactIds !== null) query = query.in("id", delegateContactIds);
-  if (search)  query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,code.ilike.%${search}%`);
-  if (typeStr) query = query.eq("type", parseInt(typeStr, 10));
+  if (search)        query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,code.ilike.%${search}%`);
+  if (effectiveType) query = query.eq("type", parseInt(effectiveType, 10));
 
   const { data: rawContacts, error } = await query;
   const contactList = rawContacts ?? [];
@@ -134,18 +139,20 @@ export default async function ClientesPage({ searchParams }: PageProps) {
           placeholder="Buscar por nombre, email o código…"
           className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors w-72 shadow-sm"
         />
-        <select
-          name="type"
-          defaultValue={typeStr}
-          className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none shadow-sm"
-        >
-          <option value="">Todos los tipos</option>
-          <option value="0">Contacto</option>
-          <option value="1">Cliente</option>
-          <option value="2">Proveedor</option>
-          <option value="3">Acreedor</option>
-          <option value="4">Deudor</option>
-        </select>
+        {isOwner && (
+          <select
+            name="type"
+            defaultValue={typeStr || ""}
+            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none shadow-sm"
+          >
+            <option value="all">Todos los tipos</option>
+            <option value="1">Cliente</option>
+            <option value="0">Contacto</option>
+            <option value="2">Proveedor</option>
+            <option value="3">Acreedor</option>
+            <option value="4">Deudor</option>
+          </select>
+        )}
         <button
           type="submit"
           className="h-9 px-4 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#0A0A0A] hover:border-[#0A0A0A] hover:bg-[#F9FAFB] transition-colors shadow-sm"
