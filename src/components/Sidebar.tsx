@@ -333,46 +333,57 @@ function IdentityPanel({ user, open, onToggle }: {
 
 // ─── Navigation tree ──────────────────────────────────────────────────────────
 
-const sections = [
-  {
-    label: "General",
-    items: [
-      { href: "/dashboard", label: "Dashboard", Icon: IconDashboard, exact: true },
-    ],
-  },
-  {
-    label: "Holded",
-    items: [
-      { href: "/dashboard/clientes",  label: "Clientes",   Icon: IconClientes,  exact: false },
-      { href: "/dashboard/facturas",  label: "Facturas",   Icon: IconFacturas,  exact: false },
-      { href: "/dashboard/productos", label: "Productos",  Icon: IconProductos, exact: false },
-    ],
-  },
-  {
-    label: "Ventas",
-    items: [
-      { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
-    ],
-  },
-  {
-    label: "Delegados",
-    items: [
-      { href: "/dashboard/delegados", label: "Delegados",  Icon: IconDelegados, exact: false },
-    ],
-  },
-  {
-    label: "Afiliados",
-    items: [
-      { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
-    ],
-  },
-  {
-    label: "Cuenta",
-    items: [
-      { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
-    ],
-  },
-];
+function buildSections(role: string, userId: string) {
+  const isDelegate = role === "DELEGATE";
+  return [
+    {
+      label: "General",
+      items: [
+        {
+          href:  isDelegate ? `/dashboard/delegados/${userId}` : "/dashboard",
+          label: "Dashboard",
+          Icon:  IconDashboard,
+          exact: !isDelegate,
+          // delegates: match the delegados/[id] subtree so the item stays active
+          startsWith: isDelegate ? `/dashboard/delegados/${userId}` : undefined,
+        },
+      ],
+    },
+    {
+      label: "Holded",
+      items: [
+        { href: "/dashboard/clientes",  label: "Clientes",   Icon: IconClientes,  exact: false },
+        { href: "/dashboard/facturas",  label: "Facturas",   Icon: IconFacturas,  exact: false },
+        { href: "/dashboard/productos", label: "Productos",  Icon: IconProductos, exact: false },
+      ],
+    },
+    {
+      label: "Ventas",
+      items: [
+        { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
+      ],
+    },
+    // "Delegados" section hidden for pure delegates — their dashboard IS their page
+    ...(!isDelegate ? [{
+      label: "Delegados",
+      items: [
+        { href: "/dashboard/delegados", label: "Delegados", Icon: IconDelegados, exact: false },
+      ],
+    }] : []),
+    {
+      label: "Afiliados",
+      items: [
+        { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
+      ],
+    },
+    {
+      label: "Cuenta",
+      items: [
+        { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
+      ],
+    },
+  ];
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -380,6 +391,8 @@ export function Sidebar({ user }: { user?: UserProps }) {
   const pathname  = usePathname();
   const [panelOpen, setPanelOpen] = useState(true);
   const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
+
+  const sections = user ? buildSections(user.role, user.id) : buildSections("", "");
 
   return (
     <aside className="w-56 h-full flex flex-col bg-white border-r border-[#E5E7EB] shrink-0">
@@ -418,8 +431,11 @@ export function Sidebar({ user }: { user?: UserProps }) {
               {label}
             </p>
             <ul className="space-y-0.5">
-              {visibleItems.map(({ href, label: itemLabel, Icon, exact }) => {
-                const isActive = exact ? pathname === href : pathname.startsWith(href);
+              {visibleItems.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
+                const startsWith = (rest as { startsWith?: string }).startsWith;
+                const isActive = exact
+                  ? pathname === href
+                  : pathname.startsWith(startsWith ?? href);
                 return (
                   <li key={href}>
                     <Link

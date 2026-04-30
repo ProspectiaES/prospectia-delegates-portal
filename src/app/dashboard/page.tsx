@@ -1,52 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DelegateDashboard, type InvoiceRow } from "./DelegateDashboard";
 import { OwnerDashboard, type OwnerKpis } from "./OwnerDashboard";
 import { getProfile } from "@/lib/profile";
-
-// ─── Delegate data loader ─────────────────────────────────────────────────────
-
-async function loadDelegateData(delegateId: string, year: number, month: number) {
-  const admin = createAdminClient();
-  const periodStart = new Date(year, month - 1, 1);
-  const periodEnd   = new Date(year, month, 0, 23, 59, 59, 999);
-
-  const { data: links } = await admin
-    .from("contact_delegates")
-    .select("contact_id")
-    .eq("delegate_id", delegateId);
-  const contactIds = (links ?? []).map(r => r.contact_id as string);
-
-  if (contactIds.length === 0) {
-    return { contactIds, contacts: [], invoices: [], orders: [], periodStart, periodEnd };
-  }
-
-  const [{ data: contacts }, { data: invoices }, { data: orders }] = await Promise.all([
-    admin
-      .from("holded_contacts")
-      .select("id, first_synced_at")
-      .in("id", contactIds),
-    admin
-      .from("holded_invoices")
-      .select("id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, subtotal, units_total, status")
-      .in("contact_id", contactIds)
-      .eq("is_credit_note", false)
-      .order("date", { ascending: false }),
-    admin
-      .from("holded_salesorders")
-      .select("id, contact_id, status, date")
-      .in("contact_id", contactIds),
-  ]);
-
-  return {
-    contactIds,
-    contacts:  contacts  ?? [],
-    invoices:  (invoices ?? []) as InvoiceRow[],
-    orders:    orders    ?? [],
-    periodStart,
-    periodEnd,
-  };
-}
 
 // ─── Owner data loader ────────────────────────────────────────────────────────
 
@@ -199,93 +154,9 @@ export default async function DashboardPage(
     return <OwnerDashboard kpis={kpis} />;
   }
 
-  // ── Delegate branch ──────────────────────────────────────────────────────────
-  if (profile?.role === "DELEGATE" && profile) {
-    const admin = createAdminClient();
-
-    const { contacts, invoices, orders, periodStart, periodEnd } =
-      await loadDelegateData(profile.id, year, month);
-
-    // Commission tiers + bonus config
-    const [{ data: tiersData }, { data: bonusData }] = await Promise.all([
-      admin.from("commission_tiers").select("*").order("sort_order"),
-      admin.from("commission_bonus").select("*")
-        .or(`period_year.eq.${year},period_year.is.null`)
-        .order("period_year", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const today          = new Date();
-    const ninetyDaysAgo  = new Date(today.getTime() - 90 * 86_400_000);
-    const ytdStart       = new Date(year, 0, 1);
-
-    // Period invoices
-    const emittedPeriod = invoices.filter(inv => {
-      const d = new Date(inv.date);
-      return d >= periodStart! && d <= periodEnd! && inv.status > 0;
-    });
-    const paidPeriod = invoices.filter(inv => {
-      if (inv.status !== 3 || !inv.date_paid) return false;
-      const d = new Date(inv.date_paid);
-      return d >= periodStart! && d <= periodEnd!;
-    });
-    const overdueAll  = invoices.filter(i => i.status === 2);
-    const pendingAll  = invoices.filter(i => i.status === 1);
-    const allPaidRows = invoices.filter(i => i.status === 3);
-
-    // Client KPIs
-    const totalClients   = contacts.length;
-    const newClients     = contacts.filter(c =>
-      c.first_synced_at && new Date(c.first_synced_at) >= periodStart! && new Date(c.first_synced_at) <= periodEnd!
-    ).length;
-    const dormantClients = contacts.filter(c => {
-      const lastInv = invoices
-        .filter(i => i.contact_id === c.id)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      return !lastInv || new Date(lastInv.date) < ninetyDaysAgo;
-    }).length;
-
-    // Order KPIs
-    type OrderRow = { id: string; contact_id: string; status: number; date: string };
-    const periodOrders = (orders as OrderRow[])
-      .filter(o => { const d = new Date(o.date); return d >= periodStart! && d <= periodEnd!; });
-
-    const sum = (arr: InvoiceRow[]) => arr.reduce((s, r) => s + (Number(r.total) || 0), 0);
-
-    // Commission KPIs
-    const ytdPaid      = invoices.filter(i => i.status === 3 && i.date_paid && new Date(i.date_paid) >= ytdStart);
-    const unitsInPeriod = paidPeriod.reduce((s, i) => s + (Number((i as InvoiceRow & { units_total?: number }).units_total) || 0), 0);
-    const unitsYtd      = ytdPaid.reduce((s, i) => s + (Number((i as InvoiceRow & { units_total?: number }).units_total) || 0), 0);
-    const paidSubtotalPeriod = paidPeriod.reduce((s, i) => s + (Number((i as InvoiceRow & { subtotal?: number | null }).subtotal) || 0), 0);
-
-    return (
-      <DelegateDashboard
-        period={{ year, month }}
-        totalClients={totalClients}
-        newClients={newClients}
-        dormantClients={dormantClients}
-        emittedCount={emittedPeriod.length}
-        emittedTotal={sum(emittedPeriod)}
-        paidCount={paidPeriod.length}
-        paidTotal={sum(paidPeriod)}
-        overdueCount={overdueAll.length}
-        overdueTotal={sum(overdueAll)}
-        pendingCount={pendingAll.length}
-        pendingTotal={sum(pendingAll)}
-        ordersCount={periodOrders.length}
-        ordersBilled={periodOrders.filter(o => o.status === 3).length}
-        ordersInProcess={periodOrders.filter(o => o.status < 3).length}
-        overdueRows={overdueAll}
-        pendingRows={pendingAll}
-        paidRows={allPaidRows}
-        unitsInPeriod={unitsInPeriod}
-        unitsYtd={unitsYtd}
-        paidSubtotalPeriod={paidSubtotalPeriod}
-        tiers={(tiersData ?? []) as import("./DelegateDashboard").CommissionTier[]}
-        bonusConfig={bonusData as import("./DelegateDashboard").BonusConfig | null}
-      />
-    );
+  // ── Delegate branch — redirect to their own profile page ────────────────────
+  if (profile?.role === "DELEGATE") {
+    redirect(`/dashboard/delegados/${profile.id}`);
   }
 
   // ── Unauthenticated / unknown role ───────────────────────────────────────────
