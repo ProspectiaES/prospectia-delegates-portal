@@ -104,8 +104,9 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   const delegate = delegateData as DelegateProfile;
   const isOwner  = profile?.role === "OWNER";
 
-  // Load contact IDs assigned to this delegate
-  const { data: cdRows } = await supabase
+  // Load contact IDs assigned to this delegate — use admin to bypass RLS
+  // (KOL/coordinator viewers are authorized at this point but can't read other delegates' assignments via RLS)
+  const { data: cdRows } = await admin
     .from("contact_delegates")
     .select("contact_id")
     .eq("delegate_id", id);
@@ -123,17 +124,17 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   const kolProfiles   = (kolOptions.data   ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
   const coordProfiles = (coordOptions.data ?? []).map((p: { id: string; full_name: string; delegate_name: string | null }) => ({ id: p.id, display_name: p.delegate_name ?? p.full_name }));
 
-  // Parallel: assigned clients, invoices, all affiliates
+  // Parallel: assigned clients, invoices, all affiliates — admin bypasses RLS for KOL/coordinator viewers
   const [clientsRes, invoicesRes, allAffiliatesRes] = await Promise.all([
     contactIds.length > 0
-      ? supabase
+      ? admin
           .from("holded_contacts")
           .select("id, name, code, email, city, type, tags")
           .in("id", contactIds)
           .order("name")
       : Promise.resolve({ data: [] as DbContact[] }),
     contactIds.length > 0
-      ? supabase
+      ? admin
           .from("holded_invoices")
           .select("id, doc_number, contact_id, contact_name, date, due_date, date_paid, total, status")
           .in("contact_id", contactIds)
