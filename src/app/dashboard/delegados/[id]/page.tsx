@@ -16,6 +16,7 @@ import { ActividadClientesCard } from "./ActividadClientesCard";
 import { ComisionesCard } from "./ComisionesCard";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { buildCommissionBlock } from "./commissionCalc";
+import { AutofacturaButton } from "./AutofacturaButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -329,6 +330,20 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   const commissionPeriod    = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   const commissionLiquidable = commissionBlocks.reduce((s, b) => s + b.totalNetCommission, 0);
 
+  // Autofacturas history
+  type AutofacturaRow = {
+    id: number; doc_number: string; period_year: number; period_month: number;
+    base_commission: number; irpf_pct: number; irpf_amount: number;
+    recargo_eq_pct: number; recargo_eq_amount: number; total_payable: number;
+    generated_at: string;
+  };
+  const { data: autofacturasData } = await admin
+    .from("autofacturas")
+    .select("id, doc_number, period_year, period_month, base_commission, irpf_pct, irpf_amount, recargo_eq_pct, recargo_eq_amount, total_payable, generated_at")
+    .eq("delegate_id", id)
+    .order("id", { ascending: false });
+  const autofacturas = (autofacturasData ?? []) as AutofacturaRow[];
+
   const assignedAffiliateIds = allAffiliates
     .filter((a) => a.delegate_id === id)
     .map((a) => a.id);
@@ -393,18 +408,21 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0 ml-4">
             <p className="text-xs text-[#9CA3AF]">Alta: {fmtDate(delegate.created_at)}</p>
-            <a
-              href={`/api/delegados/${id}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[#8E0E1A] text-xs font-semibold text-[#8E0E1A] hover:bg-[#8E0E1A] hover:text-white transition-colors duration-150"
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-                <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 13h10" strokeLinecap="round" />
-              </svg>
-              Liquidación PDF
-            </a>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <a
+                href={`/api/delegados/${id}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[#8E0E1A] text-xs font-semibold text-[#8E0E1A] hover:bg-[#8E0E1A] hover:text-white transition-colors duration-150"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                  <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 13h10" strokeLinecap="round" />
+                </svg>
+                Liquidación PDF
+              </a>
+              <AutofacturaButton delegateId={id} defaultMes={mesStr} />
+            </div>
           </div>
         </div>
       </div>
@@ -642,6 +660,47 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
             </CollapsibleCard>
           ) : (
             <ClientsSection clients={clients.map((c) => ({ id: c.id, name: c.name, code: c.code, email: c.email, city: c.city, type: c.type ?? null }))} />
+          )}
+
+          {/* 6. Autofacturas emitidas */}
+          {autofacturas.length > 0 && (
+            <CollapsibleCard
+              title="Autofacturas emitidas"
+              subtitle={`${autofacturas.length} documento${autofacturas.length !== 1 ? "s" : ""}`}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                      {["Número", "Período", "Base", "IRPF", "Recargo eq.", "Total a pagar", "Generada"].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3F4F6]">
+                    {autofacturas.map((af) => {
+                      const period = new Date(af.period_year, af.period_month - 1).toLocaleDateString("es-ES", { month: "short", year: "numeric" });
+                      const genAt  = new Date(af.generated_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
+                      return (
+                        <tr key={af.id} className="hover:bg-[#F9FAFB] transition-colors">
+                          <td className="px-4 py-3 font-mono text-xs font-medium text-[#0A0A0A] whitespace-nowrap">{af.doc_number}</td>
+                          <td className="px-4 py-3 text-xs text-[#374151] capitalize whitespace-nowrap">{period}</td>
+                          <td className="px-4 py-3 text-xs tabular-nums text-[#374151] whitespace-nowrap">{fmtCurrency(af.base_commission)}</td>
+                          <td className="px-4 py-3 text-xs tabular-nums text-[#6B7280] whitespace-nowrap">
+                            {af.irpf_pct > 0 ? `−${fmtCurrency(af.irpf_amount)} (${af.irpf_pct}%)` : <span className="text-[#D1D5DB]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs tabular-nums text-[#6B7280] whitespace-nowrap">
+                            {af.recargo_eq_pct > 0 ? `+${fmtCurrency(af.recargo_eq_amount)} (${af.recargo_eq_pct}%)` : <span className="text-[#D1D5DB]">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold tabular-nums text-[#0A0A0A] whitespace-nowrap">{fmtCurrency(af.total_payable)}</td>
+                          <td className="px-4 py-3 text-xs text-[#9CA3AF] whitespace-nowrap">{genAt}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CollapsibleCard>
           )}
 
         </div>
