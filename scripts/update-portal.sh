@@ -11,8 +11,9 @@ curl -sL \
 
 cd "$APP_DIR"
 npm install --quiet
+rm -rf .next
 npm run build
-pm2 restart prospectia-portal
+pm2 restart prospectia-portal --update-env
 
 # ─── Cron: status sync every 4 hours ─────────────────────────────────────────
 CRON_SECRET_VAL=$(grep '^CRON_SECRET=' "$APP_DIR/.env.production" 2>/dev/null | cut -d= -f2-)
