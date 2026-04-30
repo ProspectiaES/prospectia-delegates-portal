@@ -167,7 +167,7 @@ const ContentPage = () =>
       rows: [
         ["Cabecera",          "Tu nombre, badge de rol y fecha de alta"],
         ["Tarjetas KPI",      "Cuatro bloques de métricas: Facturación, Clientes, Comisiones, Afiliados"],
-        ["Columna izquierda", "Datos personales, asignaciones (KOL, coordinador) y afiliados"],
+        ["Columna izquierda", "Datos personales, asignaciones y afiliados"],
         ["Columna derecha",   "Seis secciones desplegables con el detalle de tu actividad"],
       ],
       widths: [1, 2],
@@ -289,7 +289,6 @@ const ContentPage = () =>
     Li({ children: "Indicador «Mes en curso» cuando estás viendo el período actual." }),
     Li({ children: "Botón Liquidación para descargar el PDF de liquidación del período." }),
     Li({ children: "Cada factura cobrada aparece como fila expandible con detalle por producto." }),
-    Note({ children: "Si tienes rol KOL además de delegado verás dos bloques: comisiones como Delegado y como KOL." }),
     Warn({ children: "Las comisiones de facturas pendientes o vencidas NO son liquidables hasta que Holded las marque como cobradas." }),
     Sp(),
 
