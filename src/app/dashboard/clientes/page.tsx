@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/Card";
 import { SyncButton } from "@/components/SyncButton";
 import { getProfile } from "@/lib/profile";
-import { ClientesActivityList, type ContactWithActivity } from "./ClientesActivityList";
+import { ClientesActivityList, type ContactWithActivity, type FollowupRecord } from "./ClientesActivityList";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,30 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString();
   const periodEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)).toISOString();
 
+  // Fetch persisted followup state + prospecto link map
+  const admin3 = createAdminClient();
+  const [followupsRes, prospectoRes] = await Promise.all([
+    (isOwner
+      ? admin3.from("client_followups").select("contact_id, status, tasks_done, otros_done, otros_text, notes")
+      : admin3.from("client_followups").select("contact_id, status, tasks_done, otros_done, otros_text, notes").eq("delegate_id", profile!.id)
+    ),
+    admin3.from("prospectos").select("id, holded_contact_id").not("holded_contact_id", "is", null),
+  ]);
+
+  const initialFollowups: FollowupRecord[] = (followupsRes.data ?? []).map(r => ({
+    contact_id: r.contact_id as string,
+    status:     (r.status  as string) as FollowupRecord["status"],
+    tasks_done: (r.tasks_done as string[]) ?? [],
+    otros_done: r.otros_done as boolean,
+    otros_text: (r.otros_text as string) ?? "",
+    notes:      (r.notes as string) ?? "",
+  }));
+
+  const prospectoMap: Record<string, string> = {};
+  for (const p of (prospectoRes.data ?? [])) {
+    if (p.holded_contact_id) prospectoMap[p.holded_contact_id as string] = p.id;
+  }
+
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
@@ -194,7 +218,13 @@ export default async function ClientesPage({ searchParams }: PageProps) {
 
       {/* Activity list */}
       {contacts.length > 0 && (
-        <ClientesActivityList contacts={contacts} periodStart={periodStart} periodEnd={periodEnd} />
+        <ClientesActivityList
+          contacts={contacts}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
+          initialFollowups={initialFollowups}
+          prospectoMap={prospectoMap}
+        />
       )}
 
     </div>

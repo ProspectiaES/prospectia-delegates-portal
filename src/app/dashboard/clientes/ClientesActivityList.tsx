@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 
@@ -20,13 +20,26 @@ export interface ContactWithActivity {
   daysSinceActivity: number | null;
 }
 
+export interface FollowupRecord {
+  contact_id: string;
+  status:     CRMStatus;
+  tasks_done: string[];
+  otros_done: boolean;
+  otros_text: string;
+  notes:      string;
+}
+
 interface Props {
-  contacts:    ContactWithActivity[];
-  periodStart: string;
-  periodEnd:   string;
+  contacts:         ContactWithActivity[];
+  periodStart:      string;
+  periodEnd:        string;
+  initialFollowups: FollowupRecord[];
+  prospectoMap:     Record<string, string>; // holded contact_id → prospecto.id
 }
 
 // ─── CRM types ────────────────────────────────────────────────────────────────
+
+type CRMStatus = "sin_contactar" | "en_seguimiento" | "reactivado";
 
 const TASK_LABELS = [
   "Llamar al cliente",
@@ -50,7 +63,6 @@ const KEY_QUESTIONS = [
   "¿Cuándo fue la última vez que contactaste a este cliente de forma proactiva?",
 ] as const;
 
-type CRMStatus = "sin_contactar" | "en_seguimiento" | "reactivado";
 interface CRMState {
   tasks:        Set<TaskKey>;
   otrosChecked: boolean;
@@ -266,11 +278,12 @@ function DormantCRMCard({ c, crm, onOpen }: { c: ContactWithActivity; crm: CRMSt
 
 // ─── CRM Full-screen modal ────────────────────────────────────────────────────
 
-function ClientCRMModal({ c, crm, onUpdate, onClose }: {
+function ClientCRMModal({ c, crm, onUpdate, onClose, saveState }: {
   c: ContactWithActivity;
   crm: CRMState;
   onUpdate: (u: Partial<CRMState>) => void;
   onClose: () => void;
+  saveState: "idle" | "saving" | "saved";
 }) {
   const sev   = dormantSeverity(c.daysSinceActivity);
   const done  = crm.tasks.size + (crm.otrosChecked ? 1 : 0);
@@ -318,15 +331,29 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
           </p>
         </div>
 
-        <Link
-          href={`/dashboard/clientes/${c.id}`}
-          className="shrink-0 text-xs font-medium text-[#8E0E1A] hover:underline flex items-center gap-1"
-        >
-          Ver ficha
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M3 13L13 3M13 3H8M13 3v5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          {saveState === "saving" && (
+            <span className="text-[11px] text-[#9CA3AF] flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full border-2 border-[#9CA3AF] border-t-transparent animate-spin inline-block" />
+              Guardando…
+            </span>
+          )}
+          {saveState === "saved" && (
+            <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2.5 8.5l4 4 7-8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Guardado
+            </span>
+          )}
+          <Link
+            href={`/dashboard/clientes/${c.id}`}
+            className="text-xs font-medium text-[#8E0E1A] hover:underline flex items-center gap-1"
+          >
+            Ver ficha
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 13L13 3M13 3H8M13 3v5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+        </div>
       </div>
 
       {/* Scrollable body */}
@@ -573,15 +600,31 @@ function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimien
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props) {
+export function ClientesActivityList({ contacts, periodStart, periodEnd, initialFollowups, prospectoMap }: Props) {
   const nuevos   = contacts.filter(c => c.firstInvoiceDate && c.firstInvoiceDate >= periodStart && c.firstInvoiceDate <= periodEnd);
   const activos  = contacts.filter(c => c.daysSinceActivity !== null && c.daysSinceActivity <= 30);
   const dormidos = contacts.filter(c => c.daysSinceActivity === null || c.daysSinceActivity > 30)
     .sort((a, b) => (b.daysSinceActivity ?? 9999) - (a.daysSinceActivity ?? 9999));
 
-  const [crmData, setCrmData] = useState<Map<string, CRMState>>(
-    () => new Map(contacts.map(c => [c.id, { tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus }]))
-  );
+  const emptyCRM = useCallback((): CRMState => ({
+    tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus,
+  }), []);
+
+  const [crmData, setCrmData] = useState<Map<string, CRMState>>(() => {
+    const map = new Map<string, CRMState>(contacts.map(c => [c.id, emptyCRM()]));
+    for (const f of initialFollowups) {
+      map.set(f.contact_id, {
+        tasks:        new Set<TaskKey>(f.tasks_done as TaskKey[]),
+        otrosChecked: f.otros_done,
+        otrosText:    f.otros_text,
+        notes:        f.notes,
+        status:       f.status,
+      });
+    }
+    return map;
+  });
+
+  const [saveState,    setSaveState]    = useState<"idle" | "saving" | "saved">("idle");
   const [modalId,      setModalId]      = useState<string | null>(null);
   const [nuevosOpen,   setNuevosOpen]   = useState(true);
   const [activosOpen,  setActivosOpen]  = useState(true);
@@ -589,6 +632,46 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
   const [nuevosPage,   setNuevosPage]   = useState(1);
   const [activosPage,  setActivosPage]  = useState(1);
   const [dormidosPage, setDormidosPage] = useState(1);
+
+  // Track which contacts need saving and which tasks are persisted in DB
+  const dirtyRef      = useRef<Set<string>>(new Set());
+  const persistedRef  = useRef<Map<string, Set<TaskKey>>>(
+    new Map(initialFollowups.map(f => [f.contact_id, new Set(f.tasks_done as TaskKey[])]))
+  );
+
+  // Debounced save: fires 1.5s after last crmData change
+  useEffect(() => {
+    if (dirtyRef.current.size === 0) return;
+    const dirty = [...dirtyRef.current];
+    const timer = setTimeout(async () => {
+      dirtyRef.current = new Set();
+      setSaveState("saving");
+      await Promise.all(dirty.map(async id => {
+        const state = crmData.get(id);
+        if (!state) return;
+        const persisted = persistedRef.current.get(id) ?? new Set<TaskKey>();
+        const newly_completed = [...state.tasks].filter(t => !persisted.has(t));
+        persistedRef.current.set(id, new Set(state.tasks));
+        await fetch("/api/followup/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contact_id:             id,
+            status:                 state.status,
+            tasks_done:             [...state.tasks],
+            otros_done:             state.otrosChecked,
+            otros_text:             state.otrosText,
+            notes:                  state.notes,
+            newly_completed_tasks:  newly_completed,
+            prospecto_id:           prospectoMap[id] ?? null,
+          }),
+        });
+      }));
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [crmData, prospectoMap]);
 
   const nuevosSlice   = nuevos.slice((nuevosPage - 1)   * PAGE_SIZE, nuevosPage   * PAGE_SIZE);
   const activosSlice  = activos.slice((activosPage - 1)  * PAGE_SIZE, activosPage  * PAGE_SIZE);
@@ -599,15 +682,15 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
   const enSeguimiento  = [...crmData.values()].filter(s => s.status === "en_seguimiento").length;
   const reactivados    = [...crmData.values()].filter(s => s.status === "reactivado").length;
 
-  const emptyCRM = (): CRMState => ({ tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus });
-
-  const updateCRM = (id: string, update: Partial<CRMState>) =>
+  const updateCRM = (id: string, update: Partial<CRMState>) => {
+    dirtyRef.current.add(id);
     setCrmData(prev => {
       const next = new Map(prev);
       const cur  = next.get(id) ?? emptyCRM();
       next.set(id, { ...cur, ...update });
       return next;
     });
+  };
 
   const modalClient = modalId ? contacts.find(c => c.id === modalId) ?? null : null;
   const modalCRM    = modalId ? (crmData.get(modalId) ?? emptyCRM()) : null;
@@ -621,6 +704,7 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
           crm={modalCRM}
           onUpdate={u => updateCRM(modalClient.id, u)}
           onClose={() => setModalId(null)}
+          saveState={saveState}
         />
       )}
 
