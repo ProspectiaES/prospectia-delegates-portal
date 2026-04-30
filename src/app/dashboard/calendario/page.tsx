@@ -1,14 +1,13 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getProfile, isKolUser } from "@/lib/profile";
+import { getProfile } from "@/lib/profile";
 import { CalendarioClient, type CalActivity } from "./CalendarioClient";
 
 export default async function CalendarioPage() {
   const profile = await getProfile();
-  if (!profile) notFound();
+  if (!profile) redirect("/login");
 
   const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
-  const isKol   = isKolUser(profile);
   const admin   = createAdminClient();
 
   let query = admin
@@ -23,7 +22,8 @@ export default async function CalendarioPage() {
     .not("scheduled_at", "is", null)
     .order("scheduled_at", { ascending: true });
 
-  if (!isOwner && !isKol) {
+  // Non-owners see only their own activities
+  if (!isOwner) {
     query = query.eq("delegate_id", profile.id);
   }
 

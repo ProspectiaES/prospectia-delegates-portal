@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { updateProspectoStage, updateProspecto, addActivity, convertToHolded, deleteProspecto } from "@/app/actions/prospectos";
 import { STAGES, stageCfg, type ProspectoStage } from "../stages";
 
@@ -705,6 +706,23 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
                 </div>
               )}
             </dl>
+          )}
+
+          {/* Link to Holded client tracking */}
+          {p.holded_contact_id && !editMode && (
+            <Link
+              href={`/dashboard/clientes/${p.holded_contact_id}`}
+              className="flex items-center gap-2 w-full mt-1 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="6.5" cy="5" r="2.5"/>
+                <path d="M1.5 11.5c0-2.485 2.239-4.5 5-4.5s5 2.015 5 4.5" strokeLinecap="round"/>
+              </svg>
+              Ver perfil de cliente en seguimiento
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" className="ml-auto">
+                <path d="M2 5h6M5 2l3 3-3 3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </Link>
           )}
         </div>
 

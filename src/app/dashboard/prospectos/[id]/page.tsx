@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
@@ -19,7 +20,6 @@ export default async function ProspectoDetailPage({ params, searchParams }: Page
 
   const admin   = createAdminClient();
   const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
-  if (!isOwner) notFound();
 
   // Fetch prospecto
   const { data: raw } = await admin
@@ -30,7 +30,11 @@ export default async function ProspectoDetailPage({ params, searchParams }: Page
 
   if (!raw) notFound();
 
-  const p       = raw as ProspectoDetail;
+  const p = raw as ProspectoDetail;
+
+  // Non-owners can only see their own prospectos
+  if (!isOwner && p.delegate_id !== profile.id) notFound();
+
   const canEdit = true;
   const activeTab = tab ?? "actividad";
 

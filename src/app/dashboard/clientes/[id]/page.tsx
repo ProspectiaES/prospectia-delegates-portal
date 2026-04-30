@@ -159,9 +159,18 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     allAffiliates = (affiliatesRes ?? []) as typeof allAffiliates;
   }
 
-  const contact = contactData as DbContact;
-  const invoices = (invoicesData ?? []) as DbInvoice[];
+  const contact    = contactData as DbContact;
+  const invoices   = (invoicesData ?? []) as DbInvoice[];
   const openOrders = (ordersData ?? []) as { id: string; doc_number: string | null; date: string | null; total: number; status: number }[];
+
+  // Prospecto de origen (CRM → cliente)
+  const admin2 = createAdminClient();
+  const { data: prospectoData } = await admin2
+    .from("prospectos")
+    .select("id, name, delegate_id, converted_at, profiles!prospectos_delegate_id_fkey(full_name)")
+    .eq("holded_contact_id", id)
+    .maybeSingle();
+  const prospecto = prospectoData as { id: string; name: string; delegate_id: string; converted_at: string | null; profiles: { full_name?: string } | null } | null;
 
   // Load current recommender name (for display)
   let currentRecommender: { id: string; name: string; code: string | null; email: string | null; city: string | null } | null = null;
@@ -213,6 +222,28 @@ export default async function ClienteDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* Prospecto de origen (CRM link) */}
+      {prospecto && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#FEF2F2] border border-[#8E0E1A]/10">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8E0E1A" strokeWidth="1.5">
+            <path d="M8 2c-1.5 0-4 .8-4 3 0 1.5.8 2.5 2 3L4.5 14h7L10 8c1.2-.5 2-1.5 2-3 0-2.2-2.5-3-4-3z" strokeLinejoin="round"/>
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold text-[#8E0E1A] uppercase tracking-wider">Prospecto de origen (CRM)</p>
+            <p className="text-sm font-medium text-[#0A0A0A] truncate">{prospecto.name}</p>
+            {prospecto.profiles?.full_name && (
+              <p className="text-[11px] text-[#6B7280]">Delegado: {prospecto.profiles.full_name}{prospecto.converted_at && ` · Convertido ${new Date(prospecto.converted_at).toLocaleDateString("es-ES")}`}</p>
+            )}
+          </div>
+          <Link
+            href={`/dashboard/prospectos/${prospecto.id}`}
+            className="shrink-0 text-xs font-semibold text-[#8E0E1A] hover:underline"
+          >
+            Ver prospecto →
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

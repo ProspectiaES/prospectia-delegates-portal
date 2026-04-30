@@ -145,7 +145,41 @@ export async function convertToHolded(prospectoId: string) {
     updated_at: new Date().toISOString(),
   }).eq("id", prospectoId);
 
+  // Auto-create follow-up activities in the calendar
+  const now      = new Date();
+  const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10, 0, 0, 0);
+  const in30d    = new Date(now); in30d.setDate(in30d.getDate() + 30); in30d.setHours(10, 0, 0, 0);
+  const in90d    = new Date(now); in90d.setDate(in90d.getDate() + 90); in90d.setHours(10, 0, 0, 0);
+
+  await admin.from("prospecto_activities").insert([
+    {
+      prospecto_id: prospectoId,
+      delegate_id:  profile.id,
+      type:         "call",
+      title:        "Llamada de bienvenida como cliente",
+      notes:        "Confirmar datos, presentar el proceso de incorporación y resolver dudas iniciales.",
+      scheduled_at: tomorrow.toISOString(),
+    },
+    {
+      prospecto_id: prospectoId,
+      delegate_id:  profile.id,
+      type:         "meeting",
+      title:        "Seguimiento a los 30 días",
+      notes:        "Revisar satisfacción, detectar necesidades adicionales y asegurar la fidelización.",
+      scheduled_at: in30d.toISOString(),
+    },
+    {
+      prospecto_id: prospectoId,
+      delegate_id:  profile.id,
+      type:         "task",
+      title:        "Revisión trimestral de cuenta",
+      notes:        "Análisis de actividad del cliente a los 90 días. Valorar oportunidades de ampliación.",
+      scheduled_at: in90d.toISOString(),
+    },
+  ]);
+
   revalidatePath(`/dashboard/prospectos/${prospectoId}`);
+  revalidatePath("/dashboard/calendario");
   return { success: true, holdedId };
 }
 

@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { EmailsDashboardClient, type EmailSendFull } from "./EmailsDashboardClient";
@@ -8,11 +8,9 @@ export default async function EmailsDashboardPage() {
   if (!profile) redirect("/login");
 
   const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
-  if (!isOwner) notFound();
+  const admin   = createAdminClient();
 
-  const admin = createAdminClient();
-
-  const { data: rows } = await admin
+  let query = admin
     .from("email_sends")
     .select(`
       *,
@@ -21,6 +19,11 @@ export default async function EmailsDashboardPage() {
     `)
     .order("created_at", { ascending: false })
     .limit(500);
+
+  // Non-owners only see their own sent emails
+  if (!isOwner) query = query.eq("sender_id", profile.id);
+
+  const { data: rows } = await query;
 
   const emails: EmailSendFull[] = (rows ?? []).map((e: Record<string, unknown>) => ({
     id:               e.id as string,

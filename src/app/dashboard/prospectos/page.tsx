@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { importProspectosCSV } from "@/app/actions/prospectos";
@@ -7,15 +7,20 @@ import { ProspectosClient, type ProspectoRow } from "./ProspectosClient";
 
 export default async function ProspectosPage() {
   const profile = await getProfile();
-  const isOwner = profile?.role === "OWNER" || profile?.role === "ADMIN";
-  if (!isOwner) notFound();
+  if (!profile) redirect("/login");
 
-  const admin = createAdminClient();
+  const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
+  const admin   = createAdminClient();
 
-  const { data: rows } = await admin
+  let query = admin
     .from("prospectos")
     .select("*, profiles!prospectos_delegate_id_fkey(full_name)")
     .order("updated_at", { ascending: false });
+
+  // Non-owners see only their own prospectos
+  if (!isOwner) query = query.eq("delegate_id", profile.id);
+
+  const { data: rows } = await query;
 
   const prospectos: ProspectoRow[] = (rows ?? []).map((r: Record<string, unknown>) => ({
     id:                r.id as string,
@@ -34,7 +39,7 @@ export default async function ProspectosPage() {
     updated_at:        r.updated_at as string,
   }));
 
-  async function handleImport(csvRows: Array<{ name: string; email?: string; phone?: string; company?: string; city?: string }>) {
+  async function handleImport(csvRows: Parameters<typeof importProspectosCSV>[0]) {
     "use server";
     await importProspectosCSV(csvRows);
   }
@@ -51,7 +56,7 @@ export default async function ProspectosPage() {
 
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Prospectos</h1>
+          <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Mis prospectos</h1>
           <p className="mt-1 text-sm text-[#6B7280]">
             {counts.total} total · {counts.activos} activos · {counts.ganados} ganados · {counts.convertidos} en Holded
           </p>
