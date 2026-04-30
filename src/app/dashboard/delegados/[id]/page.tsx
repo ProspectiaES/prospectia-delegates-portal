@@ -411,58 +411,83 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         </div>
       </div>
 
-      {/* Billing KPIs — row 1 */}
+      {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Total facturado</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalBilled)}</p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">{invoices.length} facturas</p>
-        </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Cobradas este mes</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">
-            {fmtCurrency(periodo.reduce((s, inv) => s + inv.total, 0))}
-          </p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">{periodo.length} facturas</p>
-        </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#F59E0B] uppercase tracking-wide">Pendientes</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">
-            {fmtCurrency(kpiPendientes.reduce((s, inv) => s + inv.total, 0))}
-          </p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">{kpiPendientes.length} facturas</p>
-        </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#8E0E1A] uppercase tracking-wide">Vencidas</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">
-            {fmtCurrency(kpiVencidas.reduce((s, inv) => s + inv.total, 0))}
-          </p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">{vencidas.length} facturas</p>
-        </div>
-      </div>
 
-      {/* Client / commission KPIs — row 2 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Total clientes</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{clients.length}</p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">asignados</p>
+        {/* Facturación */}
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4 flex flex-col gap-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1 text-[#6B7280]">Facturación</p>
+          {([
+            { label: "Total facturado",    value: fmtCurrency(totalBilled),                                              sub: `${invoices.length} fact.`,       color: "text-[#0A0A0A]" },
+            { label: "Cobradas en período", value: fmtCurrency(periodo.reduce((s, i) => s + i.total, 0)),                sub: `${periodo.length} fact.`,         color: "text-emerald-600" },
+            { label: "Pendientes",          value: fmtCurrency(kpiPendientes.reduce((s, i) => s + i.total, 0)),          sub: `${kpiPendientes.length} fact.`,   color: kpiPendientes.length > 0 ? "text-amber-600" : "text-[#0A0A0A]" },
+            { label: "Vencidas",            value: fmtCurrency(kpiVencidas.reduce((s, i) => s + i.total, 0)),            sub: `${kpiVencidas.length} fact.`,     color: kpiVencidas.length > 0 ? "text-[#8E0E1A]" : "text-[#0A0A0A]" },
+          ] as { label: string; value: string; sub: string; color: string }[]).map(({ label, value, sub, color }) => (
+            <div key={label} className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0">
+              <span className="text-xs text-[#6B7280]">{label}</span>
+              <div className="text-right">
+                <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
+                <span className="ml-1.5 text-xs text-[#9CA3AF]">{sub}</span>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Clientes activos</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{activos.length}</p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">con actividad 30d</p>
+
+        {/* Clientes */}
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4 flex flex-col gap-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1 text-[#6B7280]">Clientes</p>
+          {([
+            { label: "Total",          value: String(clients.length),  sub: "asignados",          color: "text-[#0A0A0A]" },
+            { label: "Activos",        value: String(activos.length),  sub: "últ. 30 días",       color: "text-emerald-600" },
+            { label: "Dormidos",       value: String(dormidos.length), sub: ">30 días",            color: dormidos.length > 0 ? "text-amber-600" : "text-[#0A0A0A]" },
+          ] as { label: string; value: string; sub: string; color: string }[]).map(({ label, value, sub, color }) => (
+            <div key={label} className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0">
+              <span className="text-xs text-[#6B7280]">{label}</span>
+              <div className="text-right">
+                <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
+                <span className="ml-1.5 text-xs text-[#9CA3AF]">{sub}</span>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Clientes dormidos</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{dormidos.length}</p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF]">sin actividad 30d</p>
+
+        {/* Comisiones */}
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4 flex flex-col gap-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1 text-[#6B7280]">Comisiones</p>
+          {([
+            { label: "Liquidable",      value: fmtCurrency(commissionLiquidable),                                         sub: commissionPeriod, color: commissionLiquidable > 0 ? "text-emerald-600" : "text-[#0A0A0A]" },
+            { label: "En riesgo",       value: fmtCurrency(kpiVencidas.reduce((s, i) => s + i.total, 0)),                 sub: `${kpiVencidas.length} fact. venc.`, color: kpiVencidas.length > 0 ? "text-[#8E0E1A]" : "text-[#0A0A0A]" },
+            { label: "Pendiente cobro", value: fmtCurrency(kpiPendientes.reduce((s, i) => s + i.total, 0)),               sub: `${kpiPendientes.length} fact. pend.`, color: kpiPendientes.length > 0 ? "text-amber-600" : "text-[#0A0A0A]" },
+          ] as { label: string; value: string; sub: string; color: string }[]).map(({ label, value, sub, color }) => (
+            <div key={label} className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0">
+              <span className="text-xs text-[#6B7280]">{label}</span>
+              <div className="text-right">
+                <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
+                <span className="ml-1.5 text-xs text-[#9CA3AF]">{sub}</span>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
-          <p className="text-xs font-medium text-[#8E0E1A] uppercase tracking-wide">Comisión liquidable</p>
-          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(commissionLiquidable)}</p>
-          <p className="mt-0.5 text-xs text-[#9CA3AF] capitalize">{commissionPeriod}</p>
+
+        {/* Afiliados */}
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4 flex flex-col gap-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1 text-[#6B7280]">Afiliados</p>
+          {([
+            { label: "Total",        value: String(assignedAffiliates.length),  sub: "asignados",    color: "text-[#0A0A0A]" },
+            { label: "Facturado",    value: fmtCurrency(totalAffAmount),         sub: `${affiliateOrders.length} órd.`, color: "text-[#0A0A0A]" },
+            { label: "Liquidable",   value: fmtCurrency(totalAffLiquidable),     sub: "aprobado",     color: totalAffLiquidable > 0 ? "text-emerald-600" : "text-[#0A0A0A]" },
+            { label: "Pagado",       value: fmtCurrency(totalAffPaid),           sub: "histórico",    color: "text-[#0A0A0A]" },
+          ] as { label: string; value: string; sub: string; color: string }[]).map(({ label, value, sub, color }) => (
+            <div key={label} className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0">
+              <span className="text-xs text-[#6B7280]">{label}</span>
+              <div className="text-right">
+                <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
+                <span className="ml-1.5 text-xs text-[#9CA3AF]">{sub}</span>
+              </div>
+            </div>
+          ))}
         </div>
+
       </div>
 
       {/* Main grid: left col (data block) + right col (collapsible sections) */}
