@@ -8,11 +8,13 @@ import { getProfile } from "@/lib/profile";
 import { DelegateBillingForm } from "./DelegateBillingForm";
 import { InvoiceTabs, DelegateInvoice } from "./InvoiceTabs";
 import { ClientAssignmentPanel } from "./ClientAssignmentPanel";
+import { ClientsSection } from "./ClientsSection";
 import { AffiliateAssignmentPanel } from "./AffiliateAssignmentPanel";
 import { DelegateProfileAssignSelect } from "./DelegateProfileAssignSelect";
 import { RiesgoClientesCard } from "./RiesgoClientesCard";
 import { ActividadClientesCard } from "./ActividadClientesCard";
 import { ComisionesCard } from "./ComisionesCard";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { buildCommissionBlock } from "./commissionCalc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -324,7 +326,8 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     );
   }
 
-  const commissionPeriod = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const commissionPeriod    = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const commissionLiquidable = commissionBlocks.reduce((s, b) => s + b.totalNetCommission, 0);
 
   const assignedAffiliateIds = allAffiliates
     .filter((a) => a.delegate_id === id)
@@ -406,7 +409,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         </div>
       </div>
 
-      {/* Invoice KPIs */}
+      {/* Billing KPIs — row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
           <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Total facturado</p>
@@ -436,10 +439,34 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
         </div>
       </div>
 
-      {/* Main grid: left col (billing + KOL/Coord) + right col (clients + affiliates) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Client / commission KPIs — row 2 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
+          <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Total clientes</p>
+          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{clients.length}</p>
+          <p className="mt-0.5 text-xs text-[#9CA3AF]">asignados</p>
+        </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
+          <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Clientes activos</p>
+          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{activos.length}</p>
+          <p className="mt-0.5 text-xs text-[#9CA3AF]">con actividad 30d</p>
+        </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
+          <p className="text-xs font-medium text-[#6B7280] uppercase tracking-wide">Clientes dormidos</p>
+          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{dormidos.length}</p>
+          <p className="mt-0.5 text-xs text-[#9CA3AF]">sin actividad 30d</p>
+        </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-4 py-4">
+          <p className="text-xs font-medium text-[#8E0E1A] uppercase tracking-wide">Comisión liquidable</p>
+          <p className="mt-1.5 text-xl font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(commissionLiquidable)}</p>
+          <p className="mt-0.5 text-xs text-[#9CA3AF] capitalize">{commissionPeriod}</p>
+        </div>
+      </div>
 
-        {/* Left column */}
+      {/* Main grid: left col (data block) + right col (collapsible sections) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        {/* Left column — data block */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
@@ -505,80 +532,6 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
               </Card>
             </>
           )}
-        </div>
-
-        {/* Right column: clients + affiliates */}
-        <div className="lg:col-span-2 space-y-6">
-
-          {/* Clients */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Clientes asociados</CardTitle>
-              <span className="text-xs text-[#9CA3AF]">{clients.length} cliente{clients.length !== 1 ? "s" : ""}</span>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isOwner ? (
-                <ClientAssignmentPanel
-                  delegateId={id}
-                  initialAssigned={clients.map((c) => ({
-                    id: c.id,
-                    name: c.name,
-                    code: c.code,
-                    email: c.email,
-                    city: c.city,
-                  }))}
-                />
-              ) : clients.length === 0 ? (
-                <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin clientes asignados.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                        {["Nombre", "Código", "Email", "Localidad", "Tipo", ""].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3F4F6]">
-                      {clients.map((c) => (
-                        <tr key={c.id} className="hover:bg-[#F9FAFB] transition-colors">
-                          <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap max-w-[160px] truncate">
-                            <Link href={`/dashboard/clientes/${c.id}`} className="hover:text-[#8E0E1A] transition-colors">
-                              {c.name || <span className="text-[#9CA3AF]">—</span>}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 text-xs font-mono text-[#6B7280] whitespace-nowrap">
-                            {c.code || <span className="text-[#D1D5DB]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-[#6B7280] whitespace-nowrap max-w-[160px] truncate">
-                            {c.email || <span className="text-[#D1D5DB]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-[#6B7280] whitespace-nowrap">
-                            {c.city || <span className="text-[#D1D5DB]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {c.type != null ? (
-                              <Badge variant={contactTypeVariant[c.type] ?? "neutral"}>
-                                {contactTypeLabel[c.type] ?? `Tipo ${c.type}`}
-                              </Badge>
-                            ) : (
-                              <span className="text-[#D1D5DB] text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <Link href={`/dashboard/clientes/${c.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
-                              Ver →
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Affiliates */}
           <Card>
@@ -587,23 +540,12 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
               <span className="text-xs text-[#9CA3AF]">{assignedAffiliateIds.length} afiliado{assignedAffiliateIds.length !== 1 ? "s" : ""}</span>
             </CardHeader>
 
-            {/* Affiliate billing KPIs */}
             {assignedAffiliateIds.length > 0 && (
-              <div className="px-5 py-4 border-b border-[#F3F4F6] grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="px-5 py-4 border-b border-[#F3F4F6] grid grid-cols-2 gap-3">
                 <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
                   <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wide">Facturado</p>
                   <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffAmount)}</p>
                   <p className="text-[10px] text-[#9CA3AF]">{affiliateOrders.length} órdenes</p>
-                </div>
-                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-[#F59E0B] uppercase tracking-wide">Pendiente</p>
-                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffPending)}</p>
-                  <p className="text-[10px] text-[#9CA3AF]">Por aprobar</p>
-                </div>
-                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wide">Por liquidar</p>
-                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffLiquidable)}</p>
-                  <p className="text-[10px] text-[#9CA3AF]">Aprobadas</p>
                 </div>
                 <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
                   <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Cobrado</p>
@@ -630,97 +572,80 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
               ) : assignedAffiliateIds.length === 0 ? (
                 <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin afiliados asignados.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                        {["Afiliado", "Código", "Órdenes", "Facturado", "Por liquidar", "Cobrado", ""].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3F4F6]">
-                      {assignedAffiliates.map((a) => {
-                        const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
-                        const st = affStats.get(a.id) ?? { count: 0, totalAmount: 0, pending: 0, liquidable: 0, paid: 0 };
-                        return (
-                          <tr key={a.id} className="hover:bg-[#F9FAFB] transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <p className="text-sm font-medium text-[#0A0A0A]">{name}</p>
-                              <p className="text-xs text-[#6B7280]">{a.email}</p>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {a.referral_code
-                                ? <code className="text-xs font-mono text-[#6B7280]">{a.referral_code}</code>
-                                : <span className="text-[#D1D5DB] text-xs">—</span>}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-[#6B7280] tabular-nums">
-                              {st.count > 0 ? st.count : <span className="text-[#D1D5DB]">0</span>}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap tabular-nums font-medium text-[#0A0A0A]">
-                              {st.totalAmount > 0 ? fmtCurrency(st.totalAmount) : <span className="text-[#D1D5DB] text-xs">—</span>}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6B7280]">
-                              {st.liquidable > 0 ? fmtCurrency(st.liquidable) : <span className="text-[#D1D5DB] text-xs">—</span>}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap tabular-nums text-emerald-700 font-medium">
-                              {st.paid > 0 ? fmtCurrency(st.paid) : <span className="text-[#D1D5DB] text-xs font-normal">—</span>}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <Link href={`/dashboard/afiliados/${a.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
-                                Ver →
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {affiliateOrders.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t border-[#E5E7EB] bg-[#F9FAFB]">
-                          <td colSpan={3} className="px-4 py-2.5 text-xs text-[#6B7280]">{assignedAffiliates.length} afiliado{assignedAffiliates.length !== 1 ? "s" : ""}</td>
-                          <td className="px-4 py-2.5 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffAmount)}</td>
-                          <td className="px-4 py-2.5 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffLiquidable)}</td>
-                          <td className="px-4 py-2.5 text-sm font-bold text-emerald-700 tabular-nums">{fmtCurrency(totalAffPaid)}</td>
-                          <td />
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
+                <ul className="divide-y divide-[#F3F4F6]">
+                  {assignedAffiliates.map((a) => {
+                    const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
+                    const st = affStats.get(a.id) ?? { count: 0, totalAmount: 0, pending: 0, liquidable: 0, paid: 0 };
+                    return (
+                      <li key={a.id} className="flex items-center justify-between px-5 py-3 gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#0A0A0A] truncate">{name}</p>
+                          {a.referral_code && <p className="text-xs font-mono text-[#9CA3AF]">{a.referral_code}</p>}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          {st.totalAmount > 0 && <p className="text-xs font-semibold text-[#0A0A0A] tabular-nums">{fmtCurrency(st.totalAmount)}</p>}
+                          <Link href={`/dashboard/afiliados/${a.id}`} className="text-xs text-[#6B7280] hover:text-[#8E0E1A] transition-colors">Ver →</Link>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Right column — 5 collapsible sections */}
+        <div className="lg:col-span-2 space-y-3">
+
+          {/* 1. Actividad clientes */}
+          <ActividadClientesCard activos={activos} dormidos={dormidos} />
+
+          {/* 2. Riesgo clientes */}
+          <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
+
+          {/* 3. Comisiones liquidables */}
+          <ComisionesCard
+            blocks={commissionBlocks}
+            period={commissionPeriod}
+            mesStr={mesStr}
+            isCurrentMes={isCurrentMes}
+            delegateId={id}
+            pendientes={pendientes}
+            vencidas={vencidas}
+          />
+
+          {/* 4. Facturas */}
+          <CollapsibleCard
+            title="Facturas"
+            subtitle={`${invoices.length} factura${invoices.length !== 1 ? "s" : ""} en total`}
+          >
+            <InvoiceTabs invoices={invoices} periodStart={periodStart} periodEnd={periodEnd} />
+          </CollapsibleCard>
+
+          {/* 5. Clientes */}
+          {isOwner ? (
+            <CollapsibleCard
+              title="Clientes asociados"
+              subtitle={`${clients.length} cliente${clients.length !== 1 ? "s" : ""}`}
+            >
+              <ClientAssignmentPanel
+                delegateId={id}
+                initialAssigned={clients.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  code: c.code,
+                  email: c.email,
+                  city: c.city,
+                }))}
+              />
+            </CollapsibleCard>
+          ) : (
+            <ClientsSection clients={clients.map((c) => ({ id: c.id, name: c.name, code: c.code, email: c.email, city: c.city, type: c.type ?? null }))} />
+          )}
+
+        </div>
       </div>
-
-      {/* Invoice list with tabs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Facturas</CardTitle>
-          <span className="text-xs text-[#9CA3AF]">{invoices.length} factura{invoices.length !== 1 ? "s" : ""} en total</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <InvoiceTabs invoices={invoices} periodStart={periodStart} periodEnd={periodEnd} />
-        </CardContent>
-      </Card>
-
-      {/* Riesgo clientes */}
-      <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
-
-      {/* Actividad clientes */}
-      <ActividadClientesCard activos={activos} dormidos={dormidos} />
-
-      {/* Comisiones liquidables */}
-      <ComisionesCard
-        blocks={commissionBlocks}
-        period={commissionPeriod}
-        mesStr={mesStr}
-        isCurrentMes={isCurrentMes}
-        delegateId={id}
-        pendientes={pendientes}
-        vencidas={vencidas}
-      />
 
     </div>
   );

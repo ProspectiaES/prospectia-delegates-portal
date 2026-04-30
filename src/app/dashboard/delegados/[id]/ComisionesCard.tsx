@@ -408,7 +408,27 @@ function VencidasSection({ rows }: { rows: VencidaRow[] }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 25;
+
+function BlockPaginationBar({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between px-5 py-2 border-t border-[#F3F4F6] bg-white">
+      <span className="text-[11px] text-[#9CA3AF]">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total} facturas</span>
+      <div className="flex gap-1.5">
+        <button disabled={page === 1} onClick={() => onPage(page - 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">← Ant.</button>
+        <button disabled={page === pages} onClick={() => onPage(page + 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">Sig. →</button>
+      </div>
+    </div>
+  );
+}
+
 export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, pendientes, vencidas }: Props) {
+  const [blockPages, setBlockPages] = useState<Record<string, number>>({});
+  function getPage(role: string) { return blockPages[role] ?? 1; }
+  function setPage(role: string, p: number) { setBlockPages(prev => ({ ...prev, [role]: p })); }
+
   const grandTotal = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
 
   const badge = (
@@ -443,17 +463,22 @@ export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateI
               </div>
               {block.invoices.length === 0 ? (
                 <p className="px-5 py-4 text-xs text-[#9CA3AF]">Sin facturas cobradas este mes para este rol.</p>
-              ) : (
-                <>
-                  {block.invoices.map((inv) => (
-                    <InvoiceRow key={inv.invoiceId} inv={inv} />
-                  ))}
-                  <div className="px-5 py-3 flex items-center justify-between bg-[#F9FAFB] border-t border-[#E5E7EB]">
-                    <span className="text-xs font-semibold text-[#374151]">Total comisión {block.role}</span>
-                    <span className="text-base font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(block.totalNetCommission)}</span>
-                  </div>
-                </>
-              )}
+              ) : (() => {
+                const pg = getPage(block.role);
+                const slice = block.invoices.slice((pg - 1) * PAGE_SIZE, pg * PAGE_SIZE);
+                return (
+                  <>
+                    {slice.map((inv) => (
+                      <InvoiceRow key={inv.invoiceId} inv={inv} />
+                    ))}
+                    <BlockPaginationBar page={pg} total={block.invoices.length} onPage={(p) => setPage(block.role, p)} />
+                    <div className="px-5 py-3 flex items-center justify-between bg-[#F9FAFB] border-t border-[#E5E7EB]">
+                      <span className="text-xs font-semibold text-[#374151]">Total comisión {block.role}</span>
+                      <span className="text-base font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(block.totalNetCommission)}</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ))}
 

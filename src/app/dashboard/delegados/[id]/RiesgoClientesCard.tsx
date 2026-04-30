@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 
@@ -28,6 +29,8 @@ interface Props {
   pendientes: PendienteRow[];
 }
 
+const PAGE_SIZE = 25;
+
 const fmtEuro = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
 
@@ -36,7 +39,31 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function PaginationBar({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pages <= 1) return null;
+  return (
+    <tr className="border-t border-[#F3F4F6] bg-[#F9FAFB]">
+      <td colSpan={5} className="px-4 py-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-[#9CA3AF]">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}</span>
+          <div className="flex gap-1.5">
+            <button disabled={page === 1} onClick={() => onPage(page - 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">← Ant.</button>
+            <button disabled={page === pages} onClick={() => onPage(page + 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">Sig. →</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
+  const [vencidasPage, setVencidasPage]     = useState(1);
+  const [pendientesPage, setPendientesPage] = useState(1);
+
+  const vencidasSlice   = vencidas.slice((vencidasPage - 1) * PAGE_SIZE, vencidasPage * PAGE_SIZE);
+  const pendientesSlice = pendientes.slice((pendientesPage - 1) * PAGE_SIZE, pendientesPage * PAGE_SIZE);
+
   const totalVencido   = vencidas.reduce((s, r) => s + r.total, 0);
   const totalPendiente = pendientes.reduce((s, r) => s + r.total, 0);
 
@@ -75,7 +102,7 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F3F4F6]">
-                  {vencidas.map(r => (
+                  {vencidasSlice.map(r => (
                     <tr key={r.invoiceId} className="hover:bg-[#FEF2F2] transition-colors">
                       <td className="px-4 py-2.5 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
                         <Link href={`/dashboard/facturas/${r.invoiceId}`} className="hover:text-[#8E0E1A] transition-colors">{r.docNumber}</Link>
@@ -93,6 +120,9 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <PaginationBar page={vencidasPage} total={vencidas.length} onPage={setVencidasPage} />
+                </tfoot>
               </table>
             </div>
           )}
@@ -111,7 +141,7 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F3F4F6]">
-                  {pendientes.map(r => (
+                  {pendientesSlice.map(r => (
                     <tr key={r.invoiceId} className="hover:bg-amber-50/50 transition-colors">
                       <td className="px-4 py-2.5 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
                         <Link href={`/dashboard/facturas/${r.invoiceId}`} className="hover:text-[#8E0E1A]">{r.docNumber}</Link>
@@ -126,6 +156,9 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <PaginationBar page={pendientesPage} total={pendientes.length} onPage={setPendientesPage} />
+                </tfoot>
               </table>
             </div>
           )}

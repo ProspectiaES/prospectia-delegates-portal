@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 
@@ -37,6 +37,8 @@ function fmtDate(iso: string | null): string {
 
 type Tab = "todas" | "cobradas" | "periodo" | "pendientes" | "vencidas";
 
+const PAGE_SIZE = 25;
+
 const TABS: { key: Tab; label: string }[] = [
   { key: "todas",      label: "Todas"               },
   { key: "cobradas",   label: "Cobradas"             },
@@ -46,7 +48,10 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
-  const [tab, setTab] = useState<Tab>("todas");
+  const [tab, setTab]   = useState<Tab>("todas");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [tab]);
 
   const now          = new Date();
   const currentYear  = now.getFullYear();
@@ -60,7 +65,9 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
     return true;
   });
 
-  const sumFiltered = filtered.reduce((s, inv) => s + inv.total, 0);
+  const sumFiltered  = filtered.reduce((s, inv) => s + inv.total, 0);
+  const totalPages   = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSlice    = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div>
@@ -115,7 +122,7 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
-                {filtered.map((inv) => {
+                {pageSlice.map((inv) => {
                   const paidDate = inv.status === 3 && inv.date_paid ? new Date(inv.date_paid) : null;
                   const isPaidInPeriod = inv.status === 3 && !!inv.date_paid
                     && inv.date_paid >= periodStart && inv.date_paid <= periodEnd;
@@ -177,6 +184,19 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
                 })}
               </tbody>
               <tfoot>
+                {totalPages > 1 && (
+                  <tr className="border-t border-[#F3F4F6] bg-[#F9FAFB]">
+                    <td colSpan={8} className="px-4 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#9CA3AF]">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length}</span>
+                        <div className="flex gap-1.5">
+                          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">← Ant.</button>
+                          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="text-[11px] px-2.5 py-1 rounded border border-[#E5E7EB] text-[#6B7280] disabled:opacity-40 hover:border-[#0A0A0A] transition-colors bg-white">Sig. →</button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 <tr className="border-t border-[#E5E7EB] bg-[#F9FAFB]">
                   <td colSpan={5} className="px-4 py-2.5 text-xs text-[#6B7280]">{filtered.length} factura{filtered.length !== 1 ? "s" : ""}</td>
                   <td className="px-4 py-2.5 text-right text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(sumFiltered)}</td>
