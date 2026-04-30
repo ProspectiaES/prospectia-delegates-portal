@@ -31,9 +31,7 @@ export async function POST(
   const profile = await getProfile();
   if (!profile) return new Response("Unauthorized", { status: 401 });
 
-  const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
-  const isSelf  = profile.id === id;
-  if (!isOwner && !isSelf) return new Response("Forbidden", { status: 403 });
+  if (profile.role !== "OWNER" && profile.role !== "ADMIN") return new Response("Forbidden", { status: 403 });
 
   const body = await req.json().catch(() => ({})) as {
     mes?: string;

@@ -16,7 +16,6 @@ import { ActividadClientesCard } from "./ActividadClientesCard";
 import { ComisionesCard } from "./ComisionesCard";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { buildCommissionBlock } from "./commissionCalc";
-import { AutofacturaButton } from "./AutofacturaButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -408,21 +407,6 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0 ml-4">
             <p className="text-xs text-[#9CA3AF]">Alta: {fmtDate(delegate.created_at)}</p>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <a
-                href={`/api/delegados/${id}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[#8E0E1A] text-xs font-semibold text-[#8E0E1A] hover:bg-[#8E0E1A] hover:text-white transition-colors duration-150"
-              >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-                  <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M3 13h10" strokeLinecap="round" />
-                </svg>
-                Liquidación PDF
-              </a>
-              <AutofacturaButton delegateId={id} defaultMes={mesStr} />
-            </div>
           </div>
         </div>
       </div>
@@ -631,6 +615,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
             delegateId={id}
             pendientes={pendientes}
             vencidas={vencidas}
+            isOwner={isOwner}
           />
 
           {/* 4. Facturas */}

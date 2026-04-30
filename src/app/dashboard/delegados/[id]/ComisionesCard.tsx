@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
+import { AutofacturaButton } from "./AutofacturaButton";
 
 // ─── Types (serializable props) ────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ interface Props {
   delegateId: string;
   pendientes: PendienteRow[];
   vencidas: VencidaRow[];
+  isOwner: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -96,8 +98,8 @@ function nextMes(mes: string): string {
 // ─── Month navigation ─────────────────────────────────────────────────────────
 
 function MonthNav({
-  mesStr, isCurrentMes, period, delegateId,
-}: { mesStr: string; isCurrentMes: boolean; period: string; delegateId: string }) {
+  mesStr, isCurrentMes, period, delegateId, isOwner, hasCommissions,
+}: { mesStr: string; isCurrentMes: boolean; period: string; delegateId: string; isOwner: boolean; hasCommissions: boolean }) {
   const router   = useRouter();
   const pathname = usePathname();
 
@@ -153,8 +155,11 @@ function MonthNav({
             <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M3 13h10" strokeLinecap="round" />
           </svg>
-          PDF
+          Liquidación
         </a>
+        {isOwner && hasCommissions && (
+          <AutofacturaButton delegateId={delegateId} defaultMes={mesStr} />
+        )}
       </div>
     </div>
   );
@@ -424,7 +429,7 @@ function BlockPaginationBar({ page, total, onPage }: { page: number; total: numb
   );
 }
 
-export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, pendientes, vencidas }: Props) {
+export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, pendientes, vencidas, isOwner }: Props) {
   const [blockPages, setBlockPages] = useState<Record<string, number>>({});
   function getPage(role: string) { return blockPages[role] ?? 1; }
   function setPage(role: string, p: number) { setBlockPages(prev => ({ ...prev, [role]: p })); }
@@ -442,7 +447,7 @@ export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateI
       badge={badge}
     >
       {/* Month navigation */}
-      <MonthNav mesStr={mesStr} isCurrentMes={isCurrentMes} period={period} delegateId={delegateId} />
+      <MonthNav mesStr={mesStr} isCurrentMes={isCurrentMes} period={period} delegateId={delegateId} isOwner={isOwner} hasCommissions={grandTotal > 0} />
 
       {/* Commission blocks */}
       {blocks.every(b => b.invoices.length === 0) ? (
