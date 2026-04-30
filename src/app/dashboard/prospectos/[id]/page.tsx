@@ -4,13 +4,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { stageCfg } from "../stages";
 import { ProspectoDetailClient, type ActivityRow, type ProspectoDetail, type EmailTemplate } from "./ProspectoDetailClient";
+import { EmailTrackingPanel, type EmailSendRow } from "./EmailTrackingPanel";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function ProspectoDetailPage({ params }: PageProps) {
+export default async function ProspectoDetailPage({ params, searchParams }: PageProps) {
   const { id }  = await params;
+  const { tab } = await searchParams;
   const profile = await getProfile();
   if (!profile) redirect("/login");
 
@@ -27,8 +30,9 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
 
   if (!raw) notFound();
 
-  const p = raw as ProspectoDetail;
+  const p       = raw as ProspectoDetail;
   const canEdit = true;
+  const activeTab = tab ?? "actividad";
 
   // Fetch activities
   const { data: actRows } = await admin
@@ -48,12 +52,33 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
     delegate_name: (a.profiles as { full_name?: string } | null)?.full_name ?? null,
   }));
 
-  // Fetch email templates (all users can read per RLS)
+  // Fetch email sends with tracking
+  const { data: emailRows } = await admin
+    .from("email_sends")
+    .select("*, profiles!email_sends_sender_id_fkey(full_name)")
+    .eq("prospecto_id", id)
+    .order("created_at", { ascending: false });
+
+  const emailSends: EmailSendRow[] = (emailRows ?? []).map((e: Record<string, unknown>) => ({
+    id:               e.id as string,
+    to_email:         e.to_email as string,
+    subject:          e.subject as string,
+    status:           e.status as string,
+    opens:            (e.opens as number) ?? 0,
+    clicks:           (e.clicks as number) ?? 0,
+    sent_at:          e.sent_at as string | null,
+    first_opened_at:  e.first_opened_at as string | null,
+    last_opened_at:   e.last_opened_at as string | null,
+    first_clicked_at: e.first_clicked_at as string | null,
+    last_clicked_at:  e.last_clicked_at as string | null,
+    sender_name:      (e.profiles as { full_name?: string } | null)?.full_name ?? null,
+  }));
+
+  // Fetch email templates
   const { data: tplRows } = await admin
     .from("email_templates")
     .select("id, name, subject, body_html, body_text")
     .order("name");
-
   const templates = (tplRows ?? []) as EmailTemplate[];
 
   // Sender email from profile
@@ -65,6 +90,11 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
   const senderEmail = (senderProfile as { email?: string } | null)?.email ?? null;
 
   const cfg = stageCfg(p.stage);
+
+  const TABS = [
+    { key: "actividad", label: "Actividad",      count: activities.length },
+    { key: "emails",    label: "Emails enviados", count: emailSends.length },
+  ];
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
@@ -94,14 +124,68 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <ProspectoDetailClient
-        prospecto={p}
-        activities={activities}
-        templates={templates}
-        senderEmail={senderEmail}
-        canEdit={canEdit}
-        isOwner={isOwner}
-      />
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Left — info card (always visible) */}
+        <div className="lg:col-span-1">
+          <ProspectoDetailClient
+            prospecto={p}
+            activities={activities}
+            templates={templates}
+            senderEmail={senderEmail}
+            canEdit={canEdit}
+            isOwner={isOwner}
+            sidebarOnly
+          />
+        </div>
+
+        {/* Right — tabbed panel */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Tabs */}
+          <div className="flex border-b border-[#E5E7EB]">
+            {TABS.map(t => (
+              <Link
+                key={t.key}
+                href={`/dashboard/prospectos/${id}?tab=${t.key}`}
+                className={[
+                  "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                  activeTab === t.key
+                    ? "border-[#8E0E1A] text-[#8E0E1A]"
+                    : "border-transparent text-[#6B7280] hover:text-[#0A0A0A]",
+                ].join(" ")}
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? "bg-[#FEF2F2] text-[#8E0E1A]" : "bg-[#F3F4F6] text-[#9CA3AF]"}`}>
+                    {t.count}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          {activeTab === "actividad" && (
+            <ProspectoDetailClient
+              prospecto={p}
+              activities={activities}
+              templates={templates}
+              senderEmail={senderEmail}
+              canEdit={canEdit}
+              isOwner={isOwner}
+              activityOnly
+            />
+          )}
+
+          {activeTab === "emails" && (
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-4">
+              <EmailTrackingPanel emails={emailSends} />
+            </div>
+          )}
+        </div>
+      </div>
 
     </div>
   );

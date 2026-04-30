@@ -99,6 +99,16 @@ const IconCRM = () => (
   </svg>
 );
 
+const IconCalendario = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="1.5" y="2.5" width="13" height="12" rx="1.5"/>
+    <path d="M1.5 6.5h13M5 1.5v2M11 1.5v2" strokeLinecap="round"/>
+    <rect x="4" y="9" width="2" height="2" rx="0.5" fill="currentColor" stroke="none"/>
+    <rect x="7" y="9" width="2" height="2" rx="0.5" fill="currentColor" stroke="none"/>
+    <rect x="10" y="9" width="2" height="2" rx="0.5" fill="currentColor" stroke="none"/>
+  </svg>
+);
+
 const IconTemplates = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <rect x="2" y="2" width="12" height="12" rx="1.5"/>
@@ -396,8 +406,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "CRM",
       items: [
-        { href: "/dashboard/prospectos",  label: "Prospectos",     Icon: IconCRM,       exact: false },
-        { href: "/dashboard/plantillas",  label: "Plantillas email", Icon: IconTemplates, exact: false },
+        { href: "/dashboard/prospectos",  label: "Prospectos",      Icon: IconCRM,        exact: false },
+        { href: "/dashboard/calendario",  label: "Calendario",      Icon: IconCalendario, exact: false },
+        { href: "/dashboard/plantillas",  label: "Plantillas email", Icon: IconTemplates,  exact: false },
       ],
     }] : []),
     {

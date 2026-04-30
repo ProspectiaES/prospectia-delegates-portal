@@ -501,16 +501,56 @@ interface Props {
   senderEmail: string | null;
   canEdit: boolean;
   isOwner: boolean;
+  sidebarOnly?: boolean;
+  activityOnly?: boolean;
 }
 
-export function ProspectoDetailClient({ prospecto: p, activities, templates, senderEmail, canEdit, isOwner }: Props) {
+export function ProspectoDetailClient({ prospecto: p, activities, templates, senderEmail, canEdit, isOwner, sidebarOnly, activityOnly }: Props) {
   const [editMode, setEditMode] = useState(false);
 
+  // Activity-only mode (right column tab)
+  if (activityOnly) return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-[#0A0A0A]">Actividad</p>
+        <span className="text-xs text-[#9CA3AF]">{activities.length} evento{activities.length !== 1 ? "s" : ""}</span>
+      </div>
+      {canEdit && <ActivityForm prospectoId={p.id} email={p.email} senderEmail={senderEmail} templates={templates} />}
+      {activities.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#E5E7EB] py-12 text-center">
+          <p className="text-sm text-[#9CA3AF]">Sin actividad registrada.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {activities.map(a => (
+            <div key={a.id} className="bg-white rounded-xl border border-[#E5E7EB] p-3 flex gap-3">
+              <div className="shrink-0 w-8 h-8 rounded-full bg-[#F9FAFB] flex items-center justify-center text-base">
+                {activityIcon(a.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-[#0A0A0A]">{a.title}</p>
+                  <span className="text-[10px] text-[#9CA3AF] whitespace-nowrap tabular-nums shrink-0">{fmtDateTime(a.created_at)}</span>
+                </div>
+                {a.notes && <p className="mt-1 text-xs text-[#6B7280] whitespace-pre-wrap">{a.notes}</p>}
+                <div className="mt-1.5 flex items-center gap-3 flex-wrap">
+                  {a.scheduled_at && <span className="text-[10px] text-[#9CA3AF]">📅 {fmtDateTime(a.scheduled_at)}</span>}
+                  {a.completed_at && <span className="text-[10px] text-emerald-600 font-medium">✓ Completado</span>}
+                  {a.delegate_name && <span className="text-[10px] text-[#9CA3AF]">{a.delegate_name}</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className={sidebarOnly ? "space-y-4" : "grid grid-cols-1 lg:grid-cols-3 gap-6"}>
 
       {/* Left column — info + actions */}
-      <div className="lg:col-span-1 space-y-4">
+      <div className={sidebarOnly ? "space-y-4" : "lg:col-span-1 space-y-4"}>
 
         {/* Stage */}
         {canEdit && <StageSelector current={p.stage} prospectoId={p.id} />}
@@ -578,8 +618,8 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
         </div>
       </div>
 
-      {/* Right column — activity feed */}
-      <div className="lg:col-span-2 space-y-4">
+      {/* Right column — activity feed (only when not sidebarOnly) */}
+      {!sidebarOnly && <div className="lg:col-span-2 space-y-4">
 
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-[#0A0A0A]">Actividad</p>
@@ -623,7 +663,7 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, sen
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
