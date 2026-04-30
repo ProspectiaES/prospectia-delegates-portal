@@ -138,7 +138,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
           .eq("is_credit_note", false)
           .order("date", { ascending: false })
       : Promise.resolve({ data: [] as DelegateInvoice[] }),
-    supabase
+    admin
       .from("bixgrow_affiliates")
       .select("id, email, first_name, last_name, status, referral_code, program, delegate_id")
       .order("email"),
@@ -329,6 +329,38 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   const assignedAffiliateIds = allAffiliates
     .filter((a) => a.delegate_id === id)
     .map((a) => a.id);
+  const assignedAffiliates = allAffiliates.filter((a) => a.delegate_id === id);
+
+  // Affiliate orders (admin bypasses OWNER-only RLS)
+  type AffOrder = { affiliate_id: string; amount: number; commission: number; status: string };
+  let affiliateOrders: AffOrder[] = [];
+  if (assignedAffiliateIds.length > 0) {
+    const { data: ordersData } = await admin
+      .from("bixgrow_orders")
+      .select("affiliate_id, amount, commission, status")
+      .in("affiliate_id", assignedAffiliateIds);
+    affiliateOrders = (ordersData ?? []) as AffOrder[];
+  }
+
+  // Per-affiliate order stats
+  const affStats = new Map<string, { count: number; totalAmount: number; pending: number; liquidable: number; paid: number }>();
+  for (const a of assignedAffiliates) {
+    affStats.set(a.id, { count: 0, totalAmount: 0, pending: 0, liquidable: 0, paid: 0 });
+  }
+  for (const o of affiliateOrders) {
+    const s = affStats.get(o.affiliate_id);
+    if (!s) continue;
+    s.count++;
+    s.totalAmount += Number(o.amount);
+    if (o.status === "pending") s.pending += Number(o.commission);
+    else if (o.status === "approved" || o.status === "settled") s.liquidable += Number(o.commission);
+    else if (o.status === "paid") s.paid += Number(o.commission);
+  }
+
+  const totalAffAmount    = affiliateOrders.reduce((s, o) => s + Number(o.amount), 0);
+  const totalAffPending   = affiliateOrders.filter((o) => o.status === "pending").reduce((s, o) => s + Number(o.commission), 0);
+  const totalAffLiquidable = affiliateOrders.filter((o) => o.status === "approved" || o.status === "settled").reduce((s, o) => s + Number(o.commission), 0);
+  const totalAffPaid      = affiliateOrders.filter((o) => o.status === "paid").reduce((s, o) => s + Number(o.commission), 0);
 
   // Invoice KPIs
   const totalBilled   = invoices.reduce((s, inv) => s + inv.total, 0);
@@ -551,9 +583,36 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
           {/* Affiliates */}
           <Card>
             <CardHeader>
-              <CardTitle>Afiliados asociados</CardTitle>
+              <CardTitle>Afiliados</CardTitle>
               <span className="text-xs text-[#9CA3AF]">{assignedAffiliateIds.length} afiliado{assignedAffiliateIds.length !== 1 ? "s" : ""}</span>
             </CardHeader>
+
+            {/* Affiliate billing KPIs */}
+            {assignedAffiliateIds.length > 0 && (
+              <div className="px-5 py-4 border-b border-[#F3F4F6] grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wide">Facturado</p>
+                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffAmount)}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">{affiliateOrders.length} órdenes</p>
+                </div>
+                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-[#F59E0B] uppercase tracking-wide">Pendiente</p>
+                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffPending)}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">Por aprobar</p>
+                </div>
+                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wide">Por liquidar</p>
+                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffLiquidable)}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">Aprobadas</p>
+                </div>
+                <div className="bg-[#F9FAFB] rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Cobrado</p>
+                  <p className="mt-1 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffPaid)}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">Pagado</p>
+                </div>
+              </div>
+            )}
+
             <CardContent className="p-0">
               {isOwner ? (
                 <AffiliateAssignmentPanel
@@ -571,25 +630,64 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
               ) : assignedAffiliateIds.length === 0 ? (
                 <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin afiliados asignados.</p>
               ) : (
-                <ul className="divide-y divide-[#F3F4F6]">
-                  {allAffiliates.filter((a) => assignedAffiliateIds.includes(a.id)).map((a) => {
-                    const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
-                    return (
-                      <li key={a.id} className="flex items-center justify-between px-5 py-3 gap-4">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[#0A0A0A] truncate">{name}</p>
-                          <p className="text-xs text-[#6B7280]">{a.email}</p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <Badge variant={a.status === "Approved" ? "success" : "warning"}>{a.status}</Badge>
-                          <Link href={`/dashboard/afiliados/${a.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
-                            Ver →
-                          </Link>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                        {["Afiliado", "Código", "Órdenes", "Facturado", "Por liquidar", "Cobrado", ""].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3F4F6]">
+                      {assignedAffiliates.map((a) => {
+                        const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email;
+                        const st = affStats.get(a.id) ?? { count: 0, totalAmount: 0, pending: 0, liquidable: 0, paid: 0 };
+                        return (
+                          <tr key={a.id} className="hover:bg-[#F9FAFB] transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <p className="text-sm font-medium text-[#0A0A0A]">{name}</p>
+                              <p className="text-xs text-[#6B7280]">{a.email}</p>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {a.referral_code
+                                ? <code className="text-xs font-mono text-[#6B7280]">{a.referral_code}</code>
+                                : <span className="text-[#D1D5DB] text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-[#6B7280] tabular-nums">
+                              {st.count > 0 ? st.count : <span className="text-[#D1D5DB]">0</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap tabular-nums font-medium text-[#0A0A0A]">
+                              {st.totalAmount > 0 ? fmtCurrency(st.totalAmount) : <span className="text-[#D1D5DB] text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[#6B7280]">
+                              {st.liquidable > 0 ? fmtCurrency(st.liquidable) : <span className="text-[#D1D5DB] text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap tabular-nums text-emerald-700 font-medium">
+                              {st.paid > 0 ? fmtCurrency(st.paid) : <span className="text-[#D1D5DB] text-xs font-normal">—</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <Link href={`/dashboard/afiliados/${a.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
+                                Ver →
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {affiliateOrders.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t border-[#E5E7EB] bg-[#F9FAFB]">
+                          <td colSpan={3} className="px-4 py-2.5 text-xs text-[#6B7280]">{assignedAffiliates.length} afiliado{assignedAffiliates.length !== 1 ? "s" : ""}</td>
+                          <td className="px-4 py-2.5 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffAmount)}</td>
+                          <td className="px-4 py-2.5 text-sm font-bold text-[#0A0A0A] tabular-nums">{fmtCurrency(totalAffLiquidable)}</td>
+                          <td className="px-4 py-2.5 text-sm font-bold text-emerald-700 tabular-nums">{fmtCurrency(totalAffPaid)}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
               )}
             </CardContent>
           </Card>

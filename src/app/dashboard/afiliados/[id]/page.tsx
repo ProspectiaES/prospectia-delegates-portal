@@ -86,11 +86,12 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
 
   const admin = createAdminClient();
 
+  // Use admin for all bixgrow queries — tables have OWNER-only RLS
   const [{ data: affData }, { data: ordersData }, { data: paymentsData }, { data: delegatesData }] =
     await Promise.all([
-      supabase.from("bixgrow_affiliates").select("*").eq("id", id).maybeSingle(),
-      supabase.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
-      supabase.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
+      admin.from("bixgrow_affiliates").select("*").eq("id", id).maybeSingle(),
+      admin.from("bixgrow_orders").select("id, contact_id, invoice_id, customer_email, order_number, amount, commission_rate, commission, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
+      admin.from("bixgrow_payments").select("id, amount, status, created_at").eq("affiliate_id", id).order("created_at", { ascending: false }),
       isOwner
         ? admin.from("profiles").select("id, full_name, delegate_name").eq("role", "DELEGATE").order("full_name")
         : Promise.resolve({ data: [] }),
