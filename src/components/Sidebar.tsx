@@ -113,6 +113,8 @@ type UserProps = {
   role: string;
   avatar_url: string | null;
   created_at: string;
+  is_kol?: boolean;
+  is_coordinator?: boolean;
 } | null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -333,8 +335,9 @@ function IdentityPanel({ user, open, onToggle }: {
 
 // ─── Navigation tree ──────────────────────────────────────────────────────────
 
-function buildSections(role: string, userId: string) {
-  const isDelegate = role === "DELEGATE";
+function buildSections(role: string, userId: string, isKol = false, isCoordinator = false) {
+  const isDelegate    = role === "DELEGATE";
+  const canSeeTeam    = !isDelegate || isKol || isCoordinator;
   return [
     {
       label: "General",
@@ -344,7 +347,6 @@ function buildSections(role: string, userId: string) {
           label: "Dashboard",
           Icon:  IconDashboard,
           exact: !isDelegate,
-          // delegates: match the delegados/[id] subtree so the item stays active
           startsWith: isDelegate ? `/dashboard/delegados/${userId}` : undefined,
         },
       ],
@@ -363,8 +365,7 @@ function buildSections(role: string, userId: string) {
         { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
       ],
     },
-    // "Delegados" section hidden for pure delegates — their dashboard IS their page
-    ...(!isDelegate ? [{
+    ...(canSeeTeam ? [{
       label: "Delegados",
       items: [
         { href: "/dashboard/delegados", label: "Delegados", Icon: IconDelegados, exact: false },
@@ -392,7 +393,9 @@ export function Sidebar({ user }: { user?: UserProps }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
 
-  const sections = user ? buildSections(user.role, user.id) : buildSections("", "");
+  const sections = user
+    ? buildSections(user.role, user.id, user.is_kol ?? false, user.is_coordinator ?? false)
+    : buildSections("", "");
 
   return (
     <aside className="w-56 h-full flex flex-col bg-white border-r border-[#E5E7EB] shrink-0">
