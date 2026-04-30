@@ -37,8 +37,10 @@ export async function POST(
     mes?: string;
     irpf_pct?: number;
     recargo_eq_pct?: number;
+    dry_run?: boolean;
   };
 
+  const isDryRun     = body.dry_run === true;
   const irpfPct      = Math.max(0, Math.min(100, Number(body.irpf_pct      ?? 0)));
   const recargoEqPct = Math.max(0, Math.min(100, Number(body.recargo_eq_pct ?? 0)));
 
@@ -160,6 +162,17 @@ export async function POST(
       : `Liquidación Colaboración ${block.role} — ${period}`,
     amount: block.totalNetCommission,
   }));
+
+  // Dry run: return computed amounts without saving or generating PDF
+  if (isDryRun) {
+    return Response.json({
+      period, lines,
+      baseCommission, ivaPct, ivaAmount,
+      irpfPct, irpfAmount,
+      recargoEqPct, recargoEqAmount,
+      totalPayable,
+    });
+  }
 
   // Next doc number
   const yearStr = String(pYear).slice(-2);
