@@ -48,6 +48,10 @@ const TABS: { key: Tab; label: string }[] = [
 export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
   const [tab, setTab] = useState<Tab>("todas");
 
+  const now          = new Date();
+  const currentYear  = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
   const filtered = invoices.filter((inv) => {
     if (tab === "cobradas")   return inv.status === 3;
     if (tab === "periodo")    return inv.status === 3 && !!inv.date_paid && inv.date_paid >= periodStart && inv.date_paid <= periodEnd;
@@ -112,10 +116,14 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {filtered.map((inv) => {
+                  const paidDate = inv.status === 3 && inv.date_paid ? new Date(inv.date_paid) : null;
                   const isPaidInPeriod = inv.status === 3 && !!inv.date_paid
                     && inv.date_paid >= periodStart && inv.date_paid <= periodEnd;
+                  const isPaidThisMonth = paidDate != null
+                    && paidDate.getFullYear() === currentYear
+                    && paidDate.getMonth() + 1 === currentMonth;
                   return (
-                  <tr key={inv.id} className={`transition-colors ${isPaidInPeriod ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-[#F9FAFB]"}`}>
+                  <tr key={inv.id} className={`transition-colors ${isPaidThisMonth ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-[#F9FAFB]"}`}>
                     <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold font-mono text-xs text-[#0A0A0A]">
                       <Link href={`/dashboard/facturas/${inv.id}`} className="hover:text-[#8E0E1A] transition-colors">
                         {inv.doc_number ?? inv.id.slice(0, 8) + "…"}
@@ -143,7 +151,7 @@ export function InvoiceTabs({ invoices, periodStart, periodEnd }: Props) {
                     <td className="px-4 py-3 tabular-nums whitespace-nowrap">
                       {inv.status !== 3 || !inv.date_paid ? (
                         <span className="text-[#9CA3AF] text-xs">—</span>
-                      ) : isPaidInPeriod ? (
+                      ) : isPaidThisMonth ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
                           ★ {fmtDate(inv.date_paid)}
                         </span>
