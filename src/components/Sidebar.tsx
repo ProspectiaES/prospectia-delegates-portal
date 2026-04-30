@@ -116,6 +116,13 @@ const IconTemplates = () => (
   </svg>
 );
 
+const IconEmails = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="1.5" y="3.5" width="13" height="9" rx="1.5"/>
+    <path d="M1.5 5.5l6.5 4.5 6.5-4.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 // ─── Role config ──────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<string, string> = {
@@ -406,8 +413,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "CRM",
       items: [
-        { href: "/dashboard/prospectos",  label: "Prospectos",      Icon: IconCRM,        exact: false },
-        { href: "/dashboard/calendario",  label: "Calendario",      Icon: IconCalendario, exact: false },
+        { href: "/dashboard/prospectos",  label: "Prospectos",       Icon: IconCRM,        exact: false },
+        { href: "/dashboard/calendario",  label: "Calendario",       Icon: IconCalendario, exact: false },
+        { href: "/dashboard/emails",      label: "Tracking emails",  Icon: IconEmails,     exact: false },
         { href: "/dashboard/plantillas",  label: "Plantillas email", Icon: IconTemplates,  exact: false },
       ],
     }] : []),

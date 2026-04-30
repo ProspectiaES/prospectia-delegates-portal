@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
 
-const APP_URL      = process.env.NEXT_PUBLIC_APP_URL ?? "https://portal.prospectia.es";
+const APP_URL      = process.env.APP_URL ?? "https://dashboard.prospectia.es";
 const DOMAIN       = "prospectia.es";
 const NOREPLY_FROM = `Prospectia <notificaciones@${DOMAIN}>`;
 

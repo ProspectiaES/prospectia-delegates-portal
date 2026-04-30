@@ -14,16 +14,22 @@ export interface EmailSendRow {
   last_opened_at: string | null;
   first_clicked_at: string | null;
   last_clicked_at: string | null;
+  delivered_at: string | null;
+  bounced_at: string | null;
+  complained_at: string | null;
+  bounce_type: string | null;
   sender_name: string | null;
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  queued:  { label: "En cola",  color: "text-[#6B7280]",   bg: "bg-[#F9FAFB]",   icon: "⏳" },
-  sent:    { label: "Enviado",  color: "text-blue-700",    bg: "bg-blue-50",     icon: "✉️" },
-  opened:  { label: "Abierto",  color: "text-emerald-700", bg: "bg-emerald-50",  icon: "👁" },
-  clicked: { label: "Click",    color: "text-purple-700",  bg: "bg-purple-50",   icon: "🔗" },
-  bounced: { label: "Rebotado", color: "text-red-700",     bg: "bg-red-50",      icon: "⚠️" },
-  failed:  { label: "Fallado",  color: "text-red-700",     bg: "bg-red-50",      icon: "✕"  },
+  queued:     { label: "En cola",   color: "text-[#6B7280]",   bg: "bg-[#F9FAFB]",   icon: "⏳" },
+  sent:       { label: "Enviado",   color: "text-blue-700",    bg: "bg-blue-50",     icon: "✉️" },
+  delivered:  { label: "Entregado", color: "text-teal-700",    bg: "bg-teal-50",     icon: "✓"  },
+  opened:     { label: "Abierto",   color: "text-emerald-700", bg: "bg-emerald-50",  icon: "👁" },
+  clicked:    { label: "Click",     color: "text-purple-700",  bg: "bg-purple-50",   icon: "🔗" },
+  bounced:    { label: "Rebotado",  color: "text-red-700",     bg: "bg-red-50",      icon: "⚠️" },
+  complained: { label: "Spam",      color: "text-orange-700",  bg: "bg-orange-50",   icon: "🚫" },
+  failed:     { label: "Fallado",   color: "text-red-700",     bg: "bg-red-50",      icon: "✕"  },
 };
 
 function fmtDateTime(iso: string | null) {
@@ -156,6 +162,21 @@ export function EmailTrackingPanel({ emails }: Props) {
                       <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Enviado</dt>
                       <dd className="text-xs text-[#374151] mt-0.5">{fmtDateTime(e.sent_at)}</dd>
                     </div>
+                    {e.delivered_at && (
+                      <div>
+                        <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Entregado</dt>
+                        <dd className="text-xs text-teal-700 font-medium mt-0.5">{fmtDateTime(e.delivered_at)}</dd>
+                      </div>
+                    )}
+                    {e.bounced_at && (
+                      <div>
+                        <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Rebotado</dt>
+                        <dd className="text-xs text-red-700 font-medium mt-0.5">
+                          {fmtDateTime(e.bounced_at)}
+                          {e.bounce_type && <span className="ml-1 text-[10px]">({e.bounce_type === "hard" ? "definitivo" : "temporal"})</span>}
+                        </dd>
+                      </div>
+                    )}
                     {e.first_opened_at && (
                       <div>
                         <dt className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Primera apertura</dt>
@@ -185,7 +206,7 @@ export function EmailTrackingPanel({ emails }: Props) {
                   </dl>
 
                   {/* Timeline visual */}
-                  {(e.first_opened_at || e.first_clicked_at) && (
+                  {(e.delivered_at || e.first_opened_at || e.first_clicked_at || e.bounced_at) && (
                     <div className="mt-2">
                       <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">Línea de tiempo</p>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -194,6 +215,16 @@ export function EmailTrackingPanel({ emails }: Props) {
                           <span className="text-[#6B7280]">Enviado</span>
                           <span className="font-medium text-[#374151]">{fmtDateTime(e.sent_at)}</span>
                         </div>
+                        {e.delivered_at && (
+                          <>
+                            <span className="text-[#E5E7EB]">→</span>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="w-2 h-2 rounded-full bg-teal-400" />
+                              <span className="text-[#6B7280]">Entregado</span>
+                              <span className="font-medium text-teal-700">{fmtDateTime(e.delivered_at)}</span>
+                            </div>
+                          </>
+                        )}
                         {e.first_opened_at && (
                           <>
                             <span className="text-[#E5E7EB]">→</span>
@@ -211,6 +242,16 @@ export function EmailTrackingPanel({ emails }: Props) {
                               <span className="w-2 h-2 rounded-full bg-purple-400" />
                               <span className="text-[#6B7280]">Click</span>
                               <span className="font-medium text-purple-700">{fmtDateTime(e.first_clicked_at)}</span>
+                            </div>
+                          </>
+                        )}
+                        {e.bounced_at && (
+                          <>
+                            <span className="text-[#E5E7EB]">→</span>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="w-2 h-2 rounded-full bg-red-400" />
+                              <span className="text-[#6B7280]">Rebotado</span>
+                              <span className="font-medium text-red-700">{fmtDateTime(e.bounced_at)}</span>
                             </div>
                           </>
                         )}

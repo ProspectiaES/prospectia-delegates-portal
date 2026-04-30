@@ -71,6 +71,10 @@ export default async function ProspectoDetailPage({ params, searchParams }: Page
     last_opened_at:   e.last_opened_at as string | null,
     first_clicked_at: e.first_clicked_at as string | null,
     last_clicked_at:  e.last_clicked_at as string | null,
+    delivered_at:     e.delivered_at as string | null,
+    bounced_at:       e.bounced_at as string | null,
+    complained_at:    e.complained_at as string | null,
+    bounce_type:      e.bounce_type as string | null,
     sender_name:      (e.profiles as { full_name?: string } | null)?.full_name ?? null,
   }));
 
