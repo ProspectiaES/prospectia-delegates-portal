@@ -31,6 +31,8 @@ export interface AutofacturaProps {
   };
   lines: AutofacturaLine[];
   baseCommission: number;
+  ivaPct: number;
+  ivaAmount: number;
   irpfPct: number;
   irpfAmount: number;
   recargoEqPct: number;
@@ -175,7 +177,7 @@ const s = StyleSheet.create({
 
 export function AutofacturaPDF({
   docNumber, period, generatedAt, delegate, company,
-  lines, baseCommission, irpfPct, irpfAmount,
+  lines, baseCommission, ivaPct, ivaAmount, irpfPct, irpfAmount,
   recargoEqPct, recargoEqAmount, totalPayable,
 }: AutofacturaProps) {
   const displayName = delegate.delegate_name ?? delegate.full_name;
@@ -233,6 +235,10 @@ export function AutofacturaPDF({
           <View style={s.summaryRow}>
             <Text style={s.summaryLabel}>Base imponible</Text>
             <Text style={s.summaryValue}>{fmtEuro(baseCommission)}</Text>
+          </View>
+          <View style={s.summaryRow}>
+            <Text style={s.summaryLabelMuted}>IVA ({ivaPct}%)</Text>
+            <Text style={s.summaryValueMuted}>+ {fmtEuro(ivaAmount)}</Text>
           </View>
           {irpfPct > 0 && (
             <View style={s.summaryRow}>

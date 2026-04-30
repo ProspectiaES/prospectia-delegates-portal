@@ -146,21 +146,20 @@ export async function POST(
     return new Response("Sin comisiones liquidables para este período", { status: 422 });
   }
 
+  const ivaPct          = 21;
+  const ivaAmount       = Math.round(baseCommission * ivaPct / 100 * 100) / 100;
   const irpfAmount      = Math.round(baseCommission * irpfPct / 100 * 100) / 100;
   const recargoEqAmount = Math.round(baseCommission * recargoEqPct / 100 * 100) / 100;
-  const totalPayable    = Math.round((baseCommission - irpfAmount + recargoEqAmount) * 100) / 100;
+  const totalPayable    = Math.round((baseCommission + ivaAmount - irpfAmount + recargoEqAmount) * 100) / 100;
 
-  // Build lines for PDF
-  const lines: AutofacturaLine[] = [];
-  for (const block of blocks) {
-    if (block.invoices.length === 0) continue;
-    for (const inv of block.invoices) {
-      lines.push({
-        description: `Comisión ${block.role} — ${inv.docNumber} (${inv.contactName})`,
-        amount: inv.netCommission,
-      });
-    }
-  }
+  // One line per commission block (e.g. Delegado, KOL)
+  const activeBlocks = blocks.filter((b) => b.invoices.length > 0);
+  const lines: AutofacturaLine[] = activeBlocks.map((block) => ({
+    description: activeBlocks.length === 1
+      ? `Liquidación Colaboración — ${period}`
+      : `Liquidación Colaboración ${block.role} — ${period}`,
+    amount: block.totalNetCommission,
+  }));
 
   // Next doc number
   const yearStr = String(pYear).slice(-2);
@@ -186,6 +185,8 @@ export async function POST(
     delegate_id:       id,
     period_year:       pYear,
     period_month:      pMonth + 1,
+    iva_pct:           ivaPct,
+    iva_amount:        ivaAmount,
     irpf_pct:          irpfPct,
     recargo_eq_pct:    recargoEqPct,
     base_commission:   baseCommission,
@@ -204,6 +205,8 @@ export async function POST(
     company: COMPANY,
     lines,
     baseCommission,
+    ivaPct,
+    ivaAmount,
     irpfPct,
     irpfAmount,
     recargoEqPct,
