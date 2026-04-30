@@ -354,6 +354,44 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
             </div>
           </div>
 
+          {/* Key questions — BEFORE tasks */}
+          <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setQuestionsOpen(o => !o)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#FFFBF5] transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#D97706" strokeWidth="1.8">
+                    <path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/>
+                    <path d="M8 7v1.5M8 11h.01" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#374151]">Key questions</p>
+                  <p className="text-[11px] font-semibold text-amber-600 mt-0.5">⚠ LEER antes de proceder</p>
+                </div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
+                className={`shrink-0 text-[#9CA3AF] transition-transform duration-200 ${questionsOpen ? "rotate-180" : ""}`}>
+                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {questionsOpen && (
+              <ol className="divide-y divide-[#F3F4F6] border-t border-[#E5E7EB]">
+                {KEY_QUESTIONS.map((q, i) => (
+                  <li key={i} className="flex items-start gap-4 px-5 py-4">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="text-sm text-[#374151] leading-relaxed">{q}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+
           {/* Tasks */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <div className="flex items-center justify-between mb-4">
@@ -448,36 +486,6 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
             )}
           </div>
 
-          {/* Key questions */}
-          <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setQuestionsOpen(o => !o)}
-              className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#F9FAFB] transition-colors text-left"
-            >
-              <div>
-                <p className="text-sm font-semibold text-[#374151]">Key questions</p>
-                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Preguntas para reflexionar antes de contactar</p>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
-                className={`shrink-0 text-[#9CA3AF] transition-transform duration-200 ${questionsOpen ? "rotate-180" : ""}`}>
-                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            {questionsOpen && (
-              <ol className="divide-y divide-[#F3F4F6] border-t border-[#E5E7EB]">
-                {KEY_QUESTIONS.map((q, i) => (
-                  <li key={i} className="flex items-start gap-4 px-5 py-4">
-                    <span className="shrink-0 w-6 h-6 rounded-full bg-[#F3F4F6] text-[#6B7280] text-[11px] font-bold flex items-center justify-center mt-0.5">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm text-[#374151] leading-relaxed">{q}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-
           {/* Notes */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] mb-3">Notas de seguimiento</p>
@@ -498,27 +506,67 @@ function ClientCRMModal({ c, crm, onUpdate, onClose }: {
 
 // ─── Summary card ─────────────────────────────────────────────────────────────
 
-function SummaryCard({ total, activos, dormidos, nuevos, monthLabel }: {
+function SummaryCard({ total, activos, dormidos, nuevos, monthLabel, enSeguimiento, reactivados }: {
   total: number; activos: number; dormidos: number; nuevos: number; monthLabel: string;
+  enSeguimiento: number; reactivados: number;
 }) {
-  const rows = [
-    { label: "Total",                   value: String(total),    sub: "asignados",     color: "text-[#0A0A0A]" },
-    { label: "Activos",                 value: String(activos),  sub: "últ. 30 días",  color: "text-emerald-600" },
-    { label: "Dormidos",                value: String(dormidos), sub: ">30 días",       color: dormidos > 0 ? "text-amber-600" : "text-[#0A0A0A]" },
-    { label: `Nuevos en ${monthLabel}`, value: String(nuevos),   sub: "primer pedido", color: nuevos > 0 ? "text-blue-600" : "text-[#0A0A0A]" },
+  const activosPct  = total > 0 ? Math.round(activos  / total * 100) : 0;
+  const dormidosPct = total > 0 ? Math.round(dormidos / total * 100) : 0;
+
+  const mainTiles = [
+    { value: total,    label: "Total",    sub: "clientes",     numCls: "text-[#0A0A0A]",   bg: "bg-white",            border: "border-[#E5E7EB]" },
+    { value: activos,  label: "Activos",  sub: "últ. 30 días", numCls: "text-emerald-600", bg: "bg-emerald-50",        border: "border-emerald-100" },
+    { value: dormidos, label: "Dormidos", sub: ">30 días",      numCls: dormidos > 0 ? (dormidos / total > 0.6 ? "text-[#8E0E1A]" : "text-amber-600") : "text-[#0A0A0A]",
+      bg: dormidos > 0 ? "bg-amber-50" : "bg-white", border: dormidos > 0 ? "border-amber-100" : "border-[#E5E7EB]" },
+    { value: nuevos,   label: "Nuevos",   sub: monthLabel,     numCls: nuevos > 0 ? "text-blue-600" : "text-[#9CA3AF]", bg: nuevos > 0 ? "bg-blue-50" : "bg-white", border: nuevos > 0 ? "border-blue-100" : "border-[#E5E7EB]" },
   ] as const;
+
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] mb-1">Clientes</p>
-      {rows.map(({ label, value, sub, color }) => (
-        <div key={label} className="flex items-center justify-between py-2.5 border-b border-[#F3F4F6] last:border-0">
-          <span className="text-xs text-[#6B7280]">{label}</span>
-          <div className="text-right">
-            <span className={`text-sm font-semibold tabular-nums ${color}`}>{value}</span>
-            <span className="ml-1.5 text-xs text-[#9CA3AF]">{sub}</span>
+    <div className="space-y-3">
+
+      {/* Row 1 — main KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {mainTiles.map(({ value, label, sub, numCls, bg, border }) => (
+          <div key={label} className={`rounded-xl border ${border} ${bg} px-4 py-4 flex flex-col items-center text-center shadow-sm`}>
+            <p className={`text-3xl font-bold tabular-nums leading-none ${numCls}`}>{value}</p>
+            <p className="text-xs font-semibold text-[#374151] mt-2">{label}</p>
+            <p className="text-[10px] text-[#9CA3AF] mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2 — ratio + CRM stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+        {/* Ratio bar */}
+        <div className="sm:col-span-1 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm">
+          <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-2.5">Distribución</p>
+          <div className="h-3 rounded-full overflow-hidden flex">
+            <div style={{ width: `${activosPct}%` }} className="bg-emerald-400 transition-all" />
+            <div style={{ width: `${dormidosPct}%` }} className="bg-amber-400 transition-all" />
+            {activosPct + dormidosPct < 100 && <div className="flex-1 bg-[#E5E7EB]" />}
+          </div>
+          <div className="flex justify-between mt-2">
+            <span className="text-[11px] font-semibold text-emerald-600">{activosPct}% activos</span>
+            <span className="text-[11px] font-semibold text-amber-600">{dormidosPct}% dormidos</span>
           </div>
         </div>
-      ))}
+
+        {/* En seguimiento */}
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-4 flex flex-col items-center text-center shadow-sm">
+          <p className="text-3xl font-bold tabular-nums text-blue-600 leading-none">{enSeguimiento}</p>
+          <p className="text-xs font-semibold text-[#374151] mt-2">En seguimiento</p>
+          <p className="text-[10px] text-[#9CA3AF] mt-0.5">CRM activo</p>
+        </div>
+
+        {/* Reactivados */}
+        <div className={`rounded-xl border ${reactivados > 0 ? "border-emerald-100 bg-emerald-50" : "border-[#E5E7EB] bg-white"} px-4 py-4 flex flex-col items-center text-center shadow-sm`}>
+          <p className={`text-3xl font-bold tabular-nums leading-none ${reactivados > 0 ? "text-emerald-600" : "text-[#9CA3AF]"}`}>{reactivados}</p>
+          <p className="text-xs font-semibold text-[#374151] mt-2">Reactivados</p>
+          <p className="text-[10px] text-[#9CA3AF] mt-0.5">marcados en CRM</p>
+        </div>
+
+      </div>
     </div>
   );
 }
@@ -546,8 +594,10 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
   const activosSlice  = activos.slice((activosPage - 1)  * PAGE_SIZE, activosPage  * PAGE_SIZE);
   const dormidosSlice = dormidos.slice((dormidosPage - 1) * PAGE_SIZE, dormidosPage * PAGE_SIZE);
 
-  const criticalCount = dormidos.filter(c => (c.daysSinceActivity ?? 999) > 90).length;
-  const monthLabel    = new Date(periodStart).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const criticalCount  = dormidos.filter(c => (c.daysSinceActivity ?? 999) > 90).length;
+  const monthLabel     = new Date(periodStart).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  const enSeguimiento  = [...crmData.values()].filter(s => s.status === "en_seguimiento").length;
+  const reactivados    = [...crmData.values()].filter(s => s.status === "reactivado").length;
 
   const emptyCRM = (): CRMState => ({ tasks: new Set<TaskKey>(), otrosChecked: false, otrosText: "", notes: "", status: "sin_contactar" as CRMStatus });
 
@@ -583,6 +633,8 @@ export function ClientesActivityList({ contacts, periodStart, periodEnd }: Props
           dormidos={dormidos.length}
           nuevos={nuevos.length}
           monthLabel={monthLabel}
+          enSeguimiento={enSeguimiento}
+          reactivados={reactivados}
         />
 
         {/* Card 2 — CRM grid for dormant clients */}
