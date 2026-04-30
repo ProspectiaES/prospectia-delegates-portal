@@ -156,10 +156,49 @@ function EditForm({ p, onClose }: { p: ProspectoDetail; onClose: () => void }) {
 
 // ─── Activity form ────────────────────────────────────────────────────────────
 
-function ActivityForm({ prospectoId }: { prospectoId: string }) {
-  const [pending, startT] = useTransition();
-  const [type, setType]   = useState("note");
-  const [open, setOpen]   = useState(false);
+function ActivityForm({ prospectoId, email, templates }: {
+  prospectoId: string;
+  email: string | null;
+  templates: EmailTemplate[];
+}) {
+  const [pending, startT]     = useTransition();
+  const [type, setType]       = useState("note");
+  const [open, setOpen]       = useState(false);
+  // email fields
+  const [tplId, setTplId]     = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody]       = useState("");
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const isEmail = type === "email";
+
+  function applyTemplate(id: string) {
+    setTplId(id);
+    const t = templates.find(t => t.id === id);
+    if (t) { setSubject(t.subject); setBody(t.body_text ?? t.body_html.replace(/<[^>]+>/g, "")); }
+  }
+
+  async function sendEmail() {
+    if (!email || !subject || !body) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, subject, body, prospectoId, templateId: tplId || null }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (json.ok) {
+        setOpen(false);
+        setSubject(""); setBody(""); setTplId("");
+      } else {
+        setEmailStatus(`Error: ${json.error}`);
+      }
+    } finally {
+      setSending(false);
+    }
+  }
 
   if (!open) {
     return (
@@ -176,50 +215,104 @@ function ActivityForm({ prospectoId }: { prospectoId: string }) {
   }
 
   return (
-    <form
-      action={(fd) => startT(async () => { await addActivity(prospectoId, fd); setOpen(false); })}
-      className="rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3 space-y-3"
-    >
+    <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3 space-y-3">
+      {/* Type selector */}
       <div className="flex gap-1.5 flex-wrap">
         {ACTIVITY_TYPES.map(t => (
           <button
             key={t.key} type="button"
-            onClick={() => setType(t.key)}
+            onClick={() => { setType(t.key); setEmailStatus(null); }}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${type === t.key ? "bg-[#8E0E1A] text-white border-transparent" : "bg-white border-[#E5E7EB] text-[#6B7280] hover:border-[#9CA3AF]"}`}
           >
             {t.icon} {t.label}
           </button>
         ))}
       </div>
-      <input type="hidden" name="type" value={type} />
 
-      <input name="title" required placeholder="Título o resumen…"
-        className="w-full h-8 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm" />
-
-      <textarea name="notes" rows={2} placeholder="Detalles (opcional)…"
-        className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm resize-none" />
-
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <label className="block text-[10px] text-[#9CA3AF] mb-1">Fecha/hora (opcional)</label>
-          <input type="datetime-local" name="scheduled_at"
-            className="h-8 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm" />
+      {isEmail ? (
+        /* ── Email composer ── */
+        <div className="space-y-2.5">
+          {!email && (
+            <p className="text-xs text-amber-600 font-medium">Este prospecto no tiene email — añade uno primero.</p>
+          )}
+          {email && (
+            <p className="text-[11px] text-[#9CA3AF]">Para: <span className="font-medium text-[#374151]">{email}</span></p>
+          )}
+          {templates.length > 0 && (
+            <div>
+              <label className="block text-[10px] text-[#9CA3AF] mb-1">Plantilla</label>
+              <select value={tplId} onChange={e => applyTemplate(e.target.value)}
+                className="w-full h-8 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm">
+                <option value="">Sin plantilla</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="block text-[10px] text-[#9CA3AF] mb-1">Asunto *</label>
+            <input value={subject} onChange={e => setSubject(e.target.value)}
+              placeholder="Asunto del email…"
+              className="w-full h-8 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm" />
+          </div>
+          <div>
+            <label className="block text-[10px] text-[#9CA3AF] mb-1">Cuerpo *</label>
+            <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
+              placeholder="Escribe el mensaje…"
+              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm resize-y" />
+          </div>
+          {emailStatus && <p className="text-xs text-red-600">{emailStatus}</p>}
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" onClick={() => setOpen(false)}
+              className="h-7 px-3 text-xs text-[#6B7280] hover:text-[#0A0A0A]">Cancelar</button>
+            <button
+              type="button"
+              disabled={sending || !email || !subject || !body}
+              onClick={sendEmail}
+              className="h-7 px-3 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="1" y="3" width="10" height="7" rx="1"/>
+                <path d="M1 3l5 4 5-4"/>
+              </svg>
+              {sending ? "Enviando…" : "Enviar email"}
+            </button>
+          </div>
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-[#6B7280] cursor-pointer mt-3">
-          <input type="checkbox" name="completed" value="true" className="rounded" />
-          Completado
-        </label>
-      </div>
+      ) : (
+        /* ── Other activity types ── */
+        <form action={(fd) => startT(async () => { await addActivity(prospectoId, fd); setOpen(false); })}
+          className="space-y-2.5">
+          <input type="hidden" name="type" value={type} />
 
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={() => setOpen(false)}
-          className="h-7 px-3 text-xs text-[#6B7280] hover:text-[#0A0A0A]">Cancelar</button>
-        <button type="submit" disabled={pending}
-          className="h-7 px-3 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-50">
-          {pending ? "…" : "Guardar"}
-        </button>
-      </div>
-    </form>
+          <input name="title" required placeholder="Título o resumen…"
+            className="w-full h-8 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm" />
+
+          <textarea name="notes" rows={2} placeholder="Detalles (opcional)…"
+            className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm resize-none" />
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <label className="block text-[10px] text-[#9CA3AF] mb-1">Fecha/hora (opcional)</label>
+              <input type="datetime-local" name="scheduled_at"
+                className="h-8 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs focus:border-[#8E0E1A] focus:outline-none shadow-sm" />
+            </div>
+            <label className="flex items-center gap-1.5 text-xs text-[#6B7280] cursor-pointer mt-3">
+              <input type="checkbox" name="completed" value="true" className="rounded" />
+              Completado
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" onClick={() => setOpen(false)}
+              className="h-7 px-3 text-xs text-[#6B7280] hover:text-[#0A0A0A]">Cancelar</button>
+            <button type="submit" disabled={pending}
+              className="h-7 px-3 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-50">
+              {pending ? "…" : "Guardar"}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -469,7 +562,6 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, can
         {/* Actions */}
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
           <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Acciones</p>
-          <EmailSender prospectoId={p.id} email={p.email} templates={templates} />
           <ConvertButton prospectoId={p.id} already={!!p.holded_contact_id} />
           {(canEdit || isOwner) && <DeleteButton prospectoId={p.id} />}
         </div>
@@ -483,7 +575,7 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, can
           <span className="text-xs text-[#9CA3AF]">{activities.length} evento{activities.length !== 1 ? "s" : ""}</span>
         </div>
 
-        {canEdit && <ActivityForm prospectoId={p.id} />}
+        {canEdit && <ActivityForm prospectoId={p.id} email={p.email} templates={templates} />}
 
         {activities.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#E5E7EB] py-12 text-center">
