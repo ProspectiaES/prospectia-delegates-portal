@@ -156,9 +156,10 @@ function EditForm({ p, onClose }: { p: ProspectoDetail; onClose: () => void }) {
 
 // ─── Activity form ────────────────────────────────────────────────────────────
 
-function ActivityForm({ prospectoId, email, templates }: {
+function ActivityForm({ prospectoId, email, senderEmail, templates }: {
   prospectoId: string;
   email: string | null;
+  senderEmail: string | null;
   templates: EmailTemplate[];
 }) {
   const [pending, startT]     = useTransition();
@@ -236,7 +237,16 @@ function ActivityForm({ prospectoId, email, templates }: {
             <p className="text-xs text-amber-600 font-medium">Este prospecto no tiene email — añade uno primero.</p>
           )}
           {email && (
-            <p className="text-[11px] text-[#9CA3AF]">Para: <span className="font-medium text-[#374151]">{email}</span></p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+              <p className="text-[11px] text-[#9CA3AF]">
+                Para: <span className="font-medium text-[#374151]">{email}</span>
+              </p>
+              {senderEmail && (
+                <p className="text-[11px] text-[#9CA3AF]">
+                  De: <span className="font-medium text-[#374151]">{senderEmail.endsWith("@prospectia.es") ? senderEmail : `notificaciones@prospectia.es (respuesta → ${senderEmail})`}</span>
+                </p>
+              )}
+            </div>
           )}
           {templates.length > 0 && (
             <div>
@@ -488,11 +498,12 @@ interface Props {
   prospecto: ProspectoDetail;
   activities: ActivityRow[];
   templates: EmailTemplate[];
+  senderEmail: string | null;
   canEdit: boolean;
   isOwner: boolean;
 }
 
-export function ProspectoDetailClient({ prospecto: p, activities, templates, canEdit, isOwner }: Props) {
+export function ProspectoDetailClient({ prospecto: p, activities, templates, senderEmail, canEdit, isOwner }: Props) {
   const [editMode, setEditMode] = useState(false);
 
   return (
@@ -575,7 +586,7 @@ export function ProspectoDetailClient({ prospecto: p, activities, templates, can
           <span className="text-xs text-[#9CA3AF]">{activities.length} evento{activities.length !== 1 ? "s" : ""}</span>
         </div>
 
-        {canEdit && <ActivityForm prospectoId={p.id} email={p.email} templates={templates} />}
+        {canEdit && <ActivityForm prospectoId={p.id} email={p.email} senderEmail={senderEmail} templates={templates} />}
 
         {activities.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#E5E7EB] py-12 text-center">

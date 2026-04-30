@@ -56,6 +56,14 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
 
   const templates = (tplRows ?? []) as EmailTemplate[];
 
+  // Sender email from profile
+  const { data: senderProfile } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", profile.id)
+    .maybeSingle();
+  const senderEmail = (senderProfile as { email?: string } | null)?.email ?? null;
+
   const cfg = stageCfg(p.stage);
 
   return (
@@ -90,6 +98,7 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
         prospecto={p}
         activities={activities}
         templates={templates}
+        senderEmail={senderEmail}
         canEdit={canEdit}
         isOwner={isOwner}
       />
