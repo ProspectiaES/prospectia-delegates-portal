@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { createProspecto } from "@/app/actions/prospectos";
@@ -6,9 +6,8 @@ import { STAGES } from "../ProspectosClient";
 
 export default async function NuevoProspectoPage() {
   const profile = await getProfile();
-  if (!profile) redirect("/login");
-
-  const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
+  const isOwner = profile?.role === "OWNER" || profile?.role === "ADMIN";
+  if (!isOwner) notFound();
 
   // Owner can assign to any delegate
   let delegates: { id: string; full_name: string }[] = [];

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getProfile, isKolUser } from "@/lib/profile";
+import { getProfile } from "@/lib/profile";
 import { stageCfg } from "../ProspectosClient";
 import { ProspectoDetailClient, type ActivityRow, type ProspectoDetail, type EmailTemplate } from "./ProspectoDetailClient";
 
@@ -16,7 +16,7 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
 
   const admin   = createAdminClient();
   const isOwner = profile.role === "OWNER" || profile.role === "ADMIN";
-  const isKol   = isKolUser(profile);
+  if (!isOwner) notFound();
 
   // Fetch prospecto
   const { data: raw } = await admin
@@ -28,11 +28,7 @@ export default async function ProspectoDetailPage({ params }: PageProps) {
   if (!raw) notFound();
 
   const p = raw as ProspectoDetail;
-
-  // Access check
-  const canEdit = isOwner || p.delegate_id === profile.id;
-  const canView = canEdit || isKol;
-  if (!canView) notFound();
+  const canEdit = true;
 
   // Fetch activities
   const { data: actRows } = await admin

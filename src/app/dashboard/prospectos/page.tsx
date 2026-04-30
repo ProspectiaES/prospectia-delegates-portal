@@ -1,36 +1,21 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getProfile, isKolUser } from "@/lib/profile";
+import { getProfile } from "@/lib/profile";
 import { importProspectosCSV } from "@/app/actions/prospectos";
 import { ProspectosClient, type ProspectoRow } from "./ProspectosClient";
 
 export default async function ProspectosPage() {
   const profile = await getProfile();
-  if (!profile) return null;
+  const isOwner = profile?.role === "OWNER" || profile?.role === "ADMIN";
+  if (!isOwner) notFound();
 
-  const admin    = createAdminClient();
-  const isOwner  = profile.role === "OWNER" || profile.role === "ADMIN";
-  const isKol    = isKolUser(profile);
+  const admin = createAdminClient();
 
-  // Fetch prospectos with delegate name
-  let query = admin
+  const { data: rows } = await admin
     .from("prospectos")
     .select("*, profiles!prospectos_delegate_id_fkey(full_name)")
     .order("updated_at", { ascending: false });
-
-  if (!isOwner && !isKol) {
-    query = query.eq("delegate_id", profile.id);
-  } else if (isKol && !isOwner) {
-    // KOL sees own + network delegates
-    const { data: cdRows } = await admin
-      .from("contact_delegates")
-      .select("delegate_id");
-    const delegateIds = [...new Set((cdRows ?? []).map(r => r.delegate_id as string))];
-    delegateIds.push(profile.id);
-    query = query.in("delegate_id", delegateIds);
-  }
-
-  const { data: rows } = await query;
 
   const prospectos: ProspectoRow[] = (rows ?? []).map((r: Record<string, unknown>) => ({
     id:                r.id as string,
@@ -55,16 +40,15 @@ export default async function ProspectosPage() {
   }
 
   const counts = {
-    total:      prospectos.length,
-    activos:    prospectos.filter(p => !["ganado", "perdido"].includes(p.stage)).length,
-    ganados:    prospectos.filter(p => p.stage === "ganado").length,
+    total:       prospectos.length,
+    activos:     prospectos.filter(p => !["ganado", "perdido"].includes(p.stage)).length,
+    ganados:     prospectos.filter(p => p.stage === "ganado").length,
     convertidos: prospectos.filter(p => p.holded_contact_id).length,
   };
 
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
-      {/* Header */}
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Prospectos</h1>

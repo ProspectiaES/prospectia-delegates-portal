@@ -393,13 +393,13 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/delegados", label: "Delegados", Icon: IconDelegados, exact: false },
       ],
     }] : []),
-    {
+    ...(isOwner ? [{
       label: "CRM",
       items: [
-        { href: "/dashboard/prospectos", label: "Prospectos", Icon: IconCRM, exact: false },
-        ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
+        { href: "/dashboard/prospectos",  label: "Prospectos",     Icon: IconCRM,       exact: false },
+        { href: "/dashboard/plantillas",  label: "Plantillas email", Icon: IconTemplates, exact: false },
       ],
-    },
+    }] : []),
     {
       label: "Afiliados",
       items: [
