@@ -111,6 +111,29 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
     linkedContact = data as HoldedContact | null;
   }
 
+  // Clients referenced in orders
+  const orderContactIds = [...new Set(orders.map(o => o.contact_id).filter(Boolean))] as string[];
+  let associatedClients: { id: string; name: string; email: string | null; orderCount: number; totalCommission: number; lastOrder: string }[] = [];
+  if (orderContactIds.length > 0) {
+    const { data: contactsData } = await admin
+      .from("holded_contacts")
+      .select("id, name, email")
+      .in("id", orderContactIds);
+    const contactMap = new Map((contactsData ?? []).map(c => [c.id, c]));
+    associatedClients = orderContactIds.map(cid => {
+      const c = contactMap.get(cid);
+      const myOrders = orders.filter(o => o.contact_id === cid);
+      return {
+        id:              cid,
+        name:            c?.name ?? "Cliente desconocido",
+        email:           (c?.email as string | null) ?? null,
+        orderCount:      myOrders.length,
+        totalCommission: myOrders.reduce((s, o) => s + o.commission, 0),
+        lastOrder:       myOrders[0]?.created_at ?? "",
+      };
+    }).sort((a, b) => b.totalCommission - a.totalCommission);
+  }
+
   const totalCommission = orders.reduce((s, o) => s + o.commission, 0);
   const pendingAmt  = orders.filter((o) => o.status === "pending").reduce((s, o) => s + o.commission, 0);
   const approvedAmt = orders.filter((o) => o.status === "approved").reduce((s, o) => s + o.commission, 0);
@@ -312,6 +335,54 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
           </Card>
         </div>
       </div>
+
+      {/* Clientes asociados */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Clientes asociados</CardTitle>
+          <span className="text-xs text-[#9CA3AF]">{associatedClients.length} cliente{associatedClients.length !== 1 ? "s" : ""}</span>
+        </CardHeader>
+        <CardContent className="p-0">
+          {associatedClients.length === 0 ? (
+            <p className="px-5 py-6 text-xs text-[#9CA3AF] text-center">Sin clientes asociados a este afiliado.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                    {["Cliente", "Email", "Órdenes", "Comisión total", "Última orden", ""].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F3F4F6]">
+                  {associatedClients.map(c => (
+                    <tr key={c.id} className="hover:bg-[#F9FAFB] transition-colors">
+                      <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap">{c.name}</td>
+                      <td className="px-4 py-3 text-xs text-[#6B7280]">{c.email ?? "—"}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center rounded-full bg-[#F3F4F6] text-[#374151] text-xs font-semibold px-2.5 py-0.5 min-w-[28px]">
+                          {c.orderCount}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A]">
+                        {fmtCurrency(c.totalCommission)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#6B7280] whitespace-nowrap">{fmtDate(c.lastOrder)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link href={`/dashboard/clientes/${c.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
+                          Ver →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
