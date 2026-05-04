@@ -191,13 +191,18 @@ export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
                 <path d="M8.5 10.5L5 7l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <input
-              type="month"
-              value={curParam}
-              max={nowParam}
-              onChange={(e) => goToMonth(e.target.value)}
-              className="h-9 px-3 text-xs font-semibold text-[#374151] bg-transparent border-0 outline-none cursor-pointer hover:bg-[#F9FAFB] transition-colors w-[130px]"
-            />
+            <div className="relative w-[140px]">
+              <span className="h-9 px-3 text-xs font-semibold text-[#374151] capitalize flex items-center pointer-events-none select-none">
+                {monthLabel(period.year, period.month)}
+              </span>
+              <input
+                type="month"
+                value={curParam}
+                max={nowParam}
+                onChange={(e) => goToMonth(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
             <Link
               href={`/dashboard?month=${monthParam(next.year, next.month)}`}
               className={[
