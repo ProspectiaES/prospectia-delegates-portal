@@ -91,6 +91,13 @@ const IconAdmin = () => (
   </svg>
 );
 
+const IconAutofacturas = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+    <path d="M5 5.5h6M5 8h6M5 10.5h3" strokeLinecap="round"/>
+  </svg>
+);
+
 const IconCRM = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <path d="M1 12.5C1 10.567 2.567 9 4.5 9h7C13.433 9 15 10.567 15 12.5v0" strokeLinecap="round"/>
@@ -434,6 +441,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Sistema",
       items: [
+        { href: "/dashboard/autofacturas", label: "Autofacturas", Icon: IconAutofacturas, exact: false },
         { href: "/dashboard/admin", label: "Auditoría", Icon: IconAdmin, exact: false },
       ],
     }] : []),

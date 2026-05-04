@@ -151,13 +151,14 @@ export async function setAffiliateDelegate(
     .from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "OWNER") return { error: "Sin permisos" };
 
-  const affiliateId = formData.get("affiliate_id") as string;
-  const delegateId  = (formData.get("delegate_id") as string) || null;
+  const affiliateId      = formData.get("affiliate_id") as string;
+  const delegateId       = (formData.get("delegate_id") as string) || null;
+  const wantsAutofactura = formData.get("wants_autofactura") === "true";
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("bixgrow_affiliates")
-    .update({ delegate_id: delegateId })
+    .update({ delegate_id: delegateId, wants_autofactura: wantsAutofactura })
     .eq("id", affiliateId);
 
   if (error) return { error: error.message };

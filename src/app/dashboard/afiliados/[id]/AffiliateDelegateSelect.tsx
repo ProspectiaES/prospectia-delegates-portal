@@ -9,10 +9,11 @@ interface DelegateOption { id: string; full_name: string; delegate_name: string 
 interface Props {
   affiliateId: string;
   currentDelegateId: string | null;
+  currentWantsAutofactura: boolean;
   delegates: DelegateOption[];
 }
 
-export function AffiliateDelegateSelect({ affiliateId, currentDelegateId, delegates }: Props) {
+export function AffiliateDelegateSelect({ affiliateId, currentDelegateId, currentWantsAutofactura, delegates }: Props) {
   const [state, action, pending] = useActionState<SaveDelegatesState | null, FormData>(
     setAffiliateDelegate, null
   );
@@ -28,22 +29,37 @@ export function AffiliateDelegateSelect({ affiliateId, currentDelegateId, delega
       )}
       {state?.success && (
         <p className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-700">
-          Delegado guardado.
+          Guardado.
         </p>
       )}
 
-      <select
-        name="delegate_id"
-        defaultValue={currentDelegateId ?? ""}
-        className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
-      >
-        <option value="">Sin delegado asignado</option>
-        {delegates.map(d => (
-          <option key={d.id} value={d.id}>
-            {d.delegate_name ?? d.full_name}
-          </option>
-        ))}
-      </select>
+      <div className="space-y-1">
+        <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wide">Delegado</label>
+        <select
+          name="delegate_id"
+          defaultValue={currentDelegateId ?? ""}
+          className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
+        >
+          <option value="">Sin delegado asignado</option>
+          {delegates.map(d => (
+            <option key={d.id} value={d.id}>
+              {d.delegate_name ?? d.full_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wide">Autofactura</label>
+        <select
+          name="wants_autofactura"
+          defaultValue={currentWantsAutofactura ? "true" : "false"}
+          className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10"
+        >
+          <option value="false">No</option>
+          <option value="true">Sí — emite autofactura</option>
+        </select>
+      </div>
 
       <button
         type="submit"

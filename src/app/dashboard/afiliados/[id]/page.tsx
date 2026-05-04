@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/profile";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AffiliateDelegateSelect } from "./AffiliateDelegateSelect";
+import { LiquidacionAfiliadoButton } from "./LiquidacionAfiliadoButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
 
   if (!affData) notFound();
 
-  const aff       = affData as Affiliate;
+  const aff       = affData as Affiliate & { wants_autofactura?: boolean };
   const delegates = (delegatesData ?? []) as { id: string; full_name: string; delegate_name: string | null }[];
   const orders   = (ordersData   ?? []) as Order[];
   const payments = (paymentsData ?? []) as Payment[];
@@ -157,6 +158,13 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
               {aff.referral_code && <code className="text-xs font-mono text-[#6B7280]">{aff.referral_code}</code>}
             </div>
           </div>
+          {isOwner && (
+            <LiquidacionAfiliadoButton
+              affiliateId={aff.id}
+              defaultMes={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`}
+              wantsAutofactura={aff.wants_autofactura ?? false}
+            />
+          )}
         </div>
       </div>
 
@@ -227,6 +235,7 @@ export default async function AfiliadoDetailPage({ params }: PageProps) {
               <AffiliateDelegateSelect
                 affiliateId={aff.id}
                 currentDelegateId={(aff as Affiliate & { delegate_id?: string | null }).delegate_id ?? null}
+                currentWantsAutofactura={aff.wants_autofactura ?? false}
                 delegates={delegates}
               />
             </div>
