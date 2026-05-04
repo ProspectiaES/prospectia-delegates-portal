@@ -430,8 +430,8 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
             <div className="flex items-center gap-2">
               <p className="text-xs text-[#9CA3AF]">Alta: {fmtDate(delegate.created_at)}</p>
               <a
-                href="/docs/MANUAL_DASHBOARD_PROSPECTIA_V1_2026.pdf"
-                download
+                href="/api/manual/delegado"
+                target="_blank"
                 className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-[#E5E7EB] bg-white text-xs font-medium text-[#374151] hover:border-[#8E0E1A] hover:text-[#8E0E1A] transition-colors shadow-sm"
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
