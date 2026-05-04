@@ -8,6 +8,20 @@ import { SyncButton } from "@/components/SyncButton";
 
 interface OverdueStats { count: number; total: number; oldestDays: number; avgDays: number }
 
+export interface DelegateRow {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  is_private: boolean;
+  created_at: string;
+  clientCount: number;
+  affiliateCount: number;
+  totalBilled: number;
+  pendingAmt: number;
+  overdueAmt: number;
+}
+
 export interface OwnerKpis {
   period: { year: number; month: number };
 
@@ -48,6 +62,7 @@ export interface OwnerKpis {
     overdue: OverdueStats;
   };
 
+  delegateRows: DelegateRow[];
   lastSyncedAt: string | null;
 }
 
@@ -131,8 +146,11 @@ function AnnualMetric({ label, value, sub, color = "default" }: {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
 export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
-  const { period, contacts, billing, orders, delegates, annual, lastSyncedAt } = kpis;
+  const { period, contacts, billing, orders, delegates, annual, delegateRows, lastSyncedAt } = kpis;
   const router = useRouter();
 
   const now      = new Date();
@@ -302,24 +320,85 @@ export function OwnerDashboard({ kpis }: { kpis: OwnerKpis }) {
         </div>
       </div>
 
-      {/* ── Acciones rápidas ──────────────────────────────────────────── */}
+      {/* ── Tabla de delegados ────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#F3F4F6]">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">Delegados</p>
+          <Link href="/dashboard/delegados" className="text-xs font-medium text-[#8E0E1A] hover:underline">
+            Ver todos →
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                {["Nombre", "Contacto", "Clientes", "Afiliados", "Total facturado", "Pendiente", "Vencido", "Alta", ""].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3F4F6]">
+              {delegateRows.map(d => (
+                <tr key={d.id} className="hover:bg-[#F9FAFB] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[#0A0A0A] whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <Link href={`/dashboard/delegados/${d.id}`} className="hover:text-[#8E0E1A] transition-colors">
+                        {d.name}
+                      </Link>
+                      {d.is_private && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#F3F4F6] text-[#6B7280] uppercase tracking-wide">Privado</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#6B7280]">
+                    {d.email && <p>{d.email}</p>}
+                    {d.phone && <p>{d.phone}</p>}
+                    {!d.email && !d.phone && <span className="text-[#D1D5DB]">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center justify-center rounded-full bg-[#F3F4F6] text-[#374151] text-xs font-semibold px-2.5 py-0.5 min-w-[28px]">
+                      {d.clientCount}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center justify-center rounded-full bg-[#F3F4F6] text-[#374151] text-xs font-semibold px-2.5 py-0.5 min-w-[28px]">
+                      {d.affiliateCount}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A]">
+                    {fmtEuro(d.totalBilled)}
+                  </td>
+                  <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                    <span className={d.pendingAmt > 0 ? "text-[#F59E0B] font-medium" : "text-[#9CA3AF]"}>
+                      {fmtEuro(d.pendingAmt)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                    <span className={d.overdueAmt > 0 ? "text-[#8E0E1A] font-medium" : "text-[#9CA3AF]"}>
+                      {fmtEuro(d.overdueAmt)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#6B7280] whitespace-nowrap">{fmtDate(d.created_at)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Link href={`/dashboard/delegados/${d.id}`} className="text-xs font-medium text-[#6B7280] hover:text-[#8E0E1A] transition-colors">
+                      Ver →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Accesos rápidos ───────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3">
-        <Link
-          href="/dashboard/delegados"
-          className="h-9 px-5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors"
-        >
-          Ver delegados →
-        </Link>
-        <Link
-          href="/dashboard/clientes"
-          className="h-9 px-5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors"
-        >
+        <Link href="/dashboard/clientes" className="h-9 px-5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors">
           Ver clientes →
         </Link>
-        <Link
-          href="/dashboard/facturas"
-          className="h-9 px-5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors"
-        >
+        <Link href="/dashboard/facturas" className="h-9 px-5 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors">
           Ver facturas →
         </Link>
       </div>

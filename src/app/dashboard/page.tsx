@@ -23,6 +23,7 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
     { data: allDelegates },
     { data: cdRows },
     { data: lastSync },
+    { data: affRows },
   ] = await Promise.all([
     admin.from("holded_contacts").select("id, first_synced_at"),
     admin.from("holded_invoices")
@@ -35,7 +36,10 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
     admin.from("holded_salesorders")
       .select("id, status")
       .lt("status", 3),
-    admin.from("profiles").select("id, created_at").eq("role", "DELEGATE"),
+    admin.from("profiles")
+      .select("id, full_name, delegate_name, email, phone, created_at, is_private")
+      .or("role.eq.DELEGATE,show_in_delegate_list.eq.true")
+      .order("full_name"),
     admin.from("contact_delegates").select("contact_id, delegate_id"),
     admin.from("holded_sync_log")
       .select("finished_at")
@@ -43,6 +47,7 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
       .order("finished_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    admin.from("bixgrow_affiliates").select("delegate_id").not("delegate_id", "is", null),
   ]);
 
   type Inv = { contact_id: string | null; date: string | null; date_paid: string | null; due_date: string | null; status: number; subtotal: number | null; units_total: number; units_foc: number };
@@ -50,6 +55,7 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
   const invoices  = (allInvoices ?? []) as Inv[];
   const delegates = allDelegates ?? [];
   const cd        = cdRows       ?? [];
+  const affiliates = affRows ?? [];
 
   const sumSub = (arr: Inv[]) => arr.reduce((s, i) => s + (Number(i.subtotal) || 0), 0);
 
@@ -90,6 +96,29 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
     d.created_at && new Date(d.created_at) >= periodStart && new Date(d.created_at) <= periodEnd
   ).length;
 
+  // Delegate rows for dashboard table
+  const delegateRows = delegates.map(d => {
+    const myContactIds   = cd.filter(c => c.delegate_id === d.id).map(c => c.contact_id);
+    const myInvoices     = invoices.filter(i => i.contact_id && myContactIds.includes(i.contact_id));
+    const totalBilled    = myInvoices.filter(i => i.status > 0).reduce((s, i) => s + (Number(i.subtotal) || 0), 0);
+    const pendingAmt     = myInvoices.filter(i => i.status === 1).reduce((s, i) => s + (Number(i.subtotal) || 0), 0);
+    const overdueAmt     = myInvoices.filter(i => i.status === 2).reduce((s, i) => s + (Number(i.subtotal) || 0), 0);
+    const affiliateCount = affiliates.filter(a => a.delegate_id === d.id).length;
+    return {
+      id:             d.id as string,
+      name:           ((d as Record<string, unknown>).delegate_name as string | null) ?? (d as Record<string, unknown>).full_name as string,
+      email:          (d as Record<string, unknown>).email as string | null,
+      phone:          (d as Record<string, unknown>).phone as string | null,
+      is_private:     (d as Record<string, unknown>).is_private as boolean,
+      created_at:     d.created_at as string,
+      clientCount:    myContactIds.length,
+      affiliateCount,
+      totalBilled,
+      pendingAmt,
+      overdueAmt,
+    };
+  });
+
   // Annual KPIs
   const ytdEmitted = invoices.filter(i => i.date && new Date(i.date) >= ytdStart && i.status > 0);
   const ytdPaid    = invoices.filter(i => i.date_paid && new Date(i.date_paid) >= ytdStart && i.status === 3);
@@ -119,6 +148,7 @@ async function loadOwnerData(year: number, month: number): Promise<OwnerKpis> {
       newInPeriod: newDelegates,
       dormant:     delegates.length - activeDelegates,
     },
+    delegateRows,
     annual: {
       year,
       units:    ytdEmitted.reduce((s, i) => s + (Number(i.units_total) || 0), 0),
