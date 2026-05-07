@@ -314,12 +314,17 @@ export default async function RendimientoPage({
                 return (
                   <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Link href={`/dashboard/delegados/${r.id}`} className="font-medium text-[#0A0A0A] hover:text-[#8E0E1A] transition-colors">
-                        {r.name}
-                      </Link>
-                      {r.is_kol && (
-                        <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700">KOL</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dashboard/rendimiento/${r.id}`} className="font-medium text-[#0A0A0A] hover:text-[#8E0E1A] transition-colors">
+                          {r.name}
+                        </Link>
+                        {r.is_kol && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700">KOL</span>
+                        )}
+                        <Link href={`/dashboard/delegados/${r.id}`} className="text-[10px] text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors" title="Ir al dashboard del delegado">
+                          ↗
+                        </Link>
+                      </div>
                       {r.email && (
                         <p className="text-xs text-[#9CA3AF]">{r.email}</p>
                       )}
