@@ -478,14 +478,54 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 export function Sidebar({ user }: { user?: UserProps }) {
   const pathname  = usePathname();
   const [panelOpen, setPanelOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
+
+  // Listen for open/close events from topbar and nav links
+  useEffect(() => {
+    const open  = () => setDrawerOpen(true);
+    const close = () => setDrawerOpen(false);
+    window.addEventListener("open-sidebar",  open);
+    window.addEventListener("close-sidebar", close);
+    return () => {
+      window.removeEventListener("open-sidebar",  open);
+      window.removeEventListener("close-sidebar", close);
+    };
+  }, []);
+
+  // Close drawer on navigation
+  useEffect(() => { setDrawerOpen(false); }, [pathname]);
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [drawerOpen]);
 
   const sections = user
     ? buildSections(user.role, user.id, user.is_kol ?? false, user.is_coordinator ?? false)
     : buildSections("", "");
 
   return (
-    <aside className="w-56 h-full flex flex-col bg-white border-r border-[#E5E7EB] shrink-0">
+    <>
+      {/* Mobile overlay */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      {/* Sidebar — static on desktop, fixed drawer on mobile */}
+      <aside className={[
+        "flex flex-col bg-white border-r border-[#E5E7EB]",
+        // Desktop: normal flow
+        "md:relative md:w-56 md:h-full md:shrink-0 md:translate-x-0",
+        // Mobile: fixed drawer
+        "fixed inset-y-0 left-0 z-50 w-72 h-full transition-transform duration-200 ease-in-out md:transition-none",
+        drawerOpen ? "translate-x-0" : "-translate-x-full",
+      ].join(" ")}>
 
       {/* Brand */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
@@ -583,5 +623,6 @@ export function Sidebar({ user }: { user?: UserProps }) {
         </form>
       </div>
     </aside>
+    </>
   );
 }

@@ -1,5 +1,5 @@
-import { MobileDashboardShell } from "@/components/MobileDashboardShell";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileTopBar } from "@/components/MobileTopBar";
 import { ActivityTracker } from "@/components/ActivityTracker";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,11 +21,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <MobileDashboardShell sidebar={<Sidebar user={userProfile} />}>
-      <main className="flex-1 overflow-y-auto bg-[#F5F5F7] min-h-0">
-        {children}
-      </main>
+    <div className="flex h-full">
+      <Sidebar user={userProfile} />
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden h-full">
+        <MobileTopBar />
+        <main className="flex-1 overflow-y-auto bg-[#F5F5F7]">
+          {children}
+        </main>
+      </div>
       <ActivityTracker />
-    </MobileDashboardShell>
+    </div>
   );
 }
