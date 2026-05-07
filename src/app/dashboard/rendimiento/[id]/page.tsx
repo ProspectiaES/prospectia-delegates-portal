@@ -66,7 +66,7 @@ export default async function DelegatePerformancePage({
   const histStart = new Date(Date.UTC(oldest.year, oldest.month - 1, 1)).toISOString();
 
   // ── Fetch all data in parallel ──
-  const [delegateRes, cdRes, histInvRes, curPaidRes, pendRes, vencRes, contactsRes, productsRes] = await Promise.all([
+  const [delegateRes, cdRes, histInvRes, curPaidRes, pendRes, vencRes, contactsRes, productsRes, contactChainRes] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, delegate_name, email, phone, nif, city, address, postal_code, iban, is_kol, created_at, contact_id")
       .eq("id", id)
@@ -105,9 +105,13 @@ export default async function DelegatePerformancePage({
     admin.from("holded_contacts")
       .select("id, name, city"),
 
-    // Products with cost for margin calc
+    // Products with cost + full chain rates
     admin.from("holded_products")
-      .select("id, cost, commission_delegate, commission_delegate_type"),
+      .select("id, cost, commission_delegate, commission_delegate_type, commission_4, commission_4_type, commission_5, commission_5_type"),
+
+    // Contact chain metadata for this delegate's clients
+    admin.from("holded_contacts")
+      .select("id, kol_id, affiliate_id, coordinator_id"),
   ]);
 
   if (!delegateRes.data) notFound();
@@ -182,14 +186,37 @@ export default async function DelegatePerformancePage({
   const vencTotal  = vencInvs.reduce((s, i) => s + i.total, 0);
   const ticketMed  = curPaid.length > 0 ? curBilled / curPaid.length : 0;
 
-  // ── Margin / profitability (current period) ──
+  // ── Margin / profitability (current period) — full commission chain ──
   type CommType = "percent" | "amount";
-  const productMap: Record<string, { cost: number | null; commission_delegate: number | null; commission_delegate_type: CommType }> = {};
-  for (const p of (productsRes.data ?? []) as { id: string; cost: number | null; commission_delegate: number | null; commission_delegate_type: string }[]) {
-    productMap[p.id] = { cost: p.cost, commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType };
+
+  const productMap: Record<string, {
+    cost: number | null;
+    commission_delegate: number | null; commission_delegate_type: CommType;
+    commission_4: number | null;        commission_4_type: CommType;
+    commission_5: number | null;        commission_5_type: CommType;
+  }> = {};
+  for (const p of (productsRes.data ?? []) as {
+    id: string; cost: number | null;
+    commission_delegate: number | null; commission_delegate_type: string;
+    commission_4: number | null; commission_4_type: string;
+    commission_5: number | null; commission_5_type: string;
+  }[]) {
+    productMap[p.id] = {
+      cost: p.cost,
+      commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType,
+      commission_4: p.commission_4,               commission_4_type: (p.commission_4_type ?? "percent") as CommType,
+      commission_5: p.commission_5,               commission_5_type: (p.commission_5_type ?? "percent") as CommType,
+    };
+  }
+
+  type ContactChain = { kol_id: string | null; affiliate_id: string | null; coordinator_id: string | null };
+  const contactChain: Record<string, ContactChain> = {};
+  for (const c of (contactChainRes.data ?? []) as (ContactChain & { id: string })[]) {
+    contactChain[c.id] = { kol_id: c.kol_id, affiliate_id: c.affiliate_id, coordinator_id: c.coordinator_id };
   }
 
   type RawLine = { productId?: string; units?: number | string; price?: number | string; discount?: number | string };
+  const AFFILIATE_RATE = 0.20;
 
   function calcLineComm(units: number, price: number, discount: number, rate: number | null, type: CommType) {
     if (!rate) return 0;
@@ -197,13 +224,17 @@ export default async function DelegatePerformancePage({
     return type === "amount" ? units * rate : (net * rate) / 100;
   }
 
-  let marginRevenue  = 0;  // revenue on lines with known cost
-  let marginCogs     = 0;  // COGS (incl. FOC)
-  let marginComm     = 0;  // estimated commission
-  let focCost        = 0;  // cost of FOC lines specifically
-  let coveredRevPct  = 0;  // % of total revenue covered by products with cost
+  let marginRevenue = 0, marginCogs = 0, focCost = 0, coveredRevPct = 0;
+  let commDelegate  = 0, commKol = 0, commAffiliate = 0, commCoord = 0;
 
   for (const inv of curPaid) {
+    const meta = contactChain[inv.contact_id] ?? { kol_id: null, affiliate_id: null, coordinator_id: null };
+
+    if (meta.affiliate_id) {
+      const base = (inv as { subtotal?: number }).subtotal ?? inv.total;
+      commAffiliate += base * AFFILIATE_RATE;
+    }
+
     for (const rp of ((inv.raw?.products ?? []) as RawLine[])) {
       if (!rp.productId) continue;
       const prod = productMap[rp.productId];
@@ -221,13 +252,16 @@ export default async function DelegatePerformancePage({
         if (isFoc) focCost += lineCogs;
       }
       if (!isFoc) {
-        marginComm += calcLineComm(units, price, discount, prod.commission_delegate, prod.commission_delegate_type);
+        commDelegate += calcLineComm(units, price, discount, prod.commission_delegate, prod.commission_delegate_type);
+        if (meta.kol_id)         commKol   += calcLineComm(units, price, discount, prod.commission_4, prod.commission_4_type);
+        if (meta.coordinator_id) commCoord += calcLineComm(units, price, discount, prod.commission_5, prod.commission_5_type);
       }
     }
   }
 
   const grossMargin     = marginRevenue - marginCogs;
-  const netContribution = grossMargin - marginComm;
+  const totalChain      = commDelegate + commKol + commAffiliate + commCoord;
+  const netContribution = grossMargin - totalChain;
   const grossMarginPct  = marginRevenue > 0 ? (grossMargin / marginRevenue) * 100 : null;
   coveredRevPct         = curBilled > 0 ? (marginRevenue / curBilled) * 100 : 0;
 
@@ -364,17 +398,25 @@ export default async function DelegatePerformancePage({
           <div className="px-5 py-4">
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
               {[
-                { label: "Ingresos cubiertos",  value: fmtEuro(marginRevenue), color: "#374151",  note: coveredRevPct < 99 ? `${coveredRevPct.toFixed(0)}% del total` : "100% del total" },
-                { label: "Coste productos",      value: fmtEuro(marginCogs),    color: "#DC2626",  note: focCost > 0 ? `incl. ${fmtEuro(focCost)} en FOC` : "sin FOC en este período" },
-                { label: "Margen bruto",         value: fmtEuro(grossMargin),   color: grossMargin >= 0 ? "#059669" : "#DC2626",
+                { label: "Ingresos cubiertos", value: fmtEuro(marginRevenue), color: "#374151",
+                  note: coveredRevPct < 99 ? `${coveredRevPct.toFixed(0)}% del total facturado` : "100% cubierto" },
+                { label: "Coste productos",    value: fmtEuro(marginCogs),    color: "#DC2626",
+                  note: focCost > 0 ? `incl. ${fmtEuro(focCost)} en FOC` : "sin FOC este período" },
+                { label: "Margen bruto",       value: fmtEuro(grossMargin),   color: grossMargin >= 0 ? "#059669" : "#DC2626",
                   note: grossMarginPct != null ? `${grossMarginPct.toFixed(1)}% sobre ingresos` : "" },
-                { label: "Comisión estimada",    value: fmtEuro(marginComm),    color: "#7C3AED",  note: "delegado (no recomendador)" },
-                { label: "Beneficio neto",       value: fmtEuro(netContribution), color: netContribution >= 0 ? "#0A0A0A" : "#DC2626",
-                  note: "margen − comisión" },
-                { label: "ROI delegado",
-                  value: marginComm > 0 ? `${(netContribution / marginComm * 100).toFixed(0)}%` : "—",
+                { label: "Cadena comisiones",  value: fmtEuro(totalChain),    color: "#7C3AED",
+                  note: [
+                    commDelegate  > 0 ? `Del ${fmtEuro(commDelegate)}`  : "",
+                    commKol       > 0 ? `KOL ${fmtEuro(commKol)}`       : "",
+                    commAffiliate > 0 ? `Afil ${fmtEuro(commAffiliate)}` : "",
+                    commCoord     > 0 ? `Coord ${fmtEuro(commCoord)}`   : "",
+                  ].filter(Boolean).join(" · ") || "sin comisiones" },
+                { label: "Beneficio neto",     value: fmtEuro(netContribution), color: netContribution >= 0 ? "#0A0A0A" : "#DC2626",
+                  note: "margen − cadena completa" },
+                { label: "ROI sobre comisiones",
+                  value: totalChain > 0 ? `${(netContribution / totalChain * 100).toFixed(0)}%` : "—",
                   color: netContribution >= 0 ? "#059669" : "#DC2626",
-                  note: "beneficio por €1 de comisión" },
+                  note: "beneficio por €1 pagado en comisiones" },
               ].map(({ label, value, color, note }) => (
                 <div key={label} className="space-y-1">
                   <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">{label}</p>
@@ -385,7 +427,18 @@ export default async function DelegatePerformancePage({
             </div>
             {focCost > 0 && (
               <div className="mt-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
-                <strong>FOC detectado:</strong> este delegado ha generado {fmtEuro(focCost)} en coste de productos entregados gratuitamente (precio = 0). Este coste ya está incluido en el cálculo del margen bruto.
+                <strong>FOC detectado:</strong> {fmtEuro(focCost)} en coste de productos entregados gratuitamente (precio = 0), ya incluido en el cálculo de margen bruto.
+              </div>
+            )}
+            {(commKol > 0 || commAffiliate > 0 || commCoord > 0) && (
+              <div className="mt-3 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100 text-xs text-purple-700">
+                <strong>Cadena completa activa:</strong>{" "}
+                {[
+                  commDelegate  > 0 ? `Delegado ${fmtEuro(commDelegate)}`       : "",
+                  commKol       > 0 ? `+ KOL ${fmtEuro(commKol)}`               : "",
+                  commAffiliate > 0 ? `+ Afiliado ${fmtEuro(commAffiliate)}`    : "",
+                  commCoord     > 0 ? `+ Coordinador ${fmtEuro(commCoord)}`     : "",
+                ].filter(Boolean).join(" ")}
               </div>
             )}
           </div>

@@ -49,9 +49,12 @@ const signalBadge: Record<"green" | "amber" | "red", { label: string; cls: strin
 
 interface ProductInfo {
   cost: number | null;
-  commission_delegate: number | null;
-  commission_delegate_type: CommType;
+  commission_delegate: number | null; commission_delegate_type: CommType;
+  commission_4: number | null;        commission_4_type: CommType;
+  commission_5: number | null;        commission_5_type: CommType;
 }
+
+const AFFILIATE_RATE = 0.20;
 
 interface RawLine { productId?: string; units?: number | string; price?: number | string; discount?: number | string }
 
@@ -60,7 +63,9 @@ interface DelegateRow {
   totalClients: number; newClients: number; activeClients: number; activityRate: number;
   billedCurrent: number; billedPrev: number; invoiceCount: number;
   pendiente: number; vencido: number; growth: number | null;
-  grossMargin: number; commission: number; netContribution: number;
+  grossMargin: number;
+  commDelegate: number; commKol: number; commAffiliate: number; commCoord: number;
+  totalChain: number; netContribution: number;
   marginPct: number | null; costCoverage: number;
   sig: "green" | "amber" | "red";
 }
@@ -98,7 +103,7 @@ export default async function RendimientoPage({
 
   const admin = createAdminClient();
 
-  const [delegatesRes, cdRes, curInvRes, prevInvRes, pendRes, vencRes, productsRes] = await Promise.all([
+  const [delegatesRes, cdRes, curInvRes, prevInvRes, pendRes, vencRes, productsRes, contactsRes] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, delegate_name, email, is_kol")
       .in("role", ["DELEGATE", "KOL", "COORDINATOR"])
@@ -107,9 +112,9 @@ export default async function RendimientoPage({
     admin.from("contact_delegates")
       .select("delegate_id, contact_id, assigned_at"),
 
-    // Paid — current period, with raw for margin calc
+    // Paid — current period, with raw + subtotal for full chain calc
     admin.from("holded_invoices")
-      .select("contact_id, total, raw")
+      .select("contact_id, total, subtotal, raw")
       .eq("status", 3).eq("is_credit_note", false)
       .gte("date_paid", curStart).lte("date_paid", curEnd),
 
@@ -123,12 +128,16 @@ export default async function RendimientoPage({
     admin.from("holded_invoices").select("contact_id, total").eq("status", 2),
 
     admin.from("holded_products")
-      .select("id, cost, commission_delegate, commission_delegate_type"),
+      .select("id, cost, commission_delegate, commission_delegate_type, commission_4, commission_4_type, commission_5, commission_5_type"),
+
+    // Contact chain metadata
+    admin.from("holded_contacts")
+      .select("id, kol_id, affiliate_id, coordinator_id"),
   ]);
 
-  type CdRow   = { delegate_id: string; contact_id: string; assigned_at: string };
+  type CdRow    = { delegate_id: string; contact_id: string; assigned_at: string };
   type InvBasic = { contact_id: string; total: number };
-  type InvRaw   = InvBasic & { raw: Record<string, unknown> };
+  type InvRaw   = InvBasic & { subtotal: number | null; raw: Record<string, unknown> };
 
   const delegates  = (delegatesRes.data ?? []) as { id: string; full_name: string; delegate_name: string | null; email: string | null; is_kol: boolean }[];
   const cdRows     = (cdRes.data ?? []) as CdRow[];
@@ -137,20 +146,46 @@ export default async function RendimientoPage({
   const pendInvs   = (pendRes.data    ?? []) as InvBasic[];
   const vencInvs   = (vencRes.data    ?? []) as InvBasic[];
 
-  const productMap: Record<string, ProductInfo> = {};
-  for (const p of (productsRes.data ?? []) as { id: string; cost: number | null; commission_delegate: number | null; commission_delegate_type: string }[]) {
-    productMap[p.id] = { cost: p.cost, commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType };
+  type ContactMeta = { kol_id: string | null; affiliate_id: string | null; coordinator_id: string | null };
+  const contactMeta: Record<string, ContactMeta> = {};
+  for (const c of (contactsRes.data ?? []) as (ContactMeta & { id: string })[]) {
+    contactMeta[c.id] = { kol_id: c.kol_id, affiliate_id: c.affiliate_id, coordinator_id: c.coordinator_id };
   }
 
-  // Per-contact aggregates for current period (with margin)
-  type ContactAgg = { total: number; count: number; cogs: number; coveredRev: number; commission: number };
+  const productMap: Record<string, ProductInfo> = {};
+  for (const p of (productsRes.data ?? []) as {
+    id: string; cost: number | null;
+    commission_delegate: number | null; commission_delegate_type: string;
+    commission_4: number | null; commission_4_type: string;
+    commission_5: number | null; commission_5_type: string;
+  }[]) {
+    productMap[p.id] = {
+      cost: p.cost,
+      commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType,
+      commission_4: p.commission_4,               commission_4_type: (p.commission_4_type ?? "percent") as CommType,
+      commission_5: p.commission_5,               commission_5_type: (p.commission_5_type ?? "percent") as CommType,
+    };
+  }
+
+  // Per-contact aggregates — full chain: delegate + KOL + affiliate + coordinator
+  type ContactAgg = {
+    total: number; count: number; cogs: number; coveredRev: number;
+    commDelegate: number; commKol: number; commAffiliate: number; commCoord: number;
+  };
   const curAgg: Record<string, ContactAgg> = {};
 
   for (const inv of curInvs) {
-    const cid = inv.contact_id;
-    if (!curAgg[cid]) curAgg[cid] = { total: 0, count: 0, cogs: 0, coveredRev: 0, commission: 0 };
+    const cid  = inv.contact_id;
+    const meta = contactMeta[cid] ?? { kol_id: null, affiliate_id: null, coordinator_id: null };
+    if (!curAgg[cid]) curAgg[cid] = { total: 0, count: 0, cogs: 0, coveredRev: 0, commDelegate: 0, commKol: 0, commAffiliate: 0, commCoord: 0 };
     curAgg[cid].total += inv.total;
     curAgg[cid].count++;
+
+    // Affiliate: flat 20% on subtotal (independent of product lines)
+    if (meta.affiliate_id) {
+      const base = inv.subtotal ?? inv.total;
+      curAgg[cid].commAffiliate += base * AFFILIATE_RATE;
+    }
 
     for (const rp of ((inv.raw?.products ?? []) as RawLine[])) {
       if (!rp.productId) continue;
@@ -162,14 +197,15 @@ export default async function RendimientoPage({
       const isFoc    = price === 0;
       const lineNet  = isFoc ? 0 : units * price * (1 - discount / 100);
 
-      // FOC lines: real cost, zero revenue — erodes margin
       if (prod.cost != null) {
         curAgg[cid].cogs       += units * prod.cost;
         curAgg[cid].coveredRev += lineNet;
       }
-      // No commission on FOC lines
+
       if (!isFoc) {
-        curAgg[cid].commission += calcLine(units, price, discount, prod.commission_delegate, prod.commission_delegate_type);
+        curAgg[cid].commDelegate += calcLine(units, price, discount, prod.commission_delegate, prod.commission_delegate_type);
+        if (meta.kol_id)         curAgg[cid].commKol   += calcLine(units, price, discount, prod.commission_4, prod.commission_4_type);
+        if (meta.coordinator_id) curAgg[cid].commCoord += calcLine(units, price, discount, prod.commission_5, prod.commission_5_type);
       }
     }
   }
@@ -203,7 +239,8 @@ export default async function RendimientoPage({
   const rows: DelegateRow[] = delegates.map((d) => {
     const contacts = delegateContacts[d.id] ?? new Set<string>();
     let billedCurrent = 0, billedPrev = 0, invoiceCount = 0, pendiente = 0, vencido = 0;
-    let grossMarginRaw = 0, cogs = 0, coveredRev = 0, commission = 0;
+    let cogs = 0, coveredRev = 0;
+    let commDelegate = 0, commKol = 0, commAffiliate = 0, commCoord = 0;
     const activeSet = new Set<string>();
 
     for (const cid of contacts) {
@@ -213,7 +250,10 @@ export default async function RendimientoPage({
         invoiceCount  += agg.count;
         cogs          += agg.cogs;
         coveredRev    += agg.coveredRev;
-        commission    += agg.commission;
+        commDelegate  += agg.commDelegate;
+        commKol       += agg.commKol;
+        commAffiliate += agg.commAffiliate;
+        commCoord     += agg.commCoord;
         activeSet.add(cid);
       }
       billedPrev += prevMap[cid]?.total ?? 0;
@@ -221,9 +261,10 @@ export default async function RendimientoPage({
       vencido    += vencMap[cid]?.total ?? 0;
     }
 
-    grossMarginRaw    = coveredRev - cogs;
-    const netContribution = grossMarginRaw - commission;
-    const marginPct       = coveredRev > 0 ? (grossMarginRaw / coveredRev) * 100 : null;
+    const grossMargin     = coveredRev - cogs;
+    const totalChain      = commDelegate + commKol + commAffiliate + commCoord;
+    const netContribution = grossMargin - totalChain;
+    const marginPct       = coveredRev > 0 ? (grossMargin / coveredRev) * 100 : null;
     const costCoverage    = billedCurrent > 0 ? (coveredRev / billedCurrent) * 100 : 0;
 
     const totalClients  = contacts.size;
@@ -236,7 +277,8 @@ export default async function RendimientoPage({
       id: d.id, name: d.delegate_name ?? d.full_name, email: d.email, is_kol: d.is_kol,
       totalClients, newClients: newInPeriod[d.id] ?? 0, activeClients, activityRate,
       billedCurrent, billedPrev, invoiceCount, pendiente, vencido, growth,
-      grossMargin: grossMarginRaw, commission, netContribution, marginPct, costCoverage,
+      grossMargin, commDelegate, commKol, commAffiliate, commCoord, totalChain,
+      netContribution, marginPct, costCoverage,
       sig,
     };
   });
@@ -247,9 +289,10 @@ export default async function RendimientoPage({
   const totalBilled      = rows.reduce((s, r) => s + r.billedCurrent,    0);
   const totalPrev        = rows.reduce((s, r) => s + r.billedPrev,       0);
   const totalGrowth      = totalPrev > 0 ? ((totalBilled - totalPrev) / totalPrev) * 100 : null;
-  const totalNetContrib  = rows.reduce((s, r) => s + r.netContribution,  0);
-  const totalCommission  = rows.reduce((s, r) => s + r.commission,       0);
-  const totalGrossMargin = rows.reduce((s, r) => s + r.grossMargin,      0);
+  const totalNetContrib  = rows.reduce((s, r) => s + r.netContribution, 0);
+  const totalChain       = rows.reduce((s, r) => s + r.totalChain,      0);
+  const totalGrossMargin = rows.reduce((s, r) => s + r.grossMargin,     0);
+  const totalCommission  = totalChain; // alias for KPI card
   const activeCount      = rows.filter(r => r.billedCurrent > 0).length;
   const newClients       = rows.reduce((s, r) => s + r.newClients,       0);
   const greenCount       = rows.filter(r => r.sig === "green").length;
@@ -426,9 +469,19 @@ export default async function RendimientoPage({
                       )}
                     </td>
 
-                    {/* Comisión est. */}
-                    <td className="px-3 py-3 tabular-nums text-right whitespace-nowrap text-[#7C3AED] font-medium text-sm">
-                      {r.commission > 0 ? fmtEuro(r.commission) : <span className="text-[#D1D5DB]">—</span>}
+                    {/* Comisión cadena */}
+                    <td className="px-3 py-3 tabular-nums text-right whitespace-nowrap">
+                      {r.totalChain > 0 ? (
+                        <div>
+                          <span className="font-semibold text-sm text-[#7C3AED]">{fmtEuro(r.totalChain)}</span>
+                          <div className="text-[9px] text-[#9CA3AF] leading-tight mt-0.5 space-y-0.5">
+                            {r.commDelegate > 0 && <p>Del: {fmtEuro(r.commDelegate)}</p>}
+                            {r.commKol      > 0 && <p>KOL: {fmtEuro(r.commKol)}</p>}
+                            {r.commAffiliate > 0 && <p>Afil: {fmtEuro(r.commAffiliate)}</p>}
+                            {r.commCoord    > 0 && <p>Coord: {fmtEuro(r.commCoord)}</p>}
+                          </div>
+                        </div>
+                      ) : <span className="text-[#D1D5DB]">—</span>}
                     </td>
 
                     {/* Beneficio neto */}
@@ -476,7 +529,7 @@ export default async function RendimientoPage({
                 <td className="px-3 py-3 tabular-nums text-center text-xs text-green-700">
                   {overallMarginPct != null ? `${overallMarginPct.toFixed(1)}%` : "—"}
                 </td>
-                <td className="px-3 py-3 tabular-nums text-right text-sm text-[#7C3AED]">{fmtEuro(totalCommission)}</td>
+                <td className="px-3 py-3 tabular-nums text-right text-sm text-[#7C3AED]">{fmtEuro(totalChain)}</td>
                 <td className="px-3 py-3 tabular-nums text-right text-sm font-bold text-[#0A0A0A]">{fmtEuro(totalNetContrib)}</td>
                 <td className="px-3 py-3 tabular-nums text-right text-xs text-amber-700">{fmtEuro(rows.reduce((s,r)=>s+r.pendiente,0))}</td>
                 <td className="px-3 py-3 tabular-nums text-right text-xs text-red-600">{fmtEuro(rows.reduce((s,r)=>s+r.vencido,0))}</td>
