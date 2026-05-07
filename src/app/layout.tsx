@@ -24,6 +24,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="h-full">
+      <head>
+        {/* Explicit viewport — critical for responsive breakpoints on mobile */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+      </head>
       <body className="h-full">
         {children}
         <ServiceWorkerRegistration />

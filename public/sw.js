@@ -1,4 +1,4 @@
-const CACHE = 'portal-v1';
+const CACHE = 'portal-v2';
 const STATIC = ['/OwlICO.png', '/icon-192.png', '/icon-512.png', '/manifest.json'];
 
 self.addEventListener('install', e => {
