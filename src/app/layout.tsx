@@ -1,18 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Prospectia Delegates Portal",
   description: "Portal de delegados Prospectia",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Prospectia",
-  },
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Prospectia" },
   icons: {
-    apple: "/icons/apple-touch-icon.png",
+    apple: "/icon-192.png",
+    other: [{ rel: "apple-touch-icon", url: "/icon-192.png" }],
   },
 };
 
@@ -29,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className="h-full">
       <body className="h-full">
         {children}
-        <ServiceWorkerRegistrar />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

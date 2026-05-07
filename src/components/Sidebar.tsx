@@ -174,7 +174,7 @@ const ROLE_COLOR: Record<string, string> = {
   CLIENT:      "bg-[#F3F4F6] text-[#6B7280]",
 };
 
-type UserProps = {
+export type UserProps = {
   id: string;
   full_name: string;
   role: string;
@@ -475,154 +475,127 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Sidebar({ user }: { user?: UserProps }) {
+export function Sidebar({ user, drawer = false, onClose }: {
+  user?: UserProps;
+  drawer?: boolean;
+  onClose?: () => void;
+}) {
   const pathname  = usePathname();
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
-
-  // Listen for open/close events from topbar and nav links
-  useEffect(() => {
-    const open  = () => setDrawerOpen(true);
-    const close = () => setDrawerOpen(false);
-    window.addEventListener("open-sidebar",  open);
-    window.addEventListener("close-sidebar", close);
-    return () => {
-      window.removeEventListener("open-sidebar",  open);
-      window.removeEventListener("close-sidebar", close);
-    };
-  }, []);
-
-  // Close drawer on navigation
-  useEffect(() => { setDrawerOpen(false); }, [pathname]);
-
-  // Lock body scroll when drawer is open
-  useEffect(() => {
-    document.body.style.overflow = drawerOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [drawerOpen]);
 
   const sections = user
     ? buildSections(user.role, user.id, user.is_kol ?? false, user.is_coordinator ?? false)
     : buildSections("", "");
 
+  const asideClass = drawer
+    ? "fixed inset-y-0 left-0 w-72 z-50 flex flex-col bg-white border-r border-[#E5E7EB] shadow-2xl"
+    : "hidden md:flex w-56 h-full flex-col bg-white border-r border-[#E5E7EB] shrink-0";
+
   return (
     <>
-      {/* Mobile overlay */}
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          onClick={() => setDrawerOpen(false)}
-          aria-hidden
-        />
+      {drawer && (
+        <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} aria-hidden />
       )}
 
-      {/* Sidebar — static on desktop, fixed drawer on mobile */}
-      <aside className={[
-        "flex flex-col bg-white border-r border-[#E5E7EB]",
-        // Desktop: normal flow
-        "md:relative md:w-56 md:h-full md:shrink-0 md:translate-x-0",
-        // Mobile: fixed drawer
-        "fixed inset-y-0 left-0 z-50 w-72 h-full transition-transform duration-200 ease-in-out md:transition-none",
-        drawerOpen ? "translate-x-0" : "-translate-x-full",
-      ].join(" ")}>
+      <aside className={asideClass}>
 
-      {/* Brand */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
-        <div className="flex items-center gap-2.5">
-          <Image
-            src="/OwlICO.png"
-            alt="Prospectia"
-            width={28}
-            height={28}
-            className="w-7 h-7 shrink-0 object-contain"
-          />
-          <div>
-            <p className="text-[12px] font-bold text-[#0A0A0A] tracking-wider leading-none uppercase">
-              Prospectia
-            </p>
-            <p className="text-[10px] text-[#9CA3AF] leading-none mt-0.5">Delegates Portal</p>
+        {/* Brand */}
+        <div className="h-14 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/OwlICO.png"
+              alt="Prospectia"
+              width={28}
+              height={28}
+              className="w-7 h-7 shrink-0 object-contain"
+            />
+            <div>
+              <p className="text-[12px] font-bold text-[#0A0A0A] tracking-wider leading-none uppercase">
+                Prospectia
+              </p>
+              <p className="text-[10px] text-[#9CA3AF] leading-none mt-0.5">Delegates Portal</p>
+            </div>
           </div>
+          {drawer && (
+            <button onClick={onClose} aria-label="Cerrar menú"
+              className="p-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
         </div>
-        <button
-          onClick={() => window.dispatchEvent(new Event("close-sidebar"))}
-          className="md:hidden p-1.5 rounded-md text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F3F4F6] transition-colors"
-          aria-label="Cerrar menú"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
 
-      {/* Identity panel */}
-      {user && (
-        <IdentityPanel user={user} open={panelOpen} onToggle={togglePanel} />
-      )}
+        {/* Identity panel */}
+        {user && (
+          <IdentityPanel user={user} open={panelOpen} onToggle={togglePanel} />
+        )}
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
-        {sections.map(({ label, items }) => {
-          const visibleItems = items.filter(item => {
-            if (item.href === "/dashboard/productos") return user?.role === "OWNER";
-            return true;
-          });
-          if (visibleItems.length === 0) return null;
-          return (
-          <div key={label}>
-            <p className="px-3 mb-1 text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest">
-              {label}
-            </p>
-            <ul className="space-y-0.5">
-              {visibleItems.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
-                const startsWith = (rest as { startsWith?: string }).startsWith;
-                const isActive = exact
-                  ? pathname === href
-                  : pathname.startsWith(startsWith ?? href);
-                return (
-                  <li key={href}>
-                    <Link
-                      href={href}
-                      className={[
-                        "relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium transition-colors duration-150",
-                        isActive
-                          ? "text-[#8E0E1A] bg-[#FEF2F2]"
-                          : "text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6]",
-                      ].join(" ")}
-                    >
-                      {isActive && (
-                        <span
-                          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]"
-                          aria-hidden
-                        />
-                      )}
-                      <span className={isActive ? "text-[#8E0E1A]" : "text-[#6B7280]"}>
-                        <Icon />
-                      </span>
-                      {itemLabel}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          );
-        })}
-      </nav>
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
+          {sections.map(({ label, items }) => {
+            const visibleItems = items.filter(item => {
+              if (item.href === "/dashboard/productos") return user?.role === "OWNER";
+              return true;
+            });
+            if (visibleItems.length === 0) return null;
+            return (
+            <div key={label}>
+              <p className="px-3 mb-1 text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest">
+                {label}
+              </p>
+              <ul className="space-y-0.5">
+                {visibleItems.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
+                  const startsWith = (rest as { startsWith?: string }).startsWith;
+                  const isActive = exact
+                    ? pathname === href
+                    : pathname.startsWith(startsWith ?? href);
+                  return (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        onClick={onClose}
+                        className={[
+                          "relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium transition-colors duration-150",
+                          isActive
+                            ? "text-[#8E0E1A] bg-[#FEF2F2]"
+                            : "text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6]",
+                        ].join(" ")}
+                      >
+                        {isActive && (
+                          <span
+                            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]"
+                            aria-hidden
+                          />
+                        )}
+                        <span className={isActive ? "text-[#8E0E1A]" : "text-[#6B7280]"}>
+                          <Icon />
+                        </span>
+                        {itemLabel}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            );
+          })}
+        </nav>
 
-      {/* Logout */}
-      <div className="px-2 py-3 border-t border-[#E5E7EB] shrink-0">
-        <form action={logout}>
-          <button
-            type="submit"
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#6B7280] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors duration-150"
-          >
-            <IconLogout />
-            Cerrar sesión
-          </button>
-        </form>
-      </div>
-    </aside>
+        {/* Logout */}
+        <div className="px-2 py-3 border-t border-[#E5E7EB] shrink-0">
+          <form action={logout}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#6B7280] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors duration-150"
+            >
+              <IconLogout />
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      </aside>
     </>
   );
 }
