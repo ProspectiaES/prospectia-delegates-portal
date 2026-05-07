@@ -223,8 +223,9 @@ export async function runFullSync(db: SupabaseClient): Promise<{
     ...creditNotes.map(d => toInvoiceRow(d, true)),
   ];
 
+  // Contacts must be upserted before invoices (FK constraint on contact_id)
+  await upsertBatched(db, "holded_contacts", contacts.map(toContactRow));
   await Promise.all([
-    upsertBatched(db, "holded_contacts",    contacts.map(toContactRow)),
     upsertBatched(db, "holded_invoices",    allInvoiceRows),
     upsertBatched(db, "holded_salesorders", salesorders.map(toSalesOrderRow)),
     upsertBatched(db, "holded_products",    products.map(toProductRow)),
