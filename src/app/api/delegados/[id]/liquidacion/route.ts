@@ -137,12 +137,16 @@ export async function GET(
     recommenderMap[c.id] = c.recommender_id;
   }
 
-  // Recommender names
+  // Recommender names + rates
   const recIds = [...new Set(Object.values(recommenderMap).filter(Boolean))] as string[];
   const recommenderNameMap: Record<string, string> = {};
+  const recommenderRateMap: Record<string, number> = {};
   if (recIds.length > 0) {
-    const { data: recData } = await supabase.from("holded_contacts").select("id, name").in("id", recIds);
-    for (const r of recData ?? []) recommenderNameMap[r.id] = r.name;
+    const { data: recData } = await supabase.from("holded_contacts").select("id, name, recommender_rate").in("id", recIds);
+    for (const r of recData ?? []) {
+      recommenderNameMap[r.id] = r.name;
+      if (r.recommender_rate != null) recommenderRateMap[r.id] = Number(r.recommender_rate);
+    }
   }
 
   // Build pending / overdue row arrays
@@ -171,7 +175,7 @@ export async function GET(
   })).sort((a, b) => b.daysOverdue - a.daysOverdue);
 
   const delegateBlock = buildCommissionBlock(
-    "Delegado", paidInvoices, productMap, recommenderMap, recommenderNameMap, "delegate"
+    "Delegado", paidInvoices, productMap, recommenderMap, recommenderNameMap, "delegate", recommenderRateMap
   );
   const blocks = [delegateBlock];
 

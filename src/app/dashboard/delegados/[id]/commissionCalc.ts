@@ -47,7 +47,8 @@ export function buildCommissionBlock(
   productMap: Record<string, ProductCommission>,
   recommenderMap: Record<string, string | null>,
   recommenderNameMap: Record<string, string>,
-  rateKey: "delegate" | "kol"
+  rateKey: "delegate" | "kol",
+  recommenderRateMap: Record<string, number> = {}
 ): CommissionBlock {
   const invoiceCommissions: InvoiceCommission[] = [];
 
@@ -91,10 +92,11 @@ export function buildCommissionBlock(
       subtotal += commissionAmount;
 
       if (rateKey === "delegate" && recommenderId) {
+        const recRate = recommenderRateMap[recommenderId] ?? product.commission_recommender;
         const recDeduction = calcLineCommission(
           units, price, discount,
-          product.commission_recommender,
-          product.commission_recommender_type ?? "percent"
+          recRate,
+          "percent"
         );
         recommenderDeduction += recDeduction;
       }

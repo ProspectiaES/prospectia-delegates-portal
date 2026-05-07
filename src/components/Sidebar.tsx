@@ -49,6 +49,14 @@ const IconAfiliados = () => (
   </svg>
 );
 
+const IconRecomendadores = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <circle cx="8" cy="4" r="2" />
+    <path d="M4 13c0-2.209 1.791-4 4-4s4 1.791 4 4" strokeLinecap="round" />
+    <path d="M12 6l1.5 1.5L16 5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const IconPedidos = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <path d="M2 3h12l-1.5 8H3.5L2 3z" strokeLinejoin="round" />
@@ -436,7 +444,8 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     {
       label: "Afiliados",
       items: [
-        { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
+        { href: "/dashboard/afiliados",       label: "Afiliados",       Icon: IconAfiliados,       exact: false },
+        ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
       ],
     },
     {
