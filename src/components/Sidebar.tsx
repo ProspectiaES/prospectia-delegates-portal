@@ -490,7 +490,7 @@ export function Sidebar({ user, drawer = false, onClose }: {
 
   const asideClass = drawer
     ? "fixed inset-y-0 left-0 w-72 z-50 flex flex-col bg-white border-r border-[#E5E7EB] shadow-2xl"
-    : "hidden md:flex w-56 h-full flex-col bg-white border-r border-[#E5E7EB] shrink-0";
+    : "sidebar-desktop w-56 h-full flex-col bg-white border-r border-[#E5E7EB] shrink-0";
 
   return (
     <>

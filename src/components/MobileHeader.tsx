@@ -14,7 +14,7 @@ export function MobileHeader({ user }: { user: UserProps }) {
   return (
     <>
       {/* Barra fija solo en mobile */}
-      <div className="md:hidden fixed top-0 inset-x-0 h-14 z-30 bg-white border-b border-[#E5E7EB] flex items-center gap-3 px-4">
+      <div className="mobile-header fixed top-0 inset-x-0 h-14 z-30 bg-white border-b border-[#E5E7EB] items-center gap-3 px-4">
         <button
           onClick={() => setOpen(true)}
           aria-label="Abrir menú"

@@ -52,4 +52,13 @@ body {
 ::-webkit-scrollbar        { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: #D1D5DB; border-radius: 3px; }
+
+/* Mobile layout — garantizado independiente de Tailwind class scanning */
+.sidebar-desktop { display: none; }
+.mobile-header   { display: flex; }
+
+@media (min-width: 768px) {
+  .sidebar-desktop { display: flex; }
+  .mobile-header   { display: none; }
+}
 ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
