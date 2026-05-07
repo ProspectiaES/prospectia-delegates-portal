@@ -488,7 +488,7 @@ export function Sidebar({ user }: { user?: UserProps }) {
     <aside className="w-56 h-full flex flex-col bg-white border-r border-[#E5E7EB] shrink-0">
 
       {/* Brand */}
-      <div className="h-14 flex items-center px-4 border-b border-[#E5E7EB] shrink-0">
+      <div className="h-14 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
         <div className="flex items-center gap-2.5">
           <Image
             src="/OwlICO.png"
@@ -504,6 +504,15 @@ export function Sidebar({ user }: { user?: UserProps }) {
             <p className="text-[10px] text-[#9CA3AF] leading-none mt-0.5">Delegates Portal</p>
           </div>
         </div>
+        <button
+          onClick={() => window.dispatchEvent(new Event("close-sidebar"))}
+          className="md:hidden p-1.5 rounded-md text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F3F4F6] transition-colors"
+          aria-label="Cerrar menú"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Identity panel */}
