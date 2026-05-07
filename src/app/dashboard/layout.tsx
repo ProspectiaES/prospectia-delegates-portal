@@ -1,5 +1,4 @@
-import { Sidebar } from "@/components/Sidebar";
-import { MobileHeader } from "@/components/MobileHeader";
+import { ResponsiveLayout } from "@/components/ResponsiveLayout";
 import { ActivityTracker } from "@/components/ActivityTracker";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,13 +20,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex h-full">
-      <Sidebar user={userProfile} />
-      <MobileHeader user={userProfile} />
-      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-[#F5F5F7] pt-14 md:pt-0">
-        {children}
-      </main>
+    <ResponsiveLayout user={userProfile}>
+      {children}
       <ActivityTracker />
-    </div>
+    </ResponsiveLayout>
   );
 }
