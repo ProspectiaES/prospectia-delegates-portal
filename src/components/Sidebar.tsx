@@ -466,7 +466,6 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       label: "Sistema",
       items: [
         { href: "/dashboard/performance",  label: "Performance",  Icon: IconRendimiento,  exact: false },
-        { href: "/dashboard/rendimiento",  label: "Rendimiento",  Icon: IconRendimiento,  exact: false },
         { href: "/dashboard/autofacturas", label: "Autofacturas", Icon: IconAutofacturas, exact: false },
         { href: "/dashboard/admin",        label: "Auditoría",    Icon: IconAdmin,        exact: false },
       ],
