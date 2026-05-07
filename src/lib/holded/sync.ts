@@ -258,6 +258,11 @@ export async function runStatusSync(db: SupabaseClient): Promise<{
 
   const updates = invoices.map((d) => ({
     id:                 d.id,
+    doc_number:         d.docNumber          ?? null,
+    contact_id:         d.contact            ?? null,
+    contact_name:       d.contactName        ?? null,
+    date:               d.date ? new Date(d.date * 1000).toISOString() : null,
+    description:        d.desc ?? d.notes ?? null,
     status:             computeInvoiceStatus(d),
     total:              docAmount(d),
     due_date:           d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
