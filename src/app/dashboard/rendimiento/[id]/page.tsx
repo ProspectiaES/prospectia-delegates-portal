@@ -66,7 +66,7 @@ export default async function DelegatePerformancePage({
   const histStart = new Date(Date.UTC(oldest.year, oldest.month - 1, 1)).toISOString();
 
   // ── Fetch all data in parallel ──
-  const [delegateRes, cdRes, histInvRes, curPaidRes, pendRes, vencRes, contactsRes] = await Promise.all([
+  const [delegateRes, cdRes, histInvRes, curPaidRes, pendRes, vencRes, contactsRes, productsRes] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, delegate_name, email, phone, nif, city, address, postal_code, iban, is_kol, created_at, contact_id")
       .eq("id", id)
@@ -104,6 +104,10 @@ export default async function DelegatePerformancePage({
     // All contacts of this delegate (for LTV + dormancy)
     admin.from("holded_contacts")
       .select("id, name, city"),
+
+    // Products with cost for margin calc
+    admin.from("holded_products")
+      .select("id, cost, commission_delegate, commission_delegate_type"),
   ]);
 
   if (!delegateRes.data) notFound();
@@ -177,6 +181,55 @@ export default async function DelegatePerformancePage({
   const pendTotal  = pendInvs.reduce((s, i) => s + i.total, 0);
   const vencTotal  = vencInvs.reduce((s, i) => s + i.total, 0);
   const ticketMed  = curPaid.length > 0 ? curBilled / curPaid.length : 0;
+
+  // ── Margin / profitability (current period) ──
+  type CommType = "percent" | "amount";
+  const productMap: Record<string, { cost: number | null; commission_delegate: number | null; commission_delegate_type: CommType }> = {};
+  for (const p of (productsRes.data ?? []) as { id: string; cost: number | null; commission_delegate: number | null; commission_delegate_type: string }[]) {
+    productMap[p.id] = { cost: p.cost, commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType };
+  }
+
+  type RawLine = { productId?: string; units?: number | string; price?: number | string; discount?: number | string };
+
+  function calcLineComm(units: number, price: number, discount: number, rate: number | null, type: CommType) {
+    if (!rate) return 0;
+    const net = units * price * (1 - discount / 100);
+    return type === "amount" ? units * rate : (net * rate) / 100;
+  }
+
+  let marginRevenue  = 0;  // revenue on lines with known cost
+  let marginCogs     = 0;  // COGS (incl. FOC)
+  let marginComm     = 0;  // estimated commission
+  let focCost        = 0;  // cost of FOC lines specifically
+  let coveredRevPct  = 0;  // % of total revenue covered by products with cost
+
+  for (const inv of curPaid) {
+    for (const rp of ((inv.raw?.products ?? []) as RawLine[])) {
+      if (!rp.productId) continue;
+      const prod = productMap[rp.productId];
+      if (!prod) continue;
+      const units    = Number(rp.units)    || 0;
+      const price    = Number(rp.price)    || 0;
+      const discount = Number(rp.discount) || 0;
+      const isFoc    = price === 0;
+      const lineNet  = isFoc ? 0 : units * price * (1 - discount / 100);
+
+      if (prod.cost != null) {
+        const lineCogs = units * prod.cost;
+        marginCogs    += lineCogs;
+        marginRevenue += lineNet;
+        if (isFoc) focCost += lineCogs;
+      }
+      if (!isFoc) {
+        marginComm += calcLineComm(units, price, discount, prod.commission_delegate, prod.commission_delegate_type);
+      }
+    }
+  }
+
+  const grossMargin     = marginRevenue - marginCogs;
+  const netContribution = grossMargin - marginComm;
+  const grossMarginPct  = marginRevenue > 0 ? (grossMargin / marginRevenue) * 100 : null;
+  coveredRevPct         = curBilled > 0 ? (marginRevenue / curBilled) * 100 : 0;
 
   // Previous month comparison
   const prevM = curMonth === 1 ? { year: curYear - 1, month: 12 } : { year: curYear, month: curMonth - 1 };
@@ -298,6 +351,46 @@ export default async function DelegatePerformancePage({
           ))}
         </div>
       </div>
+
+      {/* Profitability breakdown */}
+      {(marginRevenue > 0 || marginCogs > 0) && (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E5E7EB] flex items-center justify-between bg-[#F9FAFB]">
+            <h2 className="text-sm font-bold text-[#0A0A0A]">Rentabilidad del período — {periodLabel}</h2>
+            {coveredRevPct < 100 && (
+              <span className="text-xs text-[#9CA3AF]">Cobertura de coste: {coveredRevPct.toFixed(0)}% de los ingresos</span>
+            )}
+          </div>
+          <div className="px-5 py-4">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+              {[
+                { label: "Ingresos cubiertos",  value: fmtEuro(marginRevenue), color: "#374151",  note: coveredRevPct < 99 ? `${coveredRevPct.toFixed(0)}% del total` : "100% del total" },
+                { label: "Coste productos",      value: fmtEuro(marginCogs),    color: "#DC2626",  note: focCost > 0 ? `incl. ${fmtEuro(focCost)} en FOC` : "sin FOC en este período" },
+                { label: "Margen bruto",         value: fmtEuro(grossMargin),   color: grossMargin >= 0 ? "#059669" : "#DC2626",
+                  note: grossMarginPct != null ? `${grossMarginPct.toFixed(1)}% sobre ingresos` : "" },
+                { label: "Comisión estimada",    value: fmtEuro(marginComm),    color: "#7C3AED",  note: "delegado (no recomendador)" },
+                { label: "Beneficio neto",       value: fmtEuro(netContribution), color: netContribution >= 0 ? "#0A0A0A" : "#DC2626",
+                  note: "margen − comisión" },
+                { label: "ROI delegado",
+                  value: marginComm > 0 ? `${(netContribution / marginComm * 100).toFixed(0)}%` : "—",
+                  color: netContribution >= 0 ? "#059669" : "#DC2626",
+                  note: "beneficio por €1 de comisión" },
+              ].map(({ label, value, color, note }) => (
+                <div key={label} className="space-y-1">
+                  <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">{label}</p>
+                  <p className="text-lg font-bold tabular-nums" style={{ color }}>{value}</p>
+                  <p className="text-[10px] text-[#9CA3AF]">{note}</p>
+                </div>
+              ))}
+            </div>
+            {focCost > 0 && (
+              <div className="mt-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
+                <strong>FOC detectado:</strong> este delegado ha generado {fmtEuro(focCost)} en coste de productos entregados gratuitamente (precio = 0). Este coste ya está incluido en el cálculo del margen bruto.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Alerts row */}
       {(pendTotal > 0 || vencTotal > 0) && (
