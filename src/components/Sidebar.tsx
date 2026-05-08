@@ -106,6 +106,14 @@ const IconManual = () => (
   </svg>
 );
 
+const IconDiari = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="2" y="1" width="12" height="14" rx="1.5"/>
+    <path d="M5 4h6M5 7h6M5 10h3" strokeLinecap="round"/>
+    <circle cx="11.5" cy="10.5" r="1.5" fill="currentColor" stroke="none" opacity="0.6"/>
+  </svg>
+);
+
 const IconAutofacturas = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <rect x="2" y="2" width="12" height="12" rx="1.5"/>
@@ -460,6 +468,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
+        ...(isOwner ? [{ href: "/dashboard/diario", label: "Diari Alt Rendiment", Icon: IconDiari, exact: false }] : []),
       ],
     },
     ...(isOwner ? [{
