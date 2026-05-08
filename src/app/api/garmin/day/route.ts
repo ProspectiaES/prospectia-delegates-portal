@@ -44,11 +44,14 @@ export async function GET(req: NextRequest) {
 
       if (profile?.id) {
         const patch: Record<string, unknown> = { user_id: profile.id, fecha: date };
-        if (data.son_hores   != null) patch.son_hores   = data.son_hores;
-        if (data.energia     != null) patch.energia     = data.energia;
-        if (data.serenitat   != null) patch.serenitat   = data.serenitat;
-        if (data.running_km  != null) patch.running_km  = data.running_km;
-        if (data.running_min != null) patch.running_min = data.running_min;
+        if (data.son_hores       != null) patch.son_hores       = data.son_hores;
+        if (data.energia         != null) patch.energia         = data.energia;
+        if (data.serenitat       != null) patch.serenitat       = data.serenitat;
+        if (data.running_km      != null) patch.running_km      = data.running_km;
+        if (data.running_min     != null) patch.running_min     = data.running_min;
+        if (data.act_fc_mit      != null) patch.act_fc_mit      = data.act_fc_mit;
+        if (data.act_fc_max      != null) patch.act_fc_max      = data.act_fc_max;
+        if (data.activitat_tipus != null) patch.activitat_tipus = data.activitat_tipus;
 
         // Only write fields that Garmin provided — don't overwrite manual edits
         if (Object.keys(patch).length > 2) {

@@ -247,11 +247,14 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
       if (!json.ok) throw new Error(json.error ?? "Error desconegut");
       const d = json.data!;
       setGarminData(d);
-      if (d.son_hores  != null) setSonHores(String(d.son_hores));
-      if (d.energia    != null) setEnergia(d.energia);
-      if (d.serenitat  != null) setSerenitat(d.serenitat);
-      if (d.running_km != null) setRunningKm(String(d.running_km));
-      if (d.running_min != null) setRunningMin(String(d.running_min));
+      if (d.son_hores       != null) setSonHores(String(d.son_hores));
+      if (d.energia         != null) setEnergia(d.energia);
+      if (d.serenitat       != null) setSerenitat(d.serenitat);
+      if (d.running_km      != null) setRunningKm(String(d.running_km));
+      if (d.running_min     != null) setRunningMin(String(d.running_min));
+      if (d.act_fc_mit      != null) setActFcMit(String(d.act_fc_mit));
+      if (d.act_fc_max      != null) setActFcMax(String(d.act_fc_max));
+      if (d.activitat_tipus != null) setActTipus(d.activitat_tipus);
       setGarminMsg(d.origen.length > 0 ? d.origen.join(", ") : "Cap dada nova");
     } catch (e) { setGarminMsg(`Error: ${(e as Error).message}`); }
     finally { setGarminLoading(false); }
@@ -450,14 +453,16 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
 
         {/* Garmin stats */}
         {garminData && (
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 p-3 rounded-xl"
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-3 p-3 rounded-xl"
             style={{ backgroundColor: "#F9F2F0", border: `1px solid ${BORDER}` }}>
             <GarminNum label="Son" value={garminData.son_hores != null ? `${garminData.son_hores}h` : null} />
             <GarminNum label="FC repòs" value={garminData.rhr != null ? `${garminData.rhr}bpm` : null} />
             <GarminNum label="Energia" value={garminData.energia != null ? `${garminData.energia}/5` : null} />
-            <GarminNum label="Serenitat" value={garminData.serenitat != null ? `${garminData.serenitat}/5` : null} />
             <GarminNum label="Passos" value={garminData.passos != null ? garminData.passos.toLocaleString("ca-ES") : null} />
+            <GarminNum label="FC mit" value={garminData.act_fc_mit != null ? `${garminData.act_fc_mit}bpm` : null} />
+            <GarminNum label="FC màx" value={garminData.act_fc_max != null ? `${garminData.act_fc_max}bpm` : null} />
             <GarminNum label="Km" value={garminData.running_km != null ? `${garminData.running_km}` : null} />
+            <GarminNum label="Min" value={garminData.running_min != null ? `${garminData.running_min}'` : null} />
           </div>
         )}
         {garminMsg && (

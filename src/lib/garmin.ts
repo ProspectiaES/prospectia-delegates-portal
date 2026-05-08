@@ -3,14 +3,28 @@ import { GarminConnect } from "garmin-connect";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GarminDayData {
-  son_hores:   number | null;
-  energia:     number | null;  // 1-5, from Body Battery morning value
-  serenitat:   number | null;  // 1-5, from stress (inverted)
-  rhr:         number | null;  // resting heart rate (bpm, informational)
-  passos:      number | null;  // total steps
-  running_km:  number | null;  // total running distance in km
-  running_min: number | null;  // total running duration in minutes
-  origen:      string[];       // which fields were actually fetched
+  son_hores:      number | null;
+  energia:        number | null;  // 1-5, from Body Battery morning value
+  serenitat:      number | null;  // 1-5, from stress (inverted)
+  rhr:            number | null;  // resting heart rate (bpm, informational)
+  passos:         number | null;  // total steps
+  running_km:     number | null;  // activity distance in km
+  running_min:    number | null;  // activity duration in minutes
+  act_fc_mit:     number | null;  // activity avg HR (bpm)
+  act_fc_max:     number | null;  // activity max HR (bpm)
+  activitat_tipus: string | null; // activity type key mapped to our options
+  origen:         string[];       // which fields were actually fetched
+}
+
+function mapActivityType(typeKey: string | undefined): string {
+  const k = (typeKey ?? "").toLowerCase();
+  if (k.includes("running") || k === "run") return "running";
+  if (k.includes("cycling") || k.includes("bike") || k === "biking") return "ciclisme";
+  if (k.includes("swim")) return "natacio";
+  if (k.includes("walk") || k.includes("hiking")) return "caminar";
+  if (k.includes("strength") || k.includes("gym") || k.includes("fitness")) return "gimnàs";
+  if (k.includes("yoga") || k.includes("mobility") || k.includes("pilates")) return "mobilitat";
+  return "altra";
 }
 
 // ─── Client singleton (persists across PM2 process lifetime) ──────────────────
@@ -48,6 +62,7 @@ export async function fetchGarminDay(dateStr: string): Promise<GarminDayData> {
   const out: GarminDayData = {
     son_hores: null, energia: null, serenitat: null, rhr: null, passos: null,
     running_km: null, running_min: null,
+    act_fc_mit: null, act_fc_max: null, activitat_tipus: null,
     origen: [],
   };
 
@@ -103,29 +118,32 @@ export async function fetchGarminDay(dateStr: string): Promise<GarminDayData> {
     }
   } catch { /* */ }
 
-  // ── Running activities ──
+  // ── Activity (running, cycling, any sport) ──
   try {
     const activities = await client.getActivities(0, 10) as Array<{
       startTimeLocal?: string;
       activityType?: { typeKey?: string };
       distance?: number;
       duration?: number;
+      averageHR?: number;
+      maxHR?: number;
     }>;
     if (Array.isArray(activities)) {
-      const running = activities.find(a => {
-        const typeKey = (a.activityType?.typeKey ?? "").toLowerCase();
-        const isRunning = typeKey.includes("running") || typeKey === "run";
+      const act = activities.find(a => {
         const actDate = (a.startTimeLocal ?? "").slice(0, 10);
-        return isRunning && actDate === dateStr;
+        return actDate === dateStr;
       });
-      if (running) {
-        if (running.distance != null && running.distance > 0) {
-          out.running_km = Math.round((running.distance / 1000) * 100) / 100;
-        }
-        if (running.duration != null && running.duration > 0) {
-          out.running_min = Math.round(running.duration / 60);
-        }
-        out.origen.push("running");
+      if (act) {
+        if (act.distance != null && act.distance > 0)
+          out.running_km = Math.round((act.distance / 1000) * 100) / 100;
+        if (act.duration != null && act.duration > 0)
+          out.running_min = Math.round(act.duration / 60);
+        if (act.averageHR != null && act.averageHR > 0)
+          out.act_fc_mit = Math.round(act.averageHR);
+        if (act.maxHR != null && act.maxHR > 0)
+          out.act_fc_max = Math.round(act.maxHR);
+        out.activitat_tipus = mapActivityType(act.activityType?.typeKey);
+        out.origen.push(out.activitat_tipus ?? "activitat");
       }
     }
   } catch { /* */ }
