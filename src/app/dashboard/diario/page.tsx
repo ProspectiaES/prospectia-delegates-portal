@@ -315,6 +315,34 @@ export default async function DiarioPage({
         {/* ── Hairline ── */}
         <div style={{ height: "1px", backgroundColor: "#111" }} />
 
+        {/* ── Governador ── */}
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-[0.4em] mb-6"
+            style={{ color: "#1A1815" }}>
+            Intel·ligència Personal
+          </p>
+          <Link href="/dashboard/diario/governador" className="group flex items-center justify-between">
+            <div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.3em] mb-1"
+                style={{ color: "#7D1120" }}>
+                Sistema actiu
+              </p>
+              <p className="text-[20px] font-black"
+                style={{ color: "#EDE8DF" }}>
+                El Governador <span className="font-light transition-colors group-hover:text-[#C4964A]"
+                  style={{ color: "#252220" }}>→</span>
+              </p>
+              <p className="text-[10px] mt-1"
+                style={{ color: "#3D3530" }}>
+                Focus · Seguiment · Coherència · Entrenament
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        {/* ── Hairline ── */}
+        <div style={{ height: "1px", backgroundColor: "#111" }} />
+
         {/* ── Planificació ── */}
         <div>
           <p className="text-[9px] font-bold uppercase tracking-[0.4em] mb-8"
