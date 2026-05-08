@@ -10,25 +10,38 @@ type Inspirador = { nom: string; ambit: string; aprenentatge: string };
 type PersonaCuidar = { nom: string; relacio: string; accio: string };
 type ADistancia = { nom: string; motiu: string; accio: string };
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{children}</p>;
-}
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function inputCls() {
-  return "w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors";
-}
-
-function RemoveBtn({ onClick }: { onClick: () => void }) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="p-1.5 rounded-md text-[#9CA3AF] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-    >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M2 2l8 8M10 2L2 10" strokeLinecap="round"/>
-      </svg>
-    </button>
+    <div className="flex items-center gap-4 pt-2 pb-1">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
+    </div>
+  );
+}
+
+function ItemCard({ num, onRemove, children }: {
+  num: number; onRemove: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 pt-4 pb-3">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-black text-[#8E0E1A]/40 mt-0.5 w-5 shrink-0 select-none">
+          {String(num).padStart(2, "0")}
+        </span>
+        <div className="flex-1 min-w-0">{children}</div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[#D0D0D0] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors mt-0.5"
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M1 1l6 6M7 1L1 7" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -37,24 +50,22 @@ function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 text-sm text-[#8E0E1A] hover:text-[#7a0b16] font-medium transition-colors"
+      className="flex items-center gap-2 text-[12px] font-semibold text-[#8E0E1A]/70 hover:text-[#8E0E1A] transition-colors py-1"
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M7 1v12M1 7h12" strokeLinecap="round"/>
-      </svg>
+      <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
+        <svg width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3.5.5v6M.5 3.5h6" strokeLinecap="round"/>
+        </svg>
+      </span>
       {label}
     </button>
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
-      <h2 className="text-sm font-bold text-[#0A0A0A]">{title}</h2>
-      {children}
-    </div>
-  );
-}
+const titleInput = "w-full text-[15px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-transparent hover:border-[#E8E8E8] focus:border-[#8E0E1A]/40 outline-none pb-1 transition-colors placeholder:text-[#DCDCDC] placeholder:font-normal";
+const inlineInput = "text-[12px] text-[#5A5A5A] bg-transparent border-0 outline-none placeholder:text-[#DCDCDC] min-w-0 flex-1";
+
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function InfluenciesForm({ initial }: { initial: InfluenciesData }) {
   const [isPending, startTransition] = useTransition();
@@ -81,123 +92,154 @@ export function InfluenciesForm({ initial }: { initial: InfluenciesData }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+
       {/* Referents */}
-      <SectionCard title="Referents personals">
+      <SectionDivider title="Referents personals" />
+      <div className="space-y-2">
         {referents.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Nom</Label>}
-              <input className={inputCls()} value={r.nom} onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))} placeholder="Nom…" />
+          <ItemCard key={i} num={i + 1} onRemove={() => setReferents(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={r.nom}
+              onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))}
+              placeholder="Nom…"
+            />
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <input
+                className={inlineInput}
+                value={r.ambit}
+                onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, ambit: e.target.value } : x))}
+                placeholder="Àmbit…"
+              />
+              <span className="text-[#E0E0E0] text-xs">·</span>
+              <input
+                className={inlineInput}
+                value={r.accio}
+                onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))}
+                placeholder="Acció a prendre…"
+              />
             </div>
-            <div>
-              {i === 0 && <Label>Àmbit</Label>}
-              <input className={inputCls()} value={r.ambit} onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, ambit: e.target.value } : x))} placeholder="Àmbit…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Acció</Label>}
-              <input className={inputCls()} value={r.accio} onChange={e => setReferents(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))} placeholder="Acció…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setReferents(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setReferents(p => [...p, { nom: "", ambit: "", accio: "" }])} label="Afegir referent" />
-      </SectionCard>
+      </div>
 
       {/* Inspiradors */}
-      <SectionCard title="Inspiradors intel·lectuals">
+      <SectionDivider title="Inspiradors intel·lectuals" />
+      <div className="space-y-2">
         {inspiradors.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Nom</Label>}
-              <input className={inputCls()} value={r.nom} onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))} placeholder="Nom…" />
+          <ItemCard key={i} num={i + 1} onRemove={() => setInspiradors(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={r.nom}
+              onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))}
+              placeholder="Nom…"
+            />
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <input
+                className={inlineInput}
+                value={r.ambit}
+                onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, ambit: e.target.value } : x))}
+                placeholder="Àmbit…"
+              />
+              <span className="text-[#E0E0E0] text-xs">·</span>
+              <input
+                className={inlineInput}
+                value={r.aprenentatge}
+                onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, aprenentatge: e.target.value } : x))}
+                placeholder="Aprenentatge clau…"
+              />
             </div>
-            <div>
-              {i === 0 && <Label>Àmbit</Label>}
-              <input className={inputCls()} value={r.ambit} onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, ambit: e.target.value } : x))} placeholder="Àmbit…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Aprenentatge</Label>}
-              <input className={inputCls()} value={r.aprenentatge} onChange={e => setInspiradors(p => p.map((x, j) => j === i ? { ...x, aprenentatge: e.target.value } : x))} placeholder="Aprenentatge…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setInspiradors(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setInspiradors(p => [...p, { nom: "", ambit: "", aprenentatge: "" }])} label="Afegir inspirador" />
-      </SectionCard>
+      </div>
 
       {/* Persones a cuidar */}
-      <SectionCard title="Persones a cuidar">
+      <SectionDivider title="Persones a cuidar" />
+      <div className="space-y-2">
         {personesCuidar.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Nom</Label>}
-              <input className={inputCls()} value={r.nom} onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))} placeholder="Nom…" />
+          <ItemCard key={i} num={i + 1} onRemove={() => setPersonesCuidar(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={r.nom}
+              onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))}
+              placeholder="Nom…"
+            />
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <input
+                className={inlineInput}
+                value={r.relacio}
+                onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, relacio: e.target.value } : x))}
+                placeholder="Relació…"
+              />
+              <span className="text-[#E0E0E0] text-xs">·</span>
+              <input
+                className={inlineInput}
+                value={r.accio}
+                onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))}
+                placeholder="Acció concreta…"
+              />
             </div>
-            <div>
-              {i === 0 && <Label>Relació</Label>}
-              <input className={inputCls()} value={r.relacio} onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, relacio: e.target.value } : x))} placeholder="Relació…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Acció</Label>}
-              <input className={inputCls()} value={r.accio} onChange={e => setPersonesCuidar(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))} placeholder="Acció…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setPersonesCuidar(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setPersonesCuidar(p => [...p, { nom: "", relacio: "", accio: "" }])} label="Afegir persona" />
-      </SectionCard>
+      </div>
 
       {/* A distància */}
-      <SectionCard title="A mantenir a distància">
+      <SectionDivider title="A mantenir a distància" />
+      <div className="space-y-2">
         {aDistancia.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Nom</Label>}
-              <input className={inputCls()} value={r.nom} onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))} placeholder="Nom…" />
+          <ItemCard key={i} num={i + 1} onRemove={() => setADistancia(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={r.nom}
+              onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, nom: e.target.value } : x))}
+              placeholder="Nom…"
+            />
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <input
+                className={inlineInput}
+                value={r.motiu}
+                onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, motiu: e.target.value } : x))}
+                placeholder="Motiu…"
+              />
+              <span className="text-[#E0E0E0] text-xs">·</span>
+              <input
+                className={inlineInput}
+                value={r.accio}
+                onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))}
+                placeholder="Com gestionar la distància…"
+              />
             </div>
-            <div>
-              {i === 0 && <Label>Motiu</Label>}
-              <input className={inputCls()} value={r.motiu} onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, motiu: e.target.value } : x))} placeholder="Motiu…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Acció</Label>}
-              <input className={inputCls()} value={r.accio} onChange={e => setADistancia(p => p.map((x, j) => j === i ? { ...x, accio: e.target.value } : x))} placeholder="Acció…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setADistancia(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setADistancia(p => [...p, { nom: "", motiu: "", accio: "" }])} label="Afegir persona" />
-      </SectionCard>
+      </div>
 
       {/* Objectiu relacional */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-2">
-        <h2 className="text-sm font-bold text-[#0A0A0A]">Objectiu relacional</h2>
+      <SectionDivider title="Objectiu relacional" />
+      <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4">
         <textarea
           value={objectiuRelacional}
           onChange={e => setObjectiuRelacional(e.target.value)}
           rows={2}
-          className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+          className="w-full text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]"
+          placeholder="El meu objectiu relacional per al 2026…"
         />
       </div>
 
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+      {/* Save */}
+      <div className="flex items-center justify-between pt-4 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Influències guardades
-        </div>
+        </span>
         <button
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
           {isPending ? "Guardant…" : "Guardar influències"}
         </button>

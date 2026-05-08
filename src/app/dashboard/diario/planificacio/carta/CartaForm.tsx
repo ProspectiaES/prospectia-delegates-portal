@@ -6,46 +6,42 @@ import { DEFAULT_CARTA } from "@/lib/diario-constants";
 
 type CartaData = typeof DEFAULT_CARTA;
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{children}</p>;
-}
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function TextArea({ value, onChange, placeholder, rows = 3 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
-}) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <textarea
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
-    />
+    <div className="flex items-center gap-4 pt-2 pb-1">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
+    </div>
   );
 }
 
-function TextInput({ value, onChange, placeholder }: {
-  value: string; onChange: (v: string) => void; placeholder?: string;
-}) {
-  return (
-    <input
-      type="text"
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
-    />
-  );
-}
+const titleInput = "w-full text-[15px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-transparent hover:border-[#E8E8E8] focus:border-[#8E0E1A]/40 outline-none pb-1 transition-colors placeholder:text-[#DCDCDC] placeholder:font-normal";
+const descTextarea = "w-full mt-1.5 text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]";
 
-function Card({ children, title }: { children: React.ReactNode; title?: string }) {
+function BlockCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-4">
-      {title && <h2 className="text-sm font-bold text-[#0A0A0A]">{title}</h2>}
+    <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 pt-4 pb-4 space-y-3">
       {children}
     </div>
   );
 }
+
+function NumCard({ num, children }: { num: number; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 pt-4 pb-3">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-black text-[#8E0E1A]/40 mt-0.5 w-5 shrink-0 select-none">
+          {String(num).padStart(2, "0")}
+        </span>
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function CartaForm({ initial }: { initial: CartaData }) {
   const [isPending, startTransition] = useTransition();
@@ -74,82 +70,118 @@ export function CartaForm({ initial }: { initial: CartaData }) {
   }
 
   return (
-    <div className="space-y-4">
-      <Card title="Context de la carta">
-        <TextArea value={context} onChange={setContext} rows={3} placeholder="Aquesta carta és…" />
-      </Card>
+    <div className="space-y-3">
 
-      <Card title="Les 3 lliçons del 2025">
+      {/* Context */}
+      <SectionDivider title="Context de la carta" />
+      <BlockCard>
+        <textarea
+          value={context}
+          onChange={e => setContext(e.target.value)}
+          rows={3}
+          className={descTextarea}
+          placeholder="Aquesta carta és…"
+        />
+      </BlockCard>
+
+      {/* Lliçons */}
+      <SectionDivider title="Les 3 lliçons del 2025" />
+      <div className="space-y-2">
         {lliçons.map((ll, i) => (
-          <div key={i} className="space-y-2 pb-3 border-b border-[#F3F4F6] last:border-0 last:pb-0">
-            <p className="text-xs font-semibold text-[#8E0E1A]">Lliçó {ll.num}</p>
-            <div>
-              <Label>Aprenentatge</Label>
-              <TextArea
-                value={ll.aprenentatge}
-                onChange={v => setLliçons(prev => prev.map((x, j) => j === i ? { ...x, aprenentatge: v } : x))}
-                rows={2}
-                placeholder="Que vaig aprendre…"
-              />
+          <NumCard key={i} num={ll.num}>
+            <div className="space-y-2">
+              <div>
+                <p className="text-[11px] font-bold text-[#C0C0C0] uppercase tracking-[0.12em] mb-1">Aprenentatge</p>
+                <textarea
+                  value={ll.aprenentatge}
+                  onChange={v => setLliçons(prev => prev.map((x, j) => j === i ? { ...x, aprenentatge: v.target.value } : x))}
+                  rows={2}
+                  className={descTextarea}
+                  placeholder="Que vaig aprendre…"
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-[#C0C0C0] uppercase tracking-[0.12em] mb-1">Impacte</p>
+                <textarea
+                  value={ll.impacte}
+                  onChange={v => setLliçons(prev => prev.map((x, j) => j === i ? { ...x, impacte: v.target.value } : x))}
+                  rows={2}
+                  className={descTextarea}
+                  placeholder="Com em va afectar…"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Impacte</Label>
-              <TextArea
-                value={ll.impacte}
-                onChange={v => setLliçons(prev => prev.map((x, j) => j === i ? { ...x, impacte: v } : x))}
-                rows={2}
-                placeholder="Com em va afectar…"
-              />
-            </div>
-          </div>
+          </NumCard>
         ))}
-      </Card>
+      </div>
 
-      <Card title="Focus 2026 · Els 3 compromisos clau">
+      {/* Focus 2026 */}
+      <SectionDivider title="Focus 2026 · Els 3 compromisos clau" />
+      <div className="space-y-2">
         {focus2026.map((f, i) => (
-          <div key={i} className="space-y-2 pb-3 border-b border-[#F3F4F6] last:border-0 last:pb-0">
-            <p className="text-xs font-semibold text-[#8E0E1A]">Compromís {f.num}</p>
-            <div>
-              <Label>Compromís</Label>
-              <TextInput
+          <NumCard key={i} num={f.num}>
+            <div className="space-y-2">
+              <input
+                className={titleInput}
                 value={f.compromis}
-                onChange={v => setFocus2026(prev => prev.map((x, j) => j === i ? { ...x, compromis: v } : x))}
-                placeholder="Nom del compromís…"
+                onChange={v => setFocus2026(prev => prev.map((x, j) => j === i ? { ...x, compromis: v.target.value } : x))}
+                placeholder="El compromís…"
               />
-            </div>
-            <div>
-              <Label>Descripció</Label>
-              <TextInput
+              <input
+                className="w-full text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none placeholder:text-[#DCDCDC]"
                 value={f.descripcio}
-                onChange={v => setFocus2026(prev => prev.map((x, j) => j === i ? { ...x, descripcio: v } : x))}
+                onChange={v => setFocus2026(prev => prev.map((x, j) => j === i ? { ...x, descripcio: v.target.value } : x))}
                 placeholder="Com el portaré a terme…"
               />
             </div>
-          </div>
+          </NumCard>
         ))}
-      </Card>
+      </div>
 
-      <Card title="Frase d'autoexigència">
-        <TextInput value={fraseAuto} onChange={setFraseAuto} placeholder="La meva missió…" />
-      </Card>
+      {/* Frase autoexigència */}
+      <SectionDivider title="Frase d'autoexigència" />
+      <BlockCard>
+        <input
+          className={titleInput}
+          value={fraseAuto}
+          onChange={e => setFraseAuto(e.target.value)}
+          placeholder="La meva missió…"
+        />
+      </BlockCard>
 
-      <Card title="Declaració final">
-        <TextArea value={declaracio} onChange={setDeclaracio} rows={4} placeholder="El 2026 serà…" />
-      </Card>
+      {/* Declaració */}
+      <SectionDivider title="Declaració final" />
+      <BlockCard>
+        <textarea
+          value={declaracio}
+          onChange={e => setDeclaracio(e.target.value)}
+          rows={4}
+          className={descTextarea}
+          placeholder="El 2026 serà…"
+        />
+      </BlockCard>
 
-      <Card title="Data">
-        <TextInput value={data} onChange={setData} placeholder="DD/MM/YYYY" />
-      </Card>
+      {/* Data */}
+      <SectionDivider title="Data" />
+      <BlockCard>
+        <input
+          className="text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none placeholder:text-[#DCDCDC] w-full"
+          value={data}
+          onChange={e => setData(e.target.value)}
+          placeholder="DD/MM/YYYY"
+        />
+      </BlockCard>
 
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+      {/* Save */}
+      <div className="flex items-center justify-between pt-4 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Carta guardada
-        </div>
+        </span>
         <button
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
           {isPending ? "Guardant…" : "Guardar carta"}
         </button>

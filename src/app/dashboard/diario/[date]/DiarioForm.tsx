@@ -62,55 +62,32 @@ export interface DiarioEntry {
   running_notes?: string | null;
 }
 
-// ─── Star rating ──────────────────────────────────────────────────────────────
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function StarRating({
-  name, value, onChange,
-}: {
-  name: string;
-  value: number | null;
-  onChange: (v: number) => void;
-}) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(value === n ? 0 : n)}
-          className={[
-            "w-7 h-7 rounded-md flex items-center justify-center text-base transition-all hover:scale-110",
-            value && n <= value ? "text-amber-400" : "text-[#D1D5DB] hover:text-amber-300",
-          ].join(" ")}
-          aria-label={`${n} estrella${n !== 1 ? "s" : ""}`}
-        >
-          ★
-        </button>
-      ))}
-      <input type="hidden" name={name} value={value ?? ""} />
-    </div>
-  );
-}
-
-// ─── Section header ───────────────────────────────────────────────────────────
-
-function SectionHeader({ emoji, title, subtitle }: { emoji: string; title: string; subtitle?: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-8 h-8 rounded-lg bg-[#FEF2F2] flex items-center justify-center text-base shrink-0">
-        {emoji}
-      </div>
-      <div>
-        <h2 className="text-sm font-bold text-[#0A0A0A] leading-tight">{title}</h2>
-        {subtitle && <p className="text-[11px] text-[#9CA3AF] leading-tight">{subtitle}</p>}
-      </div>
+    <div className="flex items-center gap-4 pt-1 pb-0.5">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
     </div>
   );
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-4 ${className}`}>
+    <div className={`bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] p-5 space-y-4 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function MetricLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-wider mb-1.5">{children}</p>;
+}
+
+function MetricMini({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-[#FAFAFA] rounded-xl p-3 ${className}`}>
       {children}
     </div>
   );
@@ -131,7 +108,7 @@ function TextArea({ name, value, onChange, placeholder, rows = 3 }: {
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+      className="w-full text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-0 outline-none resize-none leading-relaxed"
     />
   );
 }
@@ -147,8 +124,42 @@ function TextInput({ name, value, onChange, placeholder, type = "text" }: {
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+      className="w-full text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-0 outline-none"
     />
+  );
+}
+
+function StarRating({ name, value, onChange, small = false }: {
+  name: string; value: number | null; onChange: (v: number) => void; small?: boolean;
+}) {
+  const sz = small ? "w-5 h-5 text-sm" : "w-6 h-6 text-base";
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(value === n ? 0 : n)}
+          className={`${sz} rounded flex items-center justify-center transition-all hover:scale-110 ${value && n <= value ? "text-amber-400" : "text-[#E0E0E0] hover:text-amber-300"}`}
+          aria-label={`${n}`}
+        >
+          ★
+        </button>
+      ))}
+      <input type="hidden" name={name} value={value ?? ""} />
+    </div>
+  );
+}
+
+function GarminChip({ icon, label, value }: { icon: string; label: string; value: string | null }) {
+  return (
+    <div className="bg-[#FAFAFA] rounded-xl p-3">
+      <p className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-[15px] font-bold leading-tight ${value ? "text-[#0A0A0A]" : "text-[#E0E0E0]"}`}>
+        {value ?? "–"}
+      </p>
+      <p className="text-base mt-0.5">{icon}</p>
+    </div>
   );
 }
 
@@ -163,6 +174,7 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
   const [saved, setSaved] = useState(false);
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminMsg, setGarminMsg] = useState<string | null>(null);
+  const [garminData, setGarminData] = useState<GarminDayData | null>(null);
 
   // ── State ──
   const [horaInici, setHoraInici]     = useState(initial?.hora_inici ?? "");
@@ -231,13 +243,14 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
       const json = await res.json() as { ok: boolean; data?: GarminDayData; error?: string };
       if (!json.ok) throw new Error(json.error ?? "Error desconegut");
       const d = json.data!;
+      setGarminData(d);
       if (d.son_hores  != null) setSonHores(String(d.son_hores));
       if (d.energia    != null) setEnergia(d.energia);
       if (d.serenitat  != null) setSerenitat(d.serenitat);
       if (d.running_km != null) setRunningKm(String(d.running_km));
       if (d.running_min != null) setRunningMin(String(d.running_min));
       const items = d.origen.length > 0 ? d.origen.join(", ") : "cap dada nova";
-      setGarminMsg(`Sincronitzat: ${items}`);
+      setGarminMsg(`✓ ${items}`);
     } catch (e) {
       setGarminMsg(`Error: ${(e as Error).message}`);
     } finally {
@@ -269,7 +282,6 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
-  // Running pace calculation
   const kmVal = parseFloat(runningKm);
   const minVal = parseFloat(runningMin);
   const pace = (!isNaN(kmVal) && !isNaN(minVal) && kmVal > 0 && minVal > 0)
@@ -282,27 +294,108 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
     : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <input type="hidden" name="fecha" value={fecha} />
 
       {/* ── Frase de la setmana ── */}
       {fraseSetmana && (
-        <div className="bg-white rounded-xl border-l-4 border-l-[#8E0E1A] border border-[#E5E7EB] px-4 py-3">
-          <p className="text-[11px] font-semibold text-[#8E0E1A] uppercase tracking-wider mb-1">Frase de la setmana</p>
-          <p className="text-sm text-[#0A0A0A] italic">&ldquo;{fraseSetmana}&rdquo;</p>
+        <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4 border-l-4 border-l-[#8E0E1A]">
+          <p className="text-[10px] font-bold text-[#8E0E1A] uppercase tracking-[0.15em] mb-1">Frase de la setmana</p>
+          <p className="text-[13px] text-[#0A0A0A] italic leading-relaxed">&ldquo;{fraseSetmana}&rdquo;</p>
         </div>
       )}
 
-      {/* ── 1. Metrics ── */}
+      {/* ── 1. Dashboard ── */}
       <Card>
-        <div className="flex items-start justify-between gap-2">
-          <SectionHeader emoji="📊" title="Dashboard del dia" subtitle={dateLabel} />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Dashboard</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A] leading-tight">{dateLabel}</p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <MetricMini>
+            <MetricLabel>Hora d&apos;inici</MetricLabel>
+            <input
+              type="time"
+              name="hora_inici"
+              value={horaInici}
+              onChange={e => setHoraInici(e.target.value)}
+              className="text-[13px] font-medium text-[#0A0A0A] bg-transparent border-0 outline-none w-full"
+            />
+          </MetricMini>
+
+          <MetricMini>
+            <MetricLabel>Temps</MetricLabel>
+            <input
+              type="text"
+              name="temps"
+              value={temps}
+              onChange={e => setTemps(e.target.value)}
+              placeholder="Sol, plujós…"
+              className="text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-0 outline-none w-full"
+            />
+          </MetricMini>
+
+          <MetricMini>
+            <MetricLabel>Hores de son</MetricLabel>
+            <input
+              type="number"
+              name="son_hores"
+              value={sonHores}
+              onChange={e => setSonHores(e.target.value)}
+              min={0} max={24} step={0.5}
+              placeholder="7.5"
+              className="text-[13px] font-medium text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-0 outline-none w-full"
+            />
+          </MetricMini>
+
+          <MetricMini className="col-span-2 sm:col-span-1">
+            <MetricLabel>Nota del dia</MetricLabel>
+            <StarRating name="nota_dia" value={notaDia} onChange={setNotaDia} />
+          </MetricMini>
+
+          <MetricMini className="col-span-2">
+            <MetricLabel>Efemèride</MetricLabel>
+            <input
+              type="text"
+              name="efemeride"
+              value={efemeride}
+              onChange={e => setEfemeride(e.target.value)}
+              placeholder="Alguna data important d'avui…"
+              className="text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-0 outline-none w-full"
+            />
+          </MetricMini>
+        </div>
+
+        <SectionDivider title="Mesures internes" />
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {([
+            ["Estat d'ànim", "estat_anim", estatAnim, setEstatAnim],
+            ["Energia", "energia", energia, setEnergia],
+            ["Focus", "focus_mat", focusMat, setFocusMat],
+            ["Serenitat", "serenitat", serenitat, setSerenitat],
+          ] as const).map(([label, name, val, setVal]) => (
+            <MetricMini key={name}>
+              <MetricLabel>{label}</MetricLabel>
+              <StarRating name={name} value={val} onChange={setVal as (v: number) => void} small />
+            </MetricMini>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── 2. Garmin ── */}
+      <Card>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Dispositiu</p>
+            <p className="text-[15px] font-semibold text-[#0A0A0A] leading-tight">Garmin Connect</p>
+          </div>
           <button
             type="button"
             onClick={syncGarmin}
             disabled={garminLoading}
-            className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] hover:bg-[#F3F4F6] disabled:opacity-50 transition-colors"
-            title="Importar dades del Garmin Connect"
+            className="flex items-center gap-1.5 shrink-0 px-4 py-2 rounded-xl bg-[#0A0A0A] text-white text-[12px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
           >
             {garminLoading ? (
               <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
@@ -314,158 +407,128 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
                 <path d="M2 1.5V4h2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             )}
-            Garmin
+            Importar
           </button>
         </div>
+
         {garminMsg && (
-          <p className={`-mt-2 text-[11px] ${garminMsg.startsWith("Error") ? "text-red-500" : "text-emerald-600"}`}>
+          <p className={`-mt-2 text-[11px] font-medium ${garminMsg.startsWith("Error") ? "text-red-500" : "text-emerald-600"}`}>
             {garminMsg}
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <div>
-            <Label>Hora d&apos;inici</Label>
-            <input
-              type="time"
-              name="hora_inici"
-              value={horaInici}
-              onChange={e => setHoraInici(e.target.value)}
-              className="text-sm text-[#0A0A0A] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]"
-            />
+        {garminData ? (
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
+            <GarminChip icon="💤" label="Son"      value={garminData.son_hores != null ? `${garminData.son_hores}h` : null} />
+            <GarminChip icon="❤️" label="FC repòs" value={garminData.rhr != null ? `${garminData.rhr} bpm` : null} />
+            <GarminChip icon="⚡" label="Energia"  value={garminData.energia != null ? `${garminData.energia}/5` : null} />
+            <GarminChip icon="🧘" label="Serenitat" value={garminData.serenitat != null ? `${garminData.serenitat}/5` : null} />
+            <GarminChip icon="👟" label="Passos"   value={garminData.passos != null ? garminData.passos.toLocaleString("ca-ES") : null} />
+            <GarminChip icon="🏃" label="Running"  value={garminData.running_km != null ? `${garminData.running_km} km` : null} />
           </div>
-          <div>
-            <Label>Temps</Label>
-            <TextInput name="temps" value={temps} onChange={setTemps} placeholder="Sol, plujós…" />
-          </div>
-
-          <div>
-            <Label>Nota del dia ⭐</Label>
-            <StarRating name="nota_dia" value={notaDia} onChange={setNotaDia} />
-          </div>
-          <div>
-            <Label>Hores de son</Label>
-            <input
-              type="number"
-              name="son_hores"
-              value={sonHores}
-              onChange={e => setSonHores(e.target.value)}
-              min={0} max={24} step={0.5}
-              placeholder="7.5"
-              className="w-24 text-sm text-[#0A0A0A] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-          {([
-            ["Estat d'ànim", "estat_anim", estatAnim, setEstatAnim],
-            ["Energia", "energia", energia, setEnergia],
-            ["Focus", "focus_mat", focusMat, setFocusMat],
-            ["Serenitat", "serenitat", serenitat, setSerenitat],
-          ] as const).map(([label, name, val, setVal]) => (
-            <div key={name}>
-              <Label>{label}</Label>
-              <StarRating name={name} value={val} onChange={setVal as (v: number) => void} />
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <Label>Efemèride del dia</Label>
-          <TextInput name="efemeride" value={efemeride} onChange={setEfemeride}
-            placeholder="Alguna data important d'avui…" />
-        </div>
+        ) : (
+          <p className="text-[12px] text-[#C0C0C0] text-center py-4">
+            Cap dada importada · Prem <em>Importar</em> per sincronitzar el Garmin
+          </p>
+        )}
       </Card>
 
-      {/* ── 2. Matí ── */}
+      {/* ── 3. Matí ── */}
       <Card>
-        <SectionHeader emoji="🌅" title="Planificació matinal" subtitle="Comença el dia amb intenció" />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Planificació</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Matinal</p>
+        </div>
 
         <div>
-          <Label>Tasca clau del dia <span className="normal-case text-[10px] text-[#9CA3AF]">(verb + resultat esperat)</span></Label>
-          <TextInput name="tasca_clau" value={tascaClau} onChange={setTascaClau}
-            placeholder="Tancar 2 propostes comercials…" />
+          <Label>Tasca clau del dia</Label>
+          <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+            <TextInput name="tasca_clau" value={tascaClau} onChange={setTascaClau}
+              placeholder="Verb + resultat esperat…" />
+          </div>
         </div>
 
         <div>
           <Label>Disciplina · compromís</Label>
-          <TextInput name="disciplina_compromis" value={disciplina} onChange={setDisciplina}
-            placeholder="Sense sucre, exercici 45 min…" />
+          <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+            <TextInput name="disciplina_compromis" value={disciplina} onChange={setDisciplina}
+              placeholder="Sense sucre, exercici 45 min…" />
+          </div>
         </div>
 
         <div>
           <Label>Espai lliure</Label>
-          <TextArea name="espai_lliure" value={espaiLliure} onChange={setEspaiLliure}
-            placeholder="El que tinguis al cap…" rows={2} />
+          <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+            <TextArea name="espai_lliure" value={espaiLliure} onChange={setEspaiLliure}
+              placeholder="El que tinguis al cap…" rows={2} />
+          </div>
         </div>
 
         <div>
           <Label>Reflexió personal</Label>
-          <TextArea name="reflexio_personal" value={reflexio} onChange={setReflexio}
-            placeholder="Qui vull ser avui? Quina actitud porto?" rows={2} />
+          <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+            <TextArea name="reflexio_personal" value={reflexio} onChange={setReflexio}
+              placeholder="Qui vull ser avui? Quina actitud porto?" rows={2} />
+          </div>
         </div>
       </Card>
 
-      {/* ── 3. Objectius del dia ── */}
+      {/* ── 4. Objectius del dia ── */}
       <Card>
-        <SectionHeader emoji="🎯" title="Objectius del dia" />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Intenció</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Objectius del dia</p>
+        </div>
 
         {objectius.length > 0 && (
           <div className="space-y-2">
             {objectius.map((o, i) => (
-              <div key={i} className="grid grid-cols-[1fr_2fr_2fr_auto_auto] gap-2 items-start">
-                <div>
-                  {i === 0 && <Label>Categoria</Label>}
+              <div key={i} className="bg-[#FAFAFA] rounded-xl px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-[#8E0E1A]/40">{String(i + 1).padStart(2, "0")}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeObjectiu(i)}
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[#D0D0D0] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors"
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M1 1l6 6M7 1L1 7" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input
                     type="text"
                     value={o.categoria}
                     onChange={e => updateObjectiu(i, "categoria", e.target.value)}
-                    placeholder="Personal"
-                    className="w-full text-sm bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]"
+                    placeholder="Categoria…"
+                    className="text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-b border-[#F0F0F0] outline-none pb-1"
                   />
-                </div>
-                <div>
-                  {i === 0 && <Label>Objectiu concret</Label>}
                   <input
                     type="text"
                     value={o.objectiu}
                     onChange={e => updateObjectiu(i, "objectiu", e.target.value)}
-                    placeholder="Objectiu…"
-                    className="w-full text-sm bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]"
+                    placeholder="Objectiu concret…"
+                    className="text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-b border-[#F0F0F0] outline-none pb-1"
                   />
-                </div>
-                <div>
-                  {i === 0 && <Label>Acció clau</Label>}
                   <input
                     type="text"
                     value={o.accio}
                     onChange={e => updateObjectiu(i, "accio", e.target.value)}
-                    placeholder="Acció…"
-                    className="w-full text-sm bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]"
+                    placeholder="Acció clau…"
+                    className="text-[13px] text-[#0A0A0A] placeholder-[#DCDCDC] bg-transparent border-b border-[#F0F0F0] outline-none pb-1"
                   />
                 </div>
-                <div>
-                  {i === 0 && <Label>Nota</Label>}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[#C0C0C0] uppercase tracking-wider">Nota</span>
                   <select
                     value={o.nota ?? ""}
                     onChange={e => updateObjectiu(i, "nota", e.target.value ? parseInt(e.target.value) : null)}
-                    className="text-sm bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none"
+                    className="text-[12px] text-[#0A0A0A] bg-transparent border-0 outline-none"
                   >
                     <option value="">–</option>
                     {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
-                </div>
-                <div className={i === 0 ? "pt-5" : ""}>
-                  <button
-                    type="button"
-                    onClick={() => removeObjectiu(i)}
-                    className="p-1.5 rounded-md text-[#9CA3AF] hover:text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M2 2l8 8M10 2L2 10" strokeLinecap="round"/>
-                    </svg>
-                  </button>
                 </div>
               </div>
             ))}
@@ -475,63 +538,80 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
         <button
           type="button"
           onClick={addObjectiu}
-          className="flex items-center gap-1.5 text-sm text-[#8E0E1A] hover:text-[#7a0b16] font-medium transition-colors"
+          className="flex items-center gap-2 text-[12px] font-semibold text-[#8E0E1A]/70 hover:text-[#8E0E1A] transition-colors py-1"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M7 1v12M1 7h12" strokeLinecap="round"/>
-          </svg>
+          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
+            <svg width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3.5.5v6M.5 3.5h6" strokeLinecap="round"/>
+            </svg>
+          </span>
           Afegir objectiu
         </button>
       </Card>
 
-      {/* ── 4. Ritual matinal ── */}
+      {/* ── 5. Ritual matinal ── */}
       <Card>
-        <SectionHeader emoji="✅" title="Ritual matinal" subtitle="Marca el que has fet" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Hàbits</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Ritual matinal</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {(Object.keys(RITUAL_LABELS) as (keyof RitualMat)[]).map(key => (
-            <label
+            <button
               key={key}
-              className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-colors"
+              type="button"
+              onClick={() => setRitual(r => ({ ...r, [key]: !r[key] }))}
+              className={[
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all",
+                ritual[key] ? "bg-emerald-50 border border-emerald-200" : "bg-[#FAFAFA] border border-transparent hover:border-[#F0F0F0]",
+              ].join(" ")}
             >
-              <div
-                onClick={() => setRitual(r => ({ ...r, [key]: !r[key] }))}
-                className={[
-                  "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0",
-                  ritual[key] ? "bg-emerald-500 border-emerald-500" : "border-[#D1D5DB]",
-                ].join(" ")}
-              >
+              <div className={[
+                "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                ritual[key] ? "bg-emerald-500 border-emerald-500" : "border-[#D8D8D8]",
+              ].join(" ")}>
                 {ritual[key] && (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2">
-                    <path d="M1.5 5l2.5 2.5 4.5-4" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="white" strokeWidth="2">
+                    <path d="M1.5 4.5l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
               </div>
-              <span className={`text-sm ${ritual[key] ? "text-[#0A0A0A] font-medium" : "text-[#6B7280]"}`}>
+              <span className={`text-[13px] ${ritual[key] ? "text-[#0A0A0A] font-semibold" : "text-[#6B7280]"}`}>
                 {RITUAL_LABELS[key]}
               </span>
-            </label>
+            </button>
           ))}
         </div>
       </Card>
 
-      {/* ── 5. Diari d'activitats ── */}
+      {/* ── 6. Activitats ── */}
       <Card>
-        <SectionHeader emoji="📝" title="Diari d'activitats" subtitle="Escriu lliurement" />
-        <TextArea
-          name="activitats"
-          value={activitats}
-          onChange={setActivitats}
-          placeholder="Descriu com ha anat el dia, el que has fet, converses importants, decisions preses…"
-          rows={6}
-        />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Memòria</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Diari d&apos;activitats</p>
+        </div>
+        <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+          <TextArea
+            name="activitats"
+            value={activitats}
+            onChange={setActivitats}
+            placeholder="Descriu com ha anat el dia, converses importants, decisions preses…"
+            rows={5}
+          />
+        </div>
       </Card>
 
-      {/* ── 5b. Running / Moviment ── */}
+      {/* ── 7. Running ── */}
       <Card>
-        <SectionHeader emoji="🏃" title="Running / Moviment" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div>
-            <Label>Km recorreguts</Label>
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Moviment</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Running</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <MetricMini>
+            <MetricLabel>Km</MetricLabel>
             <input
               type="number"
               name="running_km"
@@ -539,11 +619,11 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
               onChange={e => setRunningKm(e.target.value)}
               min={0} max={100} step={0.1}
               placeholder="0.0"
-              className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+              className="text-[15px] font-bold text-[#0A0A0A] placeholder-[#E0E0E0] bg-transparent border-0 outline-none w-full"
             />
-          </div>
-          <div>
-            <Label>Minuts</Label>
+          </MetricMini>
+          <MetricMini>
+            <MetricLabel>Minuts</MetricLabel>
             <input
               type="number"
               name="running_min"
@@ -551,80 +631,98 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
               onChange={e => setRunningMin(e.target.value)}
               min={0} max={300}
               placeholder="0"
-              className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+              className="text-[15px] font-bold text-[#0A0A0A] placeholder-[#E0E0E0] bg-transparent border-0 outline-none w-full"
             />
-          </div>
-          <div>
-            <Label>Ritme</Label>
-            <div className="flex items-center h-[38px] px-3 bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-sm text-[#374151]">
+          </MetricMini>
+          <MetricMini>
+            <MetricLabel>Ritme</MetricLabel>
+            <p className={`text-[15px] font-bold leading-tight ${pace ? "text-[#0A0A0A]" : "text-[#E0E0E0]"}`}>
               {pace ?? "–"}
-            </div>
-          </div>
+            </p>
+          </MetricMini>
         </div>
-        <div>
-          <Label>Ruta o notes</Label>
+
+        <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
           <TextInput
             name="running_notes"
             value={runningNotes}
             onChange={setRunningNotes}
-            placeholder="Parc de la Ciutadella, 5K suau…"
+            placeholder="Ruta, sensacions, notes…"
           />
         </div>
       </Card>
 
-      {/* ── 6. Examen de vespre ── */}
+      {/* ── 8. Examen de vespre ── */}
       <Card>
-        <SectionHeader emoji="🌙" title="Examen de vespre" subtitle="Reflexió final del dia" />
-        <TextArea
-          name="examen_vespre"
-          value={examenVespre}
-          onChange={setExamenVespre}
-          placeholder="He actuat des dels meus valors? He estat coherent? Que m'ha sorprès avui? Que repetiria?"
-          rows={4}
-        />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Reflexió</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Examen de vespre</p>
+        </div>
+        <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+          <TextArea
+            name="examen_vespre"
+            value={examenVespre}
+            onChange={setExamenVespre}
+            placeholder="He actuat des dels meus valors? He estat coherent? Que m'ha sorprès avui?"
+            rows={4}
+          />
+        </div>
       </Card>
 
-      {/* ── 7. Check final ── */}
+      {/* ── 9. Check final ── */}
       <Card>
-        <SectionHeader emoji="🏁" title="Check final" />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Tancament</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Check final</p>
+        </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {([
             ["Tasca clau completada", tascaCompletada, setTascaCompletada],
             ["Disciplina complerta", disciplinaComp, setDisciplinaComp],
             ["Criteri mantingut", criteriMantingut, setCriteriMantingut],
           ] as const).map(([label, val, setVal]) => (
-            <label key={label} className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-colors">
-              <div
-                onClick={() => (setVal as (v: boolean) => void)(!val)}
-                className={[
-                  "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0",
-                  val ? "bg-[#8E0E1A] border-[#8E0E1A]" : "border-[#D1D5DB]",
-                ].join(" ")}
-              >
+            <button
+              key={label}
+              type="button"
+              onClick={() => (setVal as (v: boolean) => void)(!val)}
+              className={[
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all",
+                val ? "bg-[#FEF2F2] border border-[#FECDD3]" : "bg-[#FAFAFA] border border-transparent hover:border-[#F0F0F0]",
+              ].join(" ")}
+            >
+              <div className={[
+                "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                val ? "bg-[#8E0E1A] border-[#8E0E1A]" : "border-[#D8D8D8]",
+              ].join(" ")}>
                 {val && (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="2">
-                    <path d="M1.5 5l2.5 2.5 4.5-4" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="white" strokeWidth="2">
+                    <path d="M1.5 4.5l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
               </div>
-              <span className={`text-sm ${val ? "text-[#0A0A0A] font-semibold" : "text-[#6B7280]"}`}>{label}</span>
-            </label>
+              <span className={`text-[13px] ${val ? "text-[#0A0A0A] font-semibold" : "text-[#6B7280]"}`}>{label}</span>
+            </button>
           ))}
         </div>
 
         <div>
           <Label>Resultat · avui he avançat perquè…</Label>
-          <TextInput name="resultat" value={resultat} onChange={setResultat}
-            placeholder="He tancat la proposta perquè m'he preparat bé…" />
+          <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
+            <TextInput name="resultat" value={resultat} onChange={setResultat}
+              placeholder="He tancat la proposta perquè m'he preparat bé…" />
+          </div>
         </div>
       </Card>
 
-      {/* ── 8. Autoavaluació ── */}
+      {/* ── 10. Autoavaluació ── */}
       <Card>
-        <SectionHeader emoji="📈" title="Autoavaluació ràpida" subtitle="1 = molt baix · 5 = excel·lent" />
+        <div>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Mesura</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Autoavaluació</p>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {([
             ["Disciplina",   "av_disciplina",  avDisciplina,  setAvDisciplina],
             ["Mentalitat",   "av_mentalitat",  avMentalitat,  setAvMentalitat],
@@ -632,34 +730,36 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
             ["Relacions",    "av_relacions",   avRelacions,   setAvRelacions],
             ["Serenitat",    "av_serenitat",   avSerenitat,   setAvSerenitat],
           ] as const).map(([label, name, val, setVal]) => (
-            <div key={name} className="flex items-center gap-3">
-              <span className="text-sm text-[#374151] w-28 shrink-0">{label}</span>
-              <StarRating name={name} value={val} onChange={setVal as (v: number) => void} />
-            </div>
+            <MetricMini key={name}>
+              <MetricLabel>{label}</MetricLabel>
+              <StarRating name={name} value={val} onChange={setVal as (v: number) => void} small />
+            </MetricMini>
           ))}
         </div>
       </Card>
 
-      {/* ── 9. Tancament ── */}
+      {/* ── 11. Tancament ── */}
       <Card>
-        <SectionHeader emoji="💎" title="Tancament" subtitle="Una frase per tancar el dia" />
         <div>
-          <Label>Avui m&apos;enduc…</Label>
+          <p className="text-[11px] font-black text-[#8E0E1A]/40 uppercase tracking-[0.15em] mb-0.5">Lliçó</p>
+          <p className="text-[15px] font-semibold text-[#0A0A0A]">Avui m&apos;enduc…</p>
+        </div>
+        <div className="bg-[#FAFAFA] rounded-xl px-4 py-3">
           <TextArea name="avui_menduc" value={avuiMenduc} onChange={setAvuiMenduc}
             placeholder="Avui m'enduc que la constància és més poderosa que la intensitat…"
             rows={3} />
         </div>
       </Card>
 
-      {/* ── Save button ── */}
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+      {/* ── Save ── */}
+      <div className="flex items-center justify-between pt-2 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Entrada guardada
-        </div>
+        </span>
         <button
           type="submit"
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
           {isPending ? "Guardant…" : "Guardar entrada"}
         </button>

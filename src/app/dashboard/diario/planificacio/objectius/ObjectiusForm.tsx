@@ -15,25 +15,41 @@ export interface ObjectiusData {
 const HORIZONS = ["2026", "2030", "2035", "2040"] as const;
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{children}</p>;
-}
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function inputCls() {
-  return "w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors";
-}
-
-function RemoveBtn({ onClick }: { onClick: () => void }) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="p-1.5 rounded-md text-[#9CA3AF] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-    >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M2 2l8 8M10 2L2 10" strokeLinecap="round"/>
-      </svg>
-    </button>
+    <div className="flex items-center gap-4 pt-2 pb-1">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
+    </div>
+  );
+}
+
+const titleInput = "w-full text-[14px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-transparent hover:border-[#E8E8E8] focus:border-[#8E0E1A]/40 outline-none pb-1 transition-colors placeholder:text-[#DCDCDC] placeholder:font-normal";
+const descInput = "w-full text-[12px] text-[#5A5A5A] bg-transparent border-0 outline-none placeholder:text-[#DCDCDC] mt-1";
+
+function ItemCard({ num, onRemove, children }: {
+  num: number; onRemove: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="relative bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 pt-4 pb-3">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-black text-[#8E0E1A]/40 mt-0.5 w-5 shrink-0 select-none">
+          {String(num).padStart(2, "0")}
+        </span>
+        <div className="flex-1 min-w-0">{children}</div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[#D0D0D0] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors mt-0.5"
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M1 1l6 6M7 1L1 7" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -42,15 +58,19 @@ function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 text-sm text-[#8E0E1A] hover:text-[#7a0b16] font-medium transition-colors"
+      className="flex items-center gap-2 text-[12px] font-semibold text-[#8E0E1A]/70 hover:text-[#8E0E1A] transition-colors py-1"
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M7 1v12M1 7h12" strokeLinecap="round"/>
-      </svg>
+      <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
+        <svg width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3.5.5v6M.5 3.5h6" strokeLinecap="round"/>
+        </svg>
+      </span>
       {label}
     </button>
   );
 }
+
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function ObjectiusForm({ initial }: { initial: ObjectiusData }) {
   const [isPending, startTransition] = useTransition();
@@ -110,92 +130,92 @@ export function ObjectiusForm({ initial }: { initial: ObjectiusData }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Objectius Vitals */}
-      <div>
-        <h2 className="text-base font-bold text-[#0A0A0A] mb-3">Objectius Vitals per horitzó</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {HORIZONS.map(horizon => (
-            <div key={horizon} className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-[#8E0E1A]">{horizon}</h3>
-              </div>
+    <div className="space-y-3">
 
-              {(vitals[horizon] ?? []).map((row, i) => (
-                <div key={i} className="space-y-1 pb-2 border-b border-[#F3F4F6] last:border-0 last:pb-0">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 space-y-1">
-                      <div>
-                        {i === 0 && <Label>Categoria</Label>}
-                        <input className={inputCls()} value={row.categoria} onChange={e => updateVital(horizon, i, "categoria", e.target.value)} placeholder="Categoria…" />
-                      </div>
-                      <div>
-                        {i === 0 && <Label>Objectiu</Label>}
-                        <input className={inputCls()} value={row.objectiu} onChange={e => updateVital(horizon, i, "objectiu", e.target.value)} placeholder="Objectiu…" />
-                      </div>
-                      <div>
-                        {i === 0 && <Label>Descripció</Label>}
-                        <input className={inputCls()} value={row.descripcio} onChange={e => updateVital(horizon, i, "descripcio", e.target.value)} placeholder="Descripció…" />
-                      </div>
-                    </div>
-                    <div className={i === 0 ? "pt-5" : "pt-0"}>
-                      <RemoveBtn onClick={() => removeVital(horizon, i)} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <AddBtn onClick={() => addVital(horizon)} label="Afegir objectiu" />
-            </div>
+      {/* Vitals */}
+      <SectionDivider title="Objectius vitals per horitzó" />
+
+      {HORIZONS.map(horizon => (
+        <div key={horizon} className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-black text-[#8E0E1A]/60 w-10 shrink-0">{horizon}</span>
+            <div className="flex-1 h-px bg-[#F8F8F8]" />
+          </div>
+
+          {(vitals[horizon] ?? []).map((row, i) => (
+            <ItemCard key={i} num={i + 1} onRemove={() => removeVital(horizon, i)}>
+              <p className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.12em] mb-1">{row.categoria || "Categoria"}</p>
+              <input
+                className={titleInput}
+                value={row.objectiu}
+                onChange={e => updateVital(horizon, i, "objectiu", e.target.value)}
+                placeholder="L'objectiu…"
+              />
+              <input
+                className={descInput}
+                value={row.categoria}
+                onChange={e => updateVital(horizon, i, "categoria", e.target.value)}
+                placeholder="Categoria…"
+              />
+              <input
+                className={descInput}
+                value={row.descripcio}
+                onChange={e => updateVital(horizon, i, "descripcio", e.target.value)}
+                placeholder="Descripció o accions…"
+              />
+            </ItemCard>
           ))}
+          <AddBtn onClick={() => addVital(horizon)} label={`Afegir objectiu ${horizon}`} />
         </div>
-      </div>
+      ))}
 
-      {/* Objectius Trimestrals */}
-      <div>
-        <h2 className="text-base font-bold text-[#0A0A0A] mb-3">Objectius Trimestrals 2026</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {QUARTERS.map(q => (
-            <div key={q} className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
-              <h3 className="text-sm font-bold text-[#8E0E1A]">{q}</h3>
+      {/* Trimestrals */}
+      <SectionDivider title="Objectius trimestrals 2026" />
 
-              {(trimestrals[q] ?? []).map((row, i) => (
-                <div key={i} className="space-y-1 pb-2 border-b border-[#F3F4F6] last:border-0 last:pb-0">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 space-y-1">
-                      <div>
-                        {i === 0 && <Label>Àrea</Label>}
-                        <input className={inputCls()} value={row.area} onChange={e => updateTrim(q, i, "area", e.target.value)} placeholder="Àrea…" />
-                      </div>
-                      <div>
-                        {i === 0 && <Label>Objectiu</Label>}
-                        <input className={inputCls()} value={row.objectiu} onChange={e => updateTrim(q, i, "objectiu", e.target.value)} placeholder="Objectiu…" />
-                      </div>
-                      <div>
-                        {i === 0 && <Label>Descripció</Label>}
-                        <input className={inputCls()} value={row.descripcio} onChange={e => updateTrim(q, i, "descripcio", e.target.value)} placeholder="Descripció…" />
-                      </div>
-                    </div>
-                    <div className={i === 0 ? "pt-5" : "pt-0"}>
-                      <RemoveBtn onClick={() => removeTrim(q, i)} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <AddBtn onClick={() => addTrim(q)} label="Afegir objectiu" />
-            </div>
+      {QUARTERS.map(q => (
+        <div key={q} className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-black text-[#8E0E1A]/60 w-10 shrink-0">{q}</span>
+            <div className="flex-1 h-px bg-[#F8F8F8]" />
+          </div>
+
+          {(trimestrals[q] ?? []).map((row, i) => (
+            <ItemCard key={i} num={i + 1} onRemove={() => removeTrim(q, i)}>
+              <p className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.12em] mb-1">{row.area || "Àrea"}</p>
+              <input
+                className={titleInput}
+                value={row.objectiu}
+                onChange={e => updateTrim(q, i, "objectiu", e.target.value)}
+                placeholder="L'objectiu…"
+              />
+              <input
+                className={descInput}
+                value={row.area}
+                onChange={e => updateTrim(q, i, "area", e.target.value)}
+                placeholder="Àrea…"
+              />
+              <input
+                className={descInput}
+                value={row.descripcio}
+                onChange={e => updateTrim(q, i, "descripcio", e.target.value)}
+                placeholder="Descripció o accions…"
+              />
+            </ItemCard>
           ))}
+          <AddBtn onClick={() => addTrim(q)} label={`Afegir objectiu ${q}`} />
         </div>
-      </div>
+      ))}
 
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+      {/* Save */}
+      <div className="flex items-center justify-between pt-4 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Objectius guardats
-        </div>
+        </span>
         <button
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
           {isPending ? "Guardant…" : "Guardar objectius"}
         </button>

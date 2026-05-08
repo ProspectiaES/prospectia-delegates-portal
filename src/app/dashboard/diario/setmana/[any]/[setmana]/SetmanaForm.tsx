@@ -5,66 +5,34 @@ import { saveSetmana } from "@/app/actions/diario-planificacio";
 
 const DIES = ["DLL", "DTS", "DMC", "DJS", "DVS", "DSB", "DMG"] as const;
 type Dia = typeof DIES[number];
-
 type Seguiment = Partial<Record<Dia, boolean>>;
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{children}</p>;
-}
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function TextArea({ name, value, onChange, placeholder, rows = 3 }: {
-  name: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
-}) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <textarea
-      name={name}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
-    />
+    <div className="flex items-center gap-4 pt-2 pb-1">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
+    </div>
   );
 }
 
-function Card({ children, title, subtitle }: { children: React.ReactNode; title: string; subtitle?: string }) {
+function BlockCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-4">
-      <div>
-        <h2 className="text-sm font-bold text-[#0A0A0A]">{title}</h2>
-        {subtitle && <p className="text-[11px] text-[#9CA3AF] mt-0.5">{subtitle}</p>}
-      </div>
+    <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4 space-y-3">
       {children}
     </div>
   );
 }
 
-function StarRating({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
-  return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(value === n ? 0 : n)}
-          className={[
-            "w-7 h-7 rounded-md flex items-center justify-center text-base transition-all hover:scale-110",
-            value && n <= value ? "text-amber-400" : "text-[#D1D5DB] hover:text-amber-300",
-          ].join(" ")}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  );
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.12em] mb-1">{children}</p>;
 }
 
-interface SetmanaFormProps {
-  any: number;
-  setmana: number;
-  fraseSetmana: string;
-  initial: Record<string, unknown> | null;
-}
+const areaTextarea = "w-full text-[13px] text-[#5A5A5A] bg-[#FAFAFA] rounded-xl px-4 py-3 border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function str(v: unknown): string {
   if (typeof v === "string") return v;
@@ -80,6 +48,34 @@ function num(v: unknown): number | null {
 function parseSeguiment(v: unknown): Seguiment {
   if (v && typeof v === "object" && !Array.isArray(v)) return v as Seguiment;
   return {};
+}
+
+// ─── Star rating ──────────────────────────────────────────────────────────────
+
+function StarRating({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(value === n ? 0 : n)}
+          className={`w-7 h-7 rounded flex items-center justify-center text-base transition-all hover:scale-110 ${value && n <= value ? "text-amber-400" : "text-[#E0E0E0] hover:text-amber-300"}`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main form ────────────────────────────────────────────────────────────────
+
+interface SetmanaFormProps {
+  any: number;
+  setmana: number;
+  fraseSetmana: string;
+  initial: Record<string, unknown> | null;
 }
 
 export function SetmanaForm({ any, setmana, fraseSetmana, initial }: SetmanaFormProps) {
@@ -127,70 +123,77 @@ export function SetmanaForm({ any, setmana, fraseSetmana, initial }: SetmanaForm
     });
   }
 
+  const diesComplerts = Object.values(seguiment).filter(Boolean).length;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Frase de la setmana */}
-      <div className="bg-white rounded-xl border-l-4 border-l-[#8E0E1A] border border-[#E5E7EB] px-4 py-3">
-        <p className="text-[11px] font-semibold text-[#8E0E1A] uppercase tracking-wider mb-1">Frase de la setmana {setmana}</p>
-        <p className="text-sm text-[#0A0A0A] italic">&ldquo;{fraseSetmana}&rdquo;</p>
+    <form onSubmit={handleSubmit} className="space-y-3">
+
+      {/* Frase */}
+      <div className="bg-white rounded-2xl border-l-4 border-l-[#8E0E1A] border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4">
+        <p className="text-[10px] font-bold text-[#8E0E1A] uppercase tracking-[0.15em] mb-1">Frase · setmana {setmana}</p>
+        <p className="text-[14px] text-[#0A0A0A] italic leading-relaxed">&ldquo;{fraseSetmana}&rdquo;</p>
       </div>
 
-      {/* Inputs setmanals */}
-      <Card title="Inputs de la setmana">
+      {/* Inputs */}
+      <SectionDivider title="Inputs de la setmana" />
+      <BlockCard>
         <div>
-          <Label>Miro</Label>
-          <TextArea name="input_miro" value={inputMiro} onChange={setInputMiro} placeholder="Sèrie, pel·lícula, documental…" rows={2} />
+          <SubLabel>Miro</SubLabel>
+          <textarea value={inputMiro} onChange={e => setInputMiro(e.target.value)} rows={2} className={areaTextarea} placeholder="Sèrie, pel·lícula, documental…" />
         </div>
         <div>
-          <Label>Llegeixo</Label>
-          <TextArea name="input_llegeixo" value={inputLlegeixo} onChange={setInputLlegeixo} placeholder="Llibre, article, assaig…" rows={2} />
+          <SubLabel>Llegeixo</SubLabel>
+          <textarea value={inputLlegeixo} onChange={e => setInputLlegeixo(e.target.value)} rows={2} className={areaTextarea} placeholder="Llibre, article, assaig…" />
         </div>
         <div>
-          <Label>Escolto</Label>
-          <TextArea name="input_escolto" value={inputEscolto} onChange={setInputEscolto} placeholder="Podcast, música, conferència…" rows={2} />
+          <SubLabel>Escolto</SubLabel>
+          <textarea value={inputEscolto} onChange={e => setInputEscolto(e.target.value)} rows={2} className={areaTextarea} placeholder="Podcast, música, conferència…" />
         </div>
-      </Card>
+      </BlockCard>
 
       {/* Millores */}
-      <Card title="Millores del jo" subtitle="Àrees on treballaré aquesta setmana">
+      <SectionDivider title="Millores del jo" />
+      <BlockCard>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <Label>Com a pare</Label>
-            <TextArea name="millora_pare" value={milloraPare} onChange={setMilloraPare} rows={2} placeholder="Acció concreta…" />
+            <SubLabel>Com a pare</SubLabel>
+            <textarea value={milloraPare} onChange={e => setMilloraPare(e.target.value)} rows={2} className={areaTextarea} placeholder="Acció concreta…" />
           </div>
           <div>
-            <Label>Com a marit</Label>
-            <TextArea name="millora_marit" value={milloraMarit} onChange={setMilloraMarit} rows={2} placeholder="Acció concreta…" />
+            <SubLabel>Com a marit</SubLabel>
+            <textarea value={milloraMarit} onChange={e => setMilloraMarit(e.target.value)} rows={2} className={areaTextarea} placeholder="Acció concreta…" />
           </div>
           <div>
-            <Label>Personal</Label>
-            <TextArea name="millora_personal" value={milloraPersonal} onChange={setMilloraPersonal} rows={2} placeholder="Acció concreta…" />
+            <SubLabel>Personal</SubLabel>
+            <textarea value={milloraPersonal} onChange={e => setMilloraPersonal(e.target.value)} rows={2} className={areaTextarea} placeholder="Acció concreta…" />
           </div>
           <div>
-            <Label>Caràcter</Label>
-            <TextArea name="millora_caracter" value={milloraCaracter} onChange={setMilloraCaracter} rows={2} placeholder="Acció concreta…" />
+            <SubLabel>Caràcter</SubLabel>
+            <textarea value={milloraCaracter} onChange={e => setMilloraCaracter(e.target.value)} rows={2} className={areaTextarea} placeholder="Acció concreta…" />
           </div>
           <div className="sm:col-span-2">
-            <Label>Feina</Label>
-            <TextArea name="millora_feina" value={milloraFeina} onChange={setMilloraFeina} rows={2} placeholder="Acció concreta…" />
+            <SubLabel>Feina</SubLabel>
+            <textarea value={milloraFeina} onChange={e => setMilloraFeina(e.target.value)} rows={2} className={areaTextarea} placeholder="Acció concreta…" />
           </div>
         </div>
-      </Card>
+      </BlockCard>
 
       {/* Hàbits */}
-      <Card title="Hàbits de la setmana">
+      <SectionDivider title="Hàbits de la setmana" />
+      <BlockCard>
         <div>
-          <Label>Incloc / Reforço</Label>
-          <TextArea name="habits_inclou" value={habitsInclou} onChange={setHabitsInclou} rows={2} placeholder="Hàbit que vull incloure o reforçar…" />
+          <SubLabel>Incloc · Reforço</SubLabel>
+          <textarea value={habitsInclou} onChange={e => setHabitsInclou(e.target.value)} rows={2} className={areaTextarea} placeholder="Hàbit que vull incloure o reforçar…" />
         </div>
         <div>
-          <Label>Excloure / Eliminar</Label>
-          <TextArea name="habits_exclou" value={habitsExclou} onChange={setHabitsExclou} rows={2} placeholder="Hàbit que vull eliminar…" />
+          <SubLabel>Excloure · Eliminar</SubLabel>
+          <textarea value={habitsExclou} onChange={e => setHabitsExclou(e.target.value)} rows={2} className={areaTextarea} placeholder="Hàbit que vull eliminar…" />
         </div>
-      </Card>
+      </BlockCard>
 
-      {/* Seguiment diari */}
-      <Card title="Seguiment diari" subtitle="Marca els dies que has complert les normes">
+      {/* Seguiment */}
+      <SectionDivider title="Seguiment diari" />
+      <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {DIES.map(dia => (
             <button
@@ -198,44 +201,51 @@ export function SetmanaForm({ any, setmana, fraseSetmana, initial }: SetmanaForm
               type="button"
               onClick={() => setSeguiment(prev => ({ ...prev, [dia]: !prev[dia] }))}
               className={[
-                "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all",
+                "px-4 py-2 rounded-xl text-[12px] font-bold transition-all",
                 seguiment[dia]
-                  ? "bg-[#8E0E1A] border-[#8E0E1A] text-white"
-                  : "bg-[#FAFAFA] border-[#E5E7EB] text-[#9CA3AF] hover:border-[#8E0E1A]/30",
+                  ? "bg-[#0A0A0A] text-white"
+                  : "bg-[#FAFAFA] border border-[#F0F0F0] text-[#C0C0C0] hover:text-[#0A0A0A] hover:border-[#E0E0E0]",
               ].join(" ")}
             >
               {dia}
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-[#9CA3AF]">
-          {Object.values(seguiment).filter(Boolean).length} / {DIES.length} dies
+        <p className="text-[11px] text-[#C0C0C0]">
+          {diesComplerts} / {DIES.length} dies complerts
         </p>
-      </Card>
+      </div>
 
       {/* Resultat */}
-      <Card title="Resultat de la setmana">
-        <TextArea name="resultat" value={resultat} onChange={setResultat} rows={3}
-          placeholder="Com ha anat la setmana? Que he après? Que repetiria?" />
-      </Card>
+      <SectionDivider title="Resultat de la setmana" />
+      <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4">
+        <textarea
+          value={resultat}
+          onChange={e => setResultat(e.target.value)}
+          rows={3}
+          className="w-full text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]"
+          placeholder="Com ha anat la setmana? Que he après? Que repetiria?"
+        />
+      </div>
 
       {/* Nota */}
-      <Card title="Nota de la setmana">
-        <div className="flex items-center gap-3">
-          <StarRating value={nota} onChange={setNota} />
-          {nota && <span className="text-sm font-bold text-[#8E0E1A]">{nota}/5</span>}
-        </div>
-      </Card>
+      <SectionDivider title="Nota de la setmana" />
+      <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4 flex items-center gap-4">
+        <StarRating value={nota} onChange={setNota} />
+        {nota != null && nota > 0 && (
+          <span className="text-[15px] font-bold text-[#0A0A0A]">{nota}/5</span>
+        )}
+      </div>
 
       {/* Save */}
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+      <div className="flex items-center justify-between pt-4 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
           ✓ Setmana guardada
-        </div>
+        </span>
         <button
           type="submit"
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
           {isPending ? "Guardant…" : "Guardar setmana"}
         </button>

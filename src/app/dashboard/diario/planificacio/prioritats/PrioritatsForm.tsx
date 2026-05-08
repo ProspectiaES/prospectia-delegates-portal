@@ -9,58 +9,69 @@ type Top5Row = { prioritat: string; intencio: string };
 type ValorRow = { valor: string; practica: string };
 type EliminarRow = { element: string; substitucio: string };
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">{children}</p>;
-}
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function RemoveBtn({ onClick }: { onClick: () => void }) {
+function SectionDivider({ title }: { title: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="p-1.5 rounded-md text-[#9CA3AF] hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-    >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M2 2l8 8M10 2L2 10" strokeLinecap="round"/>
-      </svg>
-    </button>
+    <div className="flex items-center gap-4 pt-2 pb-1">
+      <span className="text-[10px] font-bold text-[#C0C0C0] uppercase tracking-[0.15em] whitespace-nowrap">{title}</span>
+      <div className="flex-1 h-px bg-[#F0F0F0]" />
+    </div>
   );
 }
+
+function ItemCard({ num, onRemove, children }: {
+  num: number; onRemove: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="relative bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 pt-4 pb-3">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-black text-[#8E0E1A]/40 mt-0.5 w-5 shrink-0 select-none">
+          {String(num).padStart(2, "0")}
+        </span>
+        <div className="flex-1 min-w-0">{children}</div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[#D0D0D0] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors mt-0.5"
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M1 1l6 6M7 1L1 7" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const titleInput = "w-full text-[15px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-transparent hover:border-[#E8E8E8] focus:border-[#8E0E1A]/40 outline-none pb-1 transition-colors placeholder:text-[#DCDCDC] placeholder:font-normal";
+const descTextarea = "w-full mt-1.5 text-[13px] text-[#5A5A5A] bg-transparent border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]";
 
 function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 text-sm text-[#8E0E1A] hover:text-[#7a0b16] font-medium transition-colors"
+      className="flex items-center gap-2 text-[12px] font-semibold text-[#8E0E1A]/70 hover:text-[#8E0E1A] transition-colors py-1"
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M7 1v12M1 7h12" strokeLinecap="round"/>
-      </svg>
+      <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
+        <svg width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M3.5.5v6M.5 3.5h6" strokeLinecap="round"/>
+        </svg>
+      </span>
       {label}
     </button>
   );
 }
 
-function inputCls() {
-  return "w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors";
-}
-
-function Card({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
-      <h2 className="text-sm font-bold text-[#0A0A0A]">{title}</h2>
-      {children}
-    </div>
-  );
-}
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function PrioritatsForm({ initial }: { initial: PrioritatsData }) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
-  const [top5, setTop5] = useState<Top5Row[]>(initial.top5);
-  const [valors, setValors] = useState<ValorRow[]>(initial.valors);
+  const [top5, setTop5]       = useState<Top5Row[]>(initial.top5);
+  const [valors, setValors]   = useState<ValorRow[]>(initial.valors);
   const [eliminar, setEliminar] = useState<EliminarRow[]>(initial.eliminar);
   const [reflexio, setReflexio] = useState(initial.reflexio);
 
@@ -73,89 +84,101 @@ export function PrioritatsForm({ initial }: { initial: PrioritatsData }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+
       {/* TOP 5 */}
-      <Card title="Top 5 Prioritats de l'any">
+      <SectionDivider title="Top 5 prioritats de l'any" />
+      <div className="space-y-2">
         {top5.map((row, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Prioritat</Label>}
-              <input className={inputCls()} value={row.prioritat} onChange={e => setTop5(p => p.map((x, j) => j === i ? { ...x, prioritat: e.target.value } : x))} placeholder="Prioritat…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Intenció</Label>}
-              <input className={inputCls()} value={row.intencio} onChange={e => setTop5(p => p.map((x, j) => j === i ? { ...x, intencio: e.target.value } : x))} placeholder="Per què importa…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setTop5(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          <ItemCard key={i} num={i + 1} onRemove={() => setTop5(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={row.prioritat}
+              onChange={e => setTop5(p => p.map((x, j) => j === i ? { ...x, prioritat: e.target.value } : x))}
+              placeholder="La prioritat…"
+            />
+            <textarea
+              className={descTextarea}
+              rows={2}
+              value={row.intencio}
+              onChange={e => setTop5(p => p.map((x, j) => j === i ? { ...x, intencio: e.target.value } : x))}
+              placeholder="Per quin motiu és important per a tu…"
+            />
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setTop5(p => [...p, { prioritat: "", intencio: "" }])} label="Afegir prioritat" />
-      </Card>
+      </div>
 
       {/* VALORS */}
-      <Card title="Valors en pràctica">
+      <SectionDivider title="Valors en pràctica" />
+      <div className="space-y-2">
         {valors.map((row, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Valor</Label>}
-              <input className={inputCls()} value={row.valor} onChange={e => setValors(p => p.map((x, j) => j === i ? { ...x, valor: e.target.value } : x))} placeholder="Valor…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Com ho posaré en pràctica</Label>}
-              <input className={inputCls()} value={row.practica} onChange={e => setValors(p => p.map((x, j) => j === i ? { ...x, practica: e.target.value } : x))} placeholder="Acció concreta…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setValors(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          <ItemCard key={i} num={i + 1} onRemove={() => setValors(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={row.valor}
+              onChange={e => setValors(p => p.map((x, j) => j === i ? { ...x, valor: e.target.value } : x))}
+              placeholder="El valor…"
+            />
+            <textarea
+              className={descTextarea}
+              rows={2}
+              value={row.practica}
+              onChange={e => setValors(p => p.map((x, j) => j === i ? { ...x, practica: e.target.value } : x))}
+              placeholder="Com el posaré en pràctica cada dia…"
+            />
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setValors(p => [...p, { valor: "", practica: "" }])} label="Afegir valor" />
-      </Card>
+      </div>
 
       {/* ELIMINAR */}
-      <Card title="Allò a eliminar">
+      <SectionDivider title="Allò a eliminar" />
+      <div className="space-y-2">
         {eliminar.map((row, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
-            <div>
-              {i === 0 && <Label>Element a eliminar</Label>}
-              <input className={inputCls()} value={row.element} onChange={e => setEliminar(p => p.map((x, j) => j === i ? { ...x, element: e.target.value } : x))} placeholder="Hàbit o patró…" />
-            </div>
-            <div>
-              {i === 0 && <Label>Substitució</Label>}
-              <input className={inputCls()} value={row.substitucio} onChange={e => setEliminar(p => p.map((x, j) => j === i ? { ...x, substitucio: e.target.value } : x))} placeholder="El reemplaçaré per…" />
-            </div>
-            <div className={i === 0 ? "pt-5" : ""}>
-              <RemoveBtn onClick={() => setEliminar(p => p.filter((_, j) => j !== i))} />
-            </div>
-          </div>
+          <ItemCard key={i} num={i + 1} onRemove={() => setEliminar(p => p.filter((_, j) => j !== i))}>
+            <input
+              className={titleInput}
+              value={row.element}
+              onChange={e => setEliminar(p => p.map((x, j) => j === i ? { ...x, element: e.target.value } : x))}
+              placeholder="Hàbit, patró o situació…"
+            />
+            <textarea
+              className={descTextarea}
+              rows={2}
+              value={row.substitucio}
+              onChange={e => setEliminar(p => p.map((x, j) => j === i ? { ...x, substitucio: e.target.value } : x))}
+              placeholder="El substituiré per…"
+            />
+          </ItemCard>
         ))}
         <AddBtn onClick={() => setEliminar(p => [...p, { element: "", substitucio: "" }])} label="Afegir element" />
-      </Card>
+      </div>
 
-      {/* REFLEXIO */}
-      <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-2">
-        <h2 className="text-sm font-bold text-[#0A0A0A]">Reflexió final</h2>
+      {/* REFLEXIÓ */}
+      <SectionDivider title="Reflexió final" />
+      <div className="bg-white rounded-2xl border border-[#F0F0F0] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-5 py-4">
         <textarea
           value={reflexio}
           onChange={e => setReflexio(e.target.value)}
           rows={3}
-          className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+          className="w-full text-[14px] text-[#0A0A0A] bg-transparent border-0 outline-none resize-none leading-relaxed placeholder:text-[#DCDCDC]"
+          placeholder="El resum personal de les teves prioritats…"
         />
       </div>
 
-      <div className="flex items-center justify-between pb-8">
-        <div className={`text-sm text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
-          ✓ Prioritats guardades
-        </div>
+      {/* SAVE */}
+      <div className="flex items-center justify-between pt-4 pb-8">
+        <span className={`text-[12px] text-emerald-600 font-medium transition-opacity duration-300 ${saved ? "opacity-100" : "opacity-0"}`}>
+          ✓ Guardat
+        </span>
         <button
           type="button"
           onClick={handleSave}
           disabled={isPending}
-          className="px-6 py-2.5 bg-[#8E0E1A] text-white rounded-lg text-sm font-semibold hover:bg-[#7a0b16] disabled:opacity-60 transition-colors"
+          className="px-5 py-2 bg-[#0A0A0A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#8E0E1A] disabled:opacity-40 transition-colors"
         >
-          {isPending ? "Guardant…" : "Guardar prioritats"}
+          {isPending ? "Guardant…" : "Guardar"}
         </button>
       </div>
     </div>
