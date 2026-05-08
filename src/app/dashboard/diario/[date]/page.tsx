@@ -33,52 +33,64 @@ export default async function DiarioDatePage({
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
+  const isToday = date === todayIso;
+
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto">
 
-      {/* Navigation header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/dashboard/diario"
-          className="p-1.5 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
-          title="Tornar al calendari"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
+      {/* Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0C0C0C] via-[#1a0306] to-[#0C0C0C] px-5 pt-5 pb-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(142,14,26,0.12),_transparent_60%)] pointer-events-none" />
 
-        <Link href={`/dashboard/diario/${prevDate}`}
-          className="p-1.5 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
-          title="Dia anterior"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
+        <div className="relative flex items-center gap-3 mb-4">
+          <Link
+            href="/dashboard/diario"
+            className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
 
-        <h1 className="flex-1 text-sm font-bold text-[#0A0A0A] capitalize text-center">{dateLabel}</h1>
+          <Link
+            href={`/dashboard/diario/${prevDate}`}
+            className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
 
-        <Link href={`/dashboard/diario/${nextDate}`}
-          className={[
-            "p-1.5 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-colors",
-            nextDate > todayIso ? "opacity-30 pointer-events-none" : "",
-          ].join(" ")}
-          title="Dia següent"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M5 2l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
+          <div className="flex-1 text-center">
+            {isToday && (
+              <p className="text-[10px] font-bold text-[#8E0E1A] uppercase tracking-[0.2em] mb-0.5">Avui</p>
+            )}
+            <h1 className="text-[13px] font-bold text-white capitalize">{dateLabel}</h1>
+          </div>
+
+          <Link
+            href={`/dashboard/diario/${nextDate}`}
+            className={[
+              "p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors",
+              nextDate > todayIso ? "opacity-20 pointer-events-none" : "",
+            ].join(" ")}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M5 2l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+        </div>
+
+        {entry === null && (
+          <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+            <p className="text-[12px] text-red-300/80">Entrada nova · omple els camps i guarda</p>
+          </div>
+        )}
       </div>
 
-      {entry === null && (
-        <div className="bg-[#FEF9F9] border border-[#FECDD3] rounded-xl px-4 py-3 text-sm text-[#8E0E1A]">
-          Entrada nova · omple els camps i guarda
-        </div>
-      )}
-
-      <DiarioForm fecha={date} initial={entry} fraseSetmana={fraseSetmana} />
+      <div className="p-4 space-y-3">
+        <DiarioForm fecha={date} initial={entry} fraseSetmana={fraseSetmana} />
+      </div>
     </div>
   );
 }

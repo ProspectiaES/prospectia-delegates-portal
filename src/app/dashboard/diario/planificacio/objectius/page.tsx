@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getProfile } from "@/lib/profile";
 import { getPlanificacio } from "@/app/actions/diario-planificacio";
 import { DEFAULT_OBJECTIUS_VITALS, DEFAULT_OBJECTIUS_TRIMESTRALS } from "@/lib/diario-constants";
+import { PlanHeader } from "../_PlanHeader";
 import { ObjectiusForm } from "./ObjectiusForm";
 
 export interface ObjectiusData {
@@ -22,23 +22,11 @@ export default async function ObjectiusPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
-      <Link
-        href="/dashboard/diario/planificacio"
-        className="inline-flex items-center gap-2 text-sm text-[#6B7280] hover:text-[#0A0A0A] transition-colors"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        Planificació
-      </Link>
-
-      <div>
-        <h1 className="text-xl font-bold text-[#0A0A0A] tracking-tight">Objectius Vitals i Trimestrals</h1>
-        <p className="text-sm text-[#6B7280] mt-0.5">Horitzons 2026–2040 i objectius per trimestre</p>
+    <div>
+      <PlanHeader emoji="📈" title="Objectius Vitals" subtitle="Horitzons 2026–2040 i objectius per trimestre" />
+      <div className="max-w-4xl mx-auto px-4 py-5">
+        <ObjectiusForm initial={initial} />
       </div>
-
-      <ObjectiusForm initial={initial} />
     </div>
   );
 }
