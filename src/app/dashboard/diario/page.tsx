@@ -315,38 +315,33 @@ export default async function DiarioPage({
         </div>
 
         {/* ── Calendari complet (collapsible) ── */}
-        <details className="group">
-          <summary className="flex items-center justify-between cursor-pointer list-none select-none py-3 border-t border-[#1E1E1E]">
-            <span className="text-[10px] font-bold text-[#444] uppercase tracking-[0.2em]">
-              Calendari {year}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-[#444]">{totalEntries} entrades</span>
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/dashboard/diario?year=${year - 1}`}
-                  onClick={e => e.stopPropagation()}
-                  className="p-1 rounded text-[#444] hover:text-white hover:bg-[#222] transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M8 2L4 6l4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </Link>
-                <span className="text-[11px] font-bold text-[#555]">{year}</span>
-                <Link
-                  href={`/dashboard/diario?year=${year + 1}`}
-                  onClick={e => e.stopPropagation()}
-                  className="p-1 rounded text-[#444] hover:text-white hover:bg-[#222] transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </Link>
-              </div>
-              <svg className="text-[#444] group-open:rotate-180 transition-transform" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+
+        {/* Year nav (outside summary to avoid onClick in RSC) */}
+        <div className="flex items-center justify-between pt-3 border-t border-[#1E1E1E]">
+          <div className="flex items-center gap-2">
+            <Link href={`/dashboard/diario?year=${year - 1}`} className="p-1 rounded text-[#444] hover:text-white hover:bg-[#222] transition-colors">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 2L4 6l4 4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </div>
+            </Link>
+            <span className="text-[12px] font-bold text-[#555]">{year}</span>
+            <Link href={`/dashboard/diario?year=${year + 1}`} className="p-1 rounded text-[#444] hover:text-white hover:bg-[#222] transition-colors">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </Link>
+          </div>
+          <span className="text-[11px] text-[#444]">{totalEntries} entrades</span>
+        </div>
+
+        <details className="group">
+          <summary className="flex items-center justify-between cursor-pointer list-none select-none py-2">
+            <span className="text-[10px] font-bold text-[#444] uppercase tracking-[0.2em]">
+              Calendari complet
+            </span>
+            <svg className="text-[#444] group-open:rotate-180 transition-transform" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </summary>
 
           <div className="pt-4 space-y-4">
