@@ -39,56 +39,67 @@ export default async function DiarioDatePage({
     <div className="max-w-2xl mx-auto">
 
       {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0C0C0C] via-[#1a0306] to-[#0C0C0C] px-5 pt-5 pb-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(142,14,26,0.12),_transparent_60%)] pointer-events-none" />
-
-        <div className="relative flex items-center gap-3 mb-4">
-          <Link
-            href="/dashboard/diario"
-            className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </Link>
-
-          <Link
-            href={`/dashboard/diario/${prevDate}`}
-            className="p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </Link>
-
-          <div className="flex-1 text-center">
-            {isToday && (
-              <p className="text-[10px] font-bold text-[#8E0E1A] uppercase tracking-[0.2em] mb-0.5">Avui</p>
-            )}
-            <h1 className="text-[13px] font-bold text-white capitalize">{dateLabel}</h1>
+      <div
+        className="px-8 md:px-14 pt-10 pb-8"
+        style={{
+          backgroundColor: "#050505",
+          backgroundImage: "radial-gradient(ellipse at 80% 10%, rgba(107,15,26,0.07) 0%, transparent 50%)",
+          borderBottom: "1px solid #0E0E0E",
+        }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-5">
+            <Link href="/dashboard/diario"
+              className="text-[9px] font-bold uppercase tracking-[0.35em] transition-colors"
+              style={{ color: "#252220" }}>
+              ← Diari
+            </Link>
+            <span style={{ color: "#151515" }}>·</span>
+            <Link href={`/dashboard/diario/${prevDate}`}
+              className="text-[9px] font-bold uppercase tracking-[0.35em] transition-colors"
+              style={{ color: "#252220" }}>
+              ← Anterior
+            </Link>
           </div>
-
           <Link
             href={`/dashboard/diario/${nextDate}`}
             className={[
-              "p-1.5 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition-colors",
-              nextDate > todayIso ? "opacity-20 pointer-events-none" : "",
+              "text-[9px] font-bold uppercase tracking-[0.35em] transition-colors",
+              nextDate > todayIso ? "pointer-events-none opacity-20" : "",
             ].join(" ")}
+            style={{ color: "#252220" }}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M5 2l5 5-5 5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            Següent →
           </Link>
         </div>
 
+        <div>
+          {isToday && (
+            <p className="text-[9px] font-bold uppercase tracking-[0.4em] mb-2"
+              style={{ color: "#7D1120" }}>
+              Avui
+            </p>
+          )}
+          <h1
+            className="font-black capitalize leading-tight"
+            style={{ fontSize: "clamp(22px, 3vw, 32px)", color: "#EDE8DF" }}
+          >
+            {dateLabel}
+          </h1>
+        </div>
+
         {entry === null && (
-          <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
-            <p className="text-[12px] text-red-300/80">Entrada nova · omple els camps i guarda</p>
-          </div>
+          <p className="text-[10px] font-medium mt-3 uppercase tracking-[0.25em]"
+            style={{ color: "#2A2520" }}>
+            Entrada nova — omple i guarda
+          </p>
         )}
       </div>
 
-      <div className="p-4 space-y-3">
+      <div
+        className="px-8 md:px-14 py-10 space-y-3"
+        style={{ backgroundColor: "#050505" }}
+      >
         <DiarioForm fecha={date} initial={entry} fraseSetmana={fraseSetmana} />
       </div>
     </div>
