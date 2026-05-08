@@ -40,14 +40,14 @@ export interface DiarioEntry {
 // ─── Design primitives ────────────────────────────────────────────────────────
 
 const C = {
-  bg:       "#050505",
-  surface:  "#0A0908",
-  border:   "#111",
-  muted:    "#252220",
-  label:    "#2A2520",
-  text:     "#EDE8DF",
+  bg:       "transparent",
+  surface:  "#FFFFFF",
+  border:   "#E4DDD5",
+  muted:    "#9A8E82",
+  label:    "#9A8E82",
+  text:     "#1C1510",
   accent:   "#7D1120",
-  accentLo: "#3D0810",
+  accentLo: "#7D1120",
 };
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -130,7 +130,7 @@ function StarBar({ name, value, onChange }: {
           key={n} type="button"
           onClick={() => onChange(value === n ? 0 : n)}
           className="w-6 h-6 flex items-center justify-center text-base transition-all"
-          style={{ color: value && n <= value ? "#C4964A" : "#1E1C1A" }}
+          style={{ color: value && n <= value ? "#C4964A" : "#D0C4B8" }}
         >★</button>
       ))}
       <input type="hidden" name={name} value={value ?? ""} />
@@ -142,7 +142,7 @@ function GarminStat({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
       <p className="text-[8px] font-bold uppercase tracking-[0.3em] mb-1.5" style={{ color: C.muted }}>{label}</p>
-      <p className="text-[24px] font-black tabular-nums" style={{ color: value ? C.text : "#1E1C1A" }}>{value ?? "–"}</p>
+      <p className="text-[22px] font-black tabular-nums" style={{ color: value ? C.text : "#C8BEB4" }}>{value ?? "–"}</p>
     </div>
   );
 }
@@ -251,11 +251,11 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
 
       {/* Frase */}
       {fraseSetmana && (
-        <div style={{ borderLeft: `1px solid ${C.accentLo}`, paddingLeft: "16px" }}>
-          <p className="text-[8px] font-bold uppercase tracking-[0.35em] mb-2" style={{ color: C.accentLo }}>
+        <div className="rounded-xl p-4" style={{ border: `1px solid ${C.border}`, backgroundColor: "#FFF" }}>
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: C.muted }}>
             Frase de la setmana
           </p>
-          <p className="text-[13px] italic leading-relaxed" style={{ color: "#9A8F85" }}>
+          <p className="text-[13px] italic leading-relaxed" style={{ color: "#5C5048" }}>
             &ldquo;{fraseSetmana}&rdquo;
           </p>
         </div>
@@ -352,7 +352,7 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
           <div className="space-y-4">
             {objectius.map((o, i) => (
               <div key={i} className="flex items-start gap-4">
-                <span className="text-[11px] font-black mt-1 shrink-0 w-5" style={{ color: "#3A2A2D" }}>
+                <span className="text-[11px] font-black mt-1 shrink-0 w-5" style={{ color: "#C0A890" }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -373,7 +373,7 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
                   {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
                 <button type="button" onClick={() => removeObjectiu(i)}
-                  className="text-[10px] shrink-0 transition-colors" style={{ color: "#2A1A1A" }}>
+                  className="text-[10px] shrink-0 transition-colors" style={{ color: "#B0A498" }}>
                   ×
                 </button>
               </div>
@@ -399,10 +399,10 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
             >
               <div
                 className="w-1.5 h-1.5 rounded-full shrink-0 transition-colors"
-                style={{ backgroundColor: ritual[key] ? "#C4964A" : "#1E1C1A" }}
+                style={{ backgroundColor: ritual[key] ? "#C4964A" : "#D0C4B8" }}
               />
               <span className="text-[12px] font-medium transition-colors"
-                style={{ color: ritual[key] ? C.text : "#3A3530" }}>
+                style={{ color: ritual[key] ? C.text : "#B0A498" }}>
                 {RITUAL_LABELS[key]}
               </span>
             </button>
@@ -462,9 +462,9 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
               style={{ borderBottom: `1px solid ${val ? C.accentLo : C.border}` }}
             >
               <div className="w-1.5 h-1.5 rounded-full shrink-0 transition-colors"
-                style={{ backgroundColor: val ? "#C4964A" : "#1E1C1A" }} />
+                style={{ backgroundColor: val ? "#C4964A" : "#D0C4B8" }} />
               <span className="text-[13px] font-medium transition-colors"
-                style={{ color: val ? C.text : "#3A3530" }}>
+                style={{ color: val ? C.text : "#B0A498" }}>
                 {label}
               </span>
             </button>
@@ -502,17 +502,17 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
       {/* ── Save ── */}
       <div className="flex items-center justify-between pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
         <span
-          className="text-[9px] font-bold uppercase tracking-[0.35em] transition-opacity"
-          style={{ color: "#4A6A4A", opacity: saved ? 1 : 0 }}
+          className="text-[11px] font-semibold transition-opacity"
+          style={{ color: "#2A7A4A", opacity: saved ? 1 : 0 }}
         >
           ✓ Guardat
         </span>
         <button
           type="submit" disabled={isPending}
-          className="text-[10px] font-bold uppercase tracking-[0.35em] transition-colors disabled:opacity-30"
-          style={{ color: C.muted }}
+          className="px-5 py-2 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-40"
+          style={{ backgroundColor: C.accent, color: "#FFF" }}
         >
-          {isPending ? "Guardant…" : "Guardar entrada →"}
+          {isPending ? "Guardant…" : "Guardar entrada"}
         </button>
       </div>
     </form>
