@@ -26,8 +26,8 @@ function SectionDivider({ title }: { title: string }) {
   );
 }
 
-const titleInput = "w-full text-[14px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-transparent hover:border-[#E8E8E8] focus:border-[#8E0E1A]/40 outline-none pb-1 transition-colors placeholder:text-[#DCDCDC] placeholder:font-normal";
-const descInput = "w-full text-[12px] text-[#5A5A5A] bg-transparent border-0 outline-none placeholder:text-[#DCDCDC] mt-1";
+const titleInput = "w-full text-[14px] font-semibold text-[#0A0A0A] bg-transparent border-0 border-b border-[#E4DDD5] focus:border-[#8E0E1A] outline-none pb-1.5 transition-colors placeholder:text-[#C8C0B8] placeholder:font-normal";
+const descInput = "w-full text-[12px] text-[#5A5A5A] bg-transparent border-0 border-b border-[#F0EAE0] focus:border-[#C4964A] outline-none pb-1 transition-colors placeholder:text-[#C8C0B8] mt-1";
 
 function ItemCard({ num, onRemove, children }: {
   num: number; onRemove: () => void; children: React.ReactNode;

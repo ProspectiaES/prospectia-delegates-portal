@@ -298,6 +298,29 @@ export default async function DiarioPage({
 
       <HR />
 
+      {/* ── Ecosistema Humà ── */}
+      <Link href="/dashboard/diario/ecosistema"
+        className="group flex items-center justify-between p-5 rounded-2xl transition-all hover:shadow-md"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+      >
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1"
+            style={{ color: C.accent }}>
+            Consciència Relacional
+          </p>
+          <p className="text-[17px] font-bold" style={{ color: C.text }}>
+            Ecosistema Humà
+          </p>
+          <p className="text-[11px] mt-0.5" style={{ color: C.label }}>
+            Nucli · Estratègic · Expansió · Drenant
+          </p>
+        </div>
+        <span className="text-[22px] font-thin transition-transform group-hover:translate-x-1"
+          style={{ color: C.accent }}>→</span>
+      </Link>
+
+      <HR />
+
       {/* ── Planificació ── */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4" style={{ color: C.label }}>
