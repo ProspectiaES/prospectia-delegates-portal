@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { saveDiarioEntry } from "@/app/actions/diario";
 import type { GarminDayData } from "@/lib/garmin";
 
@@ -9,16 +9,30 @@ import type { GarminDayData } from "@/lib/garmin";
 type Objectiu = { categoria: string; objectiu: string; accio: string; nota: number | null };
 
 type RitualMat = {
-  aixecat_7: boolean; respirat: boolean; meditacio: boolean;
+  aixecat_6: boolean; respirat: boolean; meditacio: boolean;
   missio: boolean; llegit: boolean; tasca_clau: boolean; sentir: boolean;
 };
 
 const RITUAL_LABELS: Record<keyof RitualMat, string> = {
-  aixecat_7: "Aixecat a les 7:00", respirat: "Respiració conscient",
-  meditacio: "Meditació", missio: "Lectura de la missió",
-  llegit: "Lectura 20 min", tasca_clau: "Tasca clau iniciada",
-  sentir: "Sentir (visualització)",
+  aixecat_6:  "Aixecat a les 6:00",
+  respirat:   "Respiració conscient",
+  meditacio:  "Meditació",
+  missio:     "Lectura de la missió",
+  llegit:     "Lectura 20 min",
+  tasca_clau: "Tasca clau iniciada",
+  sentir:     "Sentir (visualització)",
 };
+
+const ACTIVITAT_TIPUS = [
+  { val: "", label: "Selecciona…" },
+  { val: "running",  label: "Córrer" },
+  { val: "caminar",  label: "Caminar" },
+  { val: "ciclisme", label: "Ciclisme" },
+  { val: "natacio",  label: "Natació" },
+  { val: "gimnàs",   label: "Gimnàs / Força" },
+  { val: "mobilitat", label: "Ioga / Mobilitat" },
+  { val: "altra",    label: "Altra activitat" },
+];
 
 export interface DiarioEntry {
   fecha: string; hora_inici?: string | null; estat_anim?: number | null;
@@ -35,36 +49,48 @@ export interface DiarioEntry {
   av_relacions?: number | null; av_serenitat?: number | null;
   avui_menduc?: string | null; running_km?: number | null;
   running_min?: number | null; running_notes?: string | null;
+  activitat_tipus?: string | null; act_fc_mit?: number | null; act_fc_max?: number | null;
 }
 
-// ─── Design primitives ────────────────────────────────────────────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 
-const C = {
-  bg:       "transparent",
-  surface:  "#FFFFFF",
-  border:   "#E4DDD5",
-  muted:    "#9A8E82",
-  label:    "#9A8E82",
-  text:     "#1C1510",
-  accent:   "#7D1120",
-  accentLo: "#7D1120",
-};
+const R = "#7D1120";    // Prospectia red
+const BK = "#1C1510";  // Near-black warm
+const BORDER = "#E4DDD5";
+const LABEL = "#9A8E82";
+const DIM = "#B0A498";
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+// ─── Section card ─────────────────────────────────────────────────────────────
+
+function Section({ label, children, accent }: {
+  label: string; children: React.ReactNode; accent?: boolean;
+}) {
   return (
-    <div className="space-y-5" style={{ borderTop: `1px solid ${C.border}`, paddingTop: "28px" }}>
-      <p className="text-[9px] font-bold uppercase tracking-[0.4em]" style={{ color: C.muted }}>
-        {label}
-      </p>
-      {children}
+    <div className="rounded-2xl overflow-hidden"
+      style={{ border: `1px solid ${BORDER}`, backgroundColor: "#FFF" }}>
+      <div className="px-5 py-3 flex items-center gap-2"
+        style={{
+          backgroundColor: accent ? R : "#FBF8F5",
+          borderBottom: `1px solid ${BORDER}`,
+        }}>
+        <div className="w-1 h-3.5 rounded-full shrink-0"
+          style={{ backgroundColor: accent ? "rgba(255,255,255,0.5)" : R }} />
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: accent ? "#FFF" : R }}>
+          {label}
+        </p>
+      </div>
+      <div className="p-5 space-y-5">
+        {children}
+      </div>
     </div>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <p className="text-[8px] font-bold uppercase tracking-[0.3em]" style={{ color: C.muted }}>
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: LABEL }}>
         {label}
       </p>
       {children}
@@ -72,7 +98,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function TextInput({ name, value, onChange, placeholder, type = "text" }: {
+function TInput({ name, value, onChange, placeholder, type = "text" }: {
   name: string; value: string; onChange: (v: string) => void;
   placeholder?: string; type?: string;
 }) {
@@ -81,23 +107,19 @@ function TextInput({ name, value, onChange, placeholder, type = "text" }: {
       type={type} name={name} value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full outline-none transition-colors"
+      className="w-full outline-none text-[13px] font-medium transition-colors"
       style={{
-        background: "transparent",
-        border: "none",
-        borderBottom: `1px solid ${C.border}`,
-        paddingBottom: "8px",
-        fontSize: "14px",
-        color: C.text,
-        fontWeight: 500,
+        background: "transparent", border: "none",
+        borderBottom: `1.5px solid ${BORDER}`,
+        paddingBottom: "7px", color: BK,
       }}
-      onFocus={e => (e.target.style.borderBottomColor = C.accentLo)}
-      onBlur={e => (e.target.style.borderBottomColor = C.border)}
+      onFocus={e => (e.target.style.borderBottomColor = R)}
+      onBlur={e => (e.target.style.borderBottomColor = BORDER)}
     />
   );
 }
 
-function TextArea({ name, value, onChange, placeholder, rows = 3 }: {
+function TArea({ name, value, onChange, placeholder, rows = 3 }: {
   name: string; value: string; onChange: (v: string) => void;
   placeholder?: string; rows?: number;
 }) {
@@ -106,43 +128,41 @@ function TextArea({ name, value, onChange, placeholder, rows = 3 }: {
       name={name} value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder} rows={rows}
-      className="w-full outline-none resize-none transition-colors"
+      className="w-full outline-none resize-none text-[13px] leading-relaxed"
       style={{
-        background: "transparent",
-        border: "none",
-        borderBottom: `1px solid ${C.border}`,
-        paddingBottom: "8px",
-        fontSize: "13px",
-        lineHeight: "1.7",
-        color: C.text,
+        background: "transparent", border: "none",
+        borderBottom: `1.5px solid ${BORDER}`,
+        paddingBottom: "7px", color: BK,
       }}
     />
   );
 }
 
-function StarBar({ name, value, onChange }: {
+function Stars({ name, value, onChange }: {
   name: string; value: number | null; onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      {[1,2,3,4,5].map(n => (
-        <button
-          key={n} type="button"
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button key={n} type="button"
           onClick={() => onChange(value === n ? 0 : n)}
-          className="w-6 h-6 flex items-center justify-center text-base transition-all"
-          style={{ color: value && n <= value ? "#C4964A" : "#D0C4B8" }}
-        >★</button>
+          className="text-lg transition-colors"
+          style={{ color: value && n <= value ? "#C4964A" : "#DDD5C8" }}>
+          ★
+        </button>
       ))}
       <input type="hidden" name={name} value={value ?? ""} />
     </div>
   );
 }
 
-function GarminStat({ label, value }: { label: string; value: string | null }) {
+function GarminNum({ label, value }: { label: string; value: string | null }) {
   return (
-    <div>
-      <p className="text-[8px] font-bold uppercase tracking-[0.3em] mb-1.5" style={{ color: C.muted }}>{label}</p>
-      <p className="text-[22px] font-black tabular-nums" style={{ color: value ? C.text : "#C8BEB4" }}>{value ?? "–"}</p>
+    <div className="text-center">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.1em] mb-1" style={{ color: LABEL }}>{label}</p>
+      <p className="text-[20px] font-black tabular-nums" style={{ color: value ? BK : "#D0C8C0" }}>
+        {value ?? "–"}
+      </p>
     </div>
   );
 }
@@ -157,6 +177,7 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminMsg, setGarminMsg] = useState<string | null>(null);
   const [garminData, setGarminData] = useState<GarminDayData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   const [horaInici, setHoraInici]     = useState(initial?.hora_inici ?? "");
   const [estatAnim, setEstatAnim]     = useState<number | null>(initial?.estat_anim ?? null);
@@ -172,14 +193,14 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
   const [espaiLliure, setEspaiLliure]         = useState(initial?.espai_lliure ?? "");
   const [reflexio, setReflexio]               = useState(initial?.reflexio_personal ?? "");
   const [objectius, setObjectius]             = useState<Objectiu[]>((initial?.objectius_dia as Objectiu[]) ?? []);
-  const [ritual, setRitual]                   = useState<RitualMat>({
-    aixecat_7: initial?.ritual_mat?.aixecat_7 ?? false,
-    respirat: initial?.ritual_mat?.respirat ?? false,
-    meditacio: initial?.ritual_mat?.meditacio ?? false,
-    missio: initial?.ritual_mat?.missio ?? false,
-    llegit: initial?.ritual_mat?.llegit ?? false,
-    tasca_clau: initial?.ritual_mat?.tasca_clau ?? false,
-    sentir: initial?.ritual_mat?.sentir ?? false,
+  const [ritual, setRitual] = useState<RitualMat>({
+    aixecat_6:  (initial?.ritual_mat as Partial<RitualMat>)?.aixecat_6  ?? false,
+    respirat:   (initial?.ritual_mat as Partial<RitualMat>)?.respirat   ?? false,
+    meditacio:  (initial?.ritual_mat as Partial<RitualMat>)?.meditacio  ?? false,
+    missio:     (initial?.ritual_mat as Partial<RitualMat>)?.missio     ?? false,
+    llegit:     (initial?.ritual_mat as Partial<RitualMat>)?.llegit     ?? false,
+    tasca_clau: (initial?.ritual_mat as Partial<RitualMat>)?.tasca_clau ?? false,
+    sentir:     (initial?.ritual_mat as Partial<RitualMat>)?.sentir     ?? false,
   });
   const [activitats, setActivitats]           = useState(initial?.activitats ?? "");
   const [examenVespre, setExamenVespre]       = useState(initial?.examen_vespre ?? "");
@@ -196,6 +217,21 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
   const [runningKm, setRunningKm]         = useState(initial?.running_km != null ? String(initial.running_km) : "");
   const [runningMin, setRunningMin]       = useState(initial?.running_min != null ? String(initial.running_min) : "");
   const [runningNotes, setRunningNotes]   = useState(initial?.running_notes ?? "");
+  const [actTipus, setActTipus]           = useState(initial?.activitat_tipus ?? "");
+  const [actFcMit, setActFcMit]           = useState(initial?.act_fc_mit != null ? String(initial.act_fc_mit) : "");
+  const [actFcMax, setActFcMax]           = useState(initial?.act_fc_max != null ? String(initial.act_fc_max) : "");
+
+  // Auto-fetch weather if not filled
+  useEffect(() => {
+    if (temps) return;
+    setWeatherLoading(true);
+    fetch("https://wttr.in/?format=3&lang=ca")
+      .then(r => r.text())
+      .then(t => { setTemps(t.trim()); })
+      .catch(() => {})
+      .finally(() => setWeatherLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function addObjectiu() { setObjectius(p => [...p, { categoria: "", objectiu: "", accio: "", nota: null }]); }
   function removeObjectiu(i: number) { setObjectius(p => p.filter((_, j) => j !== i)); }
@@ -231,7 +267,8 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
     fd.set("criteri_mantingut", String(criteriMantingut));
     if (runningKm) fd.set("running_km", runningKm);
     if (runningMin) fd.set("running_min", runningMin);
-    if (runningNotes) fd.set("running_notes", runningNotes);
+    if (actFcMit) fd.set("act_fc_mit", actFcMit);
+    if (actFcMax) fd.set("act_fc_max", actFcMax);
     startTransition(async () => {
       await saveDiarioEntry(fd);
       setSaved(true);
@@ -246,163 +283,87 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
     : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-10 pb-16" style={{ color: C.text }}>
+    <form onSubmit={handleSubmit} className="space-y-4 pb-16">
       <input type="hidden" name="fecha" value={fecha} />
 
-      {/* Frase */}
+      {/* ── Frase setmanal ── */}
       {fraseSetmana && (
-        <div className="rounded-xl p-4" style={{ border: `1px solid ${C.border}`, backgroundColor: "#FFF" }}>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: C.muted }}>
-            Frase de la setmana
-          </p>
-          <p className="text-[13px] italic leading-relaxed" style={{ color: "#5C5048" }}>
-            &ldquo;{fraseSetmana}&rdquo;
-          </p>
+        <div className="rounded-2xl p-4 flex items-start gap-3"
+          style={{ backgroundColor: "#FBF8F5", border: `1px solid ${BORDER}` }}>
+          <div className="w-0.5 self-stretch rounded-full shrink-0 mt-0.5" style={{ backgroundColor: R }} />
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-1.5" style={{ color: LABEL }}>
+              Frase de la setmana
+            </p>
+            <p className="text-[13px] italic leading-relaxed" style={{ color: "#5C5048" }}>
+              &ldquo;{fraseSetmana}&rdquo;
+            </p>
+            <a href="/dashboard/diario/planificacio/missio"
+              className="text-[10px] font-semibold mt-2 inline-block hover:underline"
+              style={{ color: R }}>
+              Llegir la missió personal →
+            </a>
+          </div>
         </div>
       )}
 
-      {/* ── Dashboard ── */}
-      <Section label="Dashboard del dia">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-6">
-          <Field label="Nota del dia">
-            <StarBar name="nota_dia" value={notaDia} onChange={setNotaDia} />
-          </Field>
+      {/* ── Matí ── */}
+      <Section label="Matí · Estat del sistema">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Field label="Hora d'inici">
             <input type="time" name="hora_inici" value={horaInici}
               onChange={e => setHoraInici(e.target.value)}
-              className="outline-none"
-              style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "8px", fontSize: "14px", color: C.text, fontWeight: 500, width: "100%" }} />
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
           </Field>
           <Field label="Son (hores)">
             <input type="number" name="son_hores" value={sonHores}
               onChange={e => setSonHores(e.target.value)}
-              min={0} max={24} step={0.5} placeholder="7.5"
-              className="outline-none w-24"
-              style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "8px", fontSize: "14px", color: C.text, fontWeight: 500 }} />
+              min={0} max={24} step={0.5} placeholder="7.0"
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
           </Field>
-          <Field label="Temps">
-            <TextInput name="temps" value={temps} onChange={setTemps} placeholder="Sol, núvols…" />
+          <Field label={`Temps${weatherLoading ? " (…)" : ""}`}>
+            <TInput name="temps" value={temps} onChange={setTemps} placeholder="Sol, núvols…" />
           </Field>
           <Field label="Efemèride">
-            <TextInput name="efemeride" value={efemeride} onChange={setEfemeride} placeholder="Data important…" />
+            <TInput name="efemeride" value={efemeride} onChange={setEfemeride} placeholder="Data rellevant…" />
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6 pt-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 pt-1">
           {([
             ["Estat d'ànim", "estat_anim", estatAnim, setEstatAnim],
-            ["Energia", "energia", energia, setEnergia],
-            ["Focus", "focus_mat", focusMat, setFocusMat],
-            ["Serenitat", "serenitat", serenitat, setSerenitat],
+            ["Energia",      "energia",    energia,   setEnergia],
+            ["Focus",        "focus_mat",  focusMat,  setFocusMat],
+            ["Serenitat",    "serenitat",  serenitat, setSerenitat],
           ] as const).map(([label, name, val, setVal]) => (
             <Field key={name} label={label}>
-              <StarBar name={name} value={val} onChange={setVal as (v: number) => void} />
+              <Stars name={name} value={val} onChange={setVal as (v: number) => void} />
             </Field>
           ))}
         </div>
       </Section>
 
-      {/* ── Garmin ── */}
-      <Section label="Garmin Connect">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-x-8 gap-y-5 flex-1">
-            <GarminStat label="Son"      value={garminData?.son_hores != null ? `${garminData.son_hores}h` : null} />
-            <GarminStat label="FC repòs" value={garminData?.rhr != null ? `${garminData.rhr}` : null} />
-            <GarminStat label="Energia"  value={garminData?.energia != null ? `${garminData.energia}/5` : null} />
-            <GarminStat label="Serenitat" value={garminData?.serenitat != null ? `${garminData.serenitat}/5` : null} />
-            <GarminStat label="Passos"   value={garminData?.passos != null ? garminData.passos.toLocaleString("ca-ES") : null} />
-            <GarminStat label="Running"  value={garminData?.running_km != null ? `${garminData.running_km}km` : null} />
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <button
-              type="button" onClick={syncGarmin} disabled={garminLoading}
-              className="text-[9px] font-bold uppercase tracking-[0.35em] transition-colors disabled:opacity-30"
-              style={{ color: C.muted }}
-            >
-              {garminLoading ? "Sincronitzant…" : "↻ Importar"}
-            </button>
-            {garminMsg && (
-              <p className="text-[9px]" style={{ color: garminMsg.startsWith("Error") ? "#8B2635" : "#4A6A4A" }}>
-                {garminMsg}
-              </p>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* ── Planificació matinal ── */}
-      <Section label="Planificació matinal">
-        <Field label="Tasca clau del dia">
-          <TextInput name="tasca_clau" value={tascaClau} onChange={setTascaClau} placeholder="Verb + resultat esperat…" />
-        </Field>
-        <Field label="Disciplina · Compromís">
-          <TextInput name="disciplina_compromis" value={disciplina} onChange={setDisciplina} placeholder="Sense sucre, exercici 45 min…" />
-        </Field>
-        <Field label="Espai lliure">
-          <TextArea name="espai_lliure" value={espaiLliure} onChange={setEspaiLliure} placeholder="El que tinguis al cap…" rows={2} />
-        </Field>
-        <Field label="Reflexió personal">
-          <TextArea name="reflexio_personal" value={reflexio} onChange={setReflexio} placeholder="Qui vull ser avui? Quina actitud porto?" rows={2} />
-        </Field>
-      </Section>
-
-      {/* ── Objectius ── */}
-      <Section label="Objectius del dia">
-        {objectius.length > 0 && (
-          <div className="space-y-4">
-            {objectius.map((o, i) => (
-              <div key={i} className="flex items-start gap-4">
-                <span className="text-[11px] font-black mt-1 shrink-0 w-5" style={{ color: "#C0A890" }}>
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input value={o.categoria} onChange={e => updateObjectiu(i, "categoria", e.target.value)}
-                    placeholder="Categoria…" className="outline-none"
-                    style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "6px", fontSize: "12px", color: C.text }} />
-                  <input value={o.objectiu} onChange={e => updateObjectiu(i, "objectiu", e.target.value)}
-                    placeholder="Objectiu concret…" className="outline-none"
-                    style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "6px", fontSize: "12px", color: C.text }} />
-                  <input value={o.accio} onChange={e => updateObjectiu(i, "accio", e.target.value)}
-                    placeholder="Acció clau…" className="outline-none"
-                    style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "6px", fontSize: "12px", color: C.text }} />
-                </div>
-                <select value={o.nota ?? ""} onChange={e => updateObjectiu(i, "nota", e.target.value ? parseInt(e.target.value) : null)}
-                  className="outline-none text-[11px] shrink-0"
-                  style={{ background: "transparent", border: "none", color: C.muted }}>
-                  <option value="">–</option>
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <button type="button" onClick={() => removeObjectiu(i)}
-                  className="text-[10px] shrink-0 transition-colors" style={{ color: "#B0A498" }}>
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <button type="button" onClick={addObjectiu}
-          className="text-[9px] font-bold uppercase tracking-[0.35em] transition-colors"
-          style={{ color: C.muted }}>
-          + Afegir objectiu
-        </button>
-      </Section>
-
-      {/* ── Ritual ── */}
+      {/* ── Ritual matinal ── */}
       <Section label="Ritual matinal">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-1">
           {(Object.keys(RITUAL_LABELS) as (keyof RitualMat)[]).map(key => (
-            <button
-              key={key} type="button"
+            <button key={key} type="button"
               onClick={() => setRitual(r => ({ ...r, [key]: !r[key] }))}
-              className="flex items-center gap-4 py-3 text-left transition-all"
-              style={{ borderBottom: `1px solid ${ritual[key] ? C.accentLo : C.border}` }}
-            >
-              <div
-                className="w-1.5 h-1.5 rounded-full shrink-0 transition-colors"
-                style={{ backgroundColor: ritual[key] ? "#C4964A" : "#D0C4B8" }}
-              />
-              <span className="text-[12px] font-medium transition-colors"
-                style={{ color: ritual[key] ? C.text : "#B0A498" }}>
+              className="flex items-center gap-3 py-2.5 px-1 text-left rounded-lg transition-all hover:bg-gray-50">
+              <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all"
+                style={{
+                  borderColor: ritual[key] ? R : BORDER,
+                  backgroundColor: ritual[key] ? R : "transparent",
+                }}>
+                {ritual[key] && (
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="1.8">
+                    <path d="M1 4l3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-[13px] font-medium" style={{ color: ritual[key] ? BK : DIM }}>
                 {RITUAL_LABELS[key]}
               </span>
             </button>
@@ -410,47 +371,166 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
         </div>
       </Section>
 
-      {/* ── Diari activitats ── */}
-      <Section label="Diari d'activitats">
-        <TextArea name="activitats" value={activitats} onChange={setActivitats}
-          placeholder="Com ha anat el dia, converses importants, decisions…" rows={6} />
-      </Section>
-
-      {/* ── Running ── */}
-      <Section label="Moviment · Running">
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-8">
-          <Field label="Km">
-            <input type="number" name="running_km" value={runningKm}
-              onChange={e => setRunningKm(e.target.value)} min={0} max={100} step={0.1} placeholder="0.0"
-              className="outline-none w-full"
-              style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "8px", fontSize: "20px", color: C.text, fontWeight: 800 }} />
+      {/* ── Planificació matinal ── */}
+      <Section label="Planificació del dia" accent>
+        <Field label="Tasca clau del dia">
+          <TInput name="tasca_clau" value={tascaClau} onChange={setTascaClau} placeholder="Verb + resultat esperat…" />
+        </Field>
+        <Field label="Disciplina · Compromís">
+          <TInput name="disciplina_compromis" value={disciplina} onChange={setDisciplina} placeholder="Sense sucre, exercici 45 min…" />
+        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Field label="Espai lliure">
+            <TArea name="espai_lliure" value={espaiLliure} onChange={setEspaiLliure} placeholder="El que tinguis al cap…" rows={2} />
           </Field>
-          <Field label="Minuts">
-            <input type="number" name="running_min" value={runningMin}
-              onChange={e => setRunningMin(e.target.value)} min={0} max={300} placeholder="0"
-              className="outline-none w-full"
-              style={{ background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, paddingBottom: "8px", fontSize: "20px", color: C.text, fontWeight: 800 }} />
-          </Field>
-          <Field label="Ritme">
-            <p className="text-[20px] font-black" style={{ color: pace ? "#C4964A" : "#1E1C1A", paddingBottom: "8px", borderBottom: `1px solid ${C.border}` }}>
-              {pace ?? "–"}
-            </p>
+          <Field label="Reflexió personal">
+            <TArea name="reflexio_personal" value={reflexio} onChange={setReflexio} placeholder="Qui vull ser avui?" rows={2} />
           </Field>
         </div>
-        <Field label="Ruta · Notes">
-          <TextInput name="running_notes" value={runningNotes} onChange={setRunningNotes} placeholder="Parc, ruta, sensacions…" />
+      </Section>
+
+      {/* ── Objectius ── */}
+      <Section label="Objectius del dia">
+        {objectius.length > 0 && (
+          <div className="space-y-3">
+            {objectius.map((o, i) => (
+              <div key={i} className="grid grid-cols-[20px_1fr_1fr_1fr_32px_24px] gap-2 items-center">
+                <span className="text-[10px] font-black tabular-nums" style={{ color: "#C0A890" }}>
+                  {i + 1}
+                </span>
+                {(["categoria", "objectiu", "accio"] as const).map(f => (
+                  <input key={f} value={o[f] as string}
+                    onChange={e => updateObjectiu(i, f, e.target.value)}
+                    placeholder={f === "categoria" ? "Àrea…" : f === "objectiu" ? "Objectiu…" : "Acció…"}
+                    className="outline-none text-[12px]"
+                    style={{ background: "transparent", border: "none", borderBottom: `1px solid ${BORDER}`, paddingBottom: "5px", color: BK }} />
+                ))}
+                <select value={o.nota ?? ""} onChange={e => updateObjectiu(i, "nota", e.target.value ? parseInt(e.target.value) : null)}
+                  className="outline-none text-[11px]"
+                  style={{ background: "transparent", border: "none", borderBottom: `1px solid ${BORDER}`, color: LABEL }}>
+                  <option value="">–</option>
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button type="button" onClick={() => removeObjectiu(i)}
+                  className="text-[16px] transition-colors hover:text-red-500" style={{ color: DIM }}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={addObjectiu}
+          className="text-[11px] font-semibold transition-colors hover:underline"
+          style={{ color: R }}>
+          + Afegir objectiu
+        </button>
+      </Section>
+
+      {/* ── Diari d'activitats ── */}
+      <Section label="Diari d'activitats">
+        <TArea name="activitats" value={activitats} onChange={setActivitats}
+          placeholder="Com ha anat el dia, converses importants, decisions, emocions…" rows={5} />
+      </Section>
+
+      {/* ── Activitat Física ── */}
+      <Section label="Activitat Física">
+        {/* Garmin sync */}
+        <div className="flex items-center justify-between p-3 rounded-xl"
+          style={{ backgroundColor: "#F5F0E8", border: `1px solid ${BORDER}` }}>
+          <div>
+            <p className="text-[11px] font-bold" style={{ color: BK }}>Garmin Connect</p>
+            <p className="text-[10px]" style={{ color: LABEL }}>Importa son, FC, passos i activitat</p>
+          </div>
+          <button type="button" onClick={syncGarmin} disabled={garminLoading}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors disabled:opacity-40"
+            style={{ backgroundColor: BK, color: "#FFF" }}>
+            {garminLoading ? "Sincronitzant…" : "↻ Importar Garmin"}
+          </button>
+        </div>
+
+        {/* Garmin stats */}
+        {garminData && (
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 p-3 rounded-xl"
+            style={{ backgroundColor: "#F9F2F0", border: `1px solid ${BORDER}` }}>
+            <GarminNum label="Son" value={garminData.son_hores != null ? `${garminData.son_hores}h` : null} />
+            <GarminNum label="FC repòs" value={garminData.rhr != null ? `${garminData.rhr}bpm` : null} />
+            <GarminNum label="Energia" value={garminData.energia != null ? `${garminData.energia}/5` : null} />
+            <GarminNum label="Serenitat" value={garminData.serenitat != null ? `${garminData.serenitat}/5` : null} />
+            <GarminNum label="Passos" value={garminData.passos != null ? garminData.passos.toLocaleString("ca-ES") : null} />
+            <GarminNum label="Km" value={garminData.running_km != null ? `${garminData.running_km}` : null} />
+          </div>
+        )}
+        {garminMsg && (
+          <p className="text-[10px] font-medium"
+            style={{ color: garminMsg.startsWith("Error") ? "#8B2635" : "#2A7A4A" }}>
+            {garminMsg}
+          </p>
+        )}
+
+        {/* Manual activity */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-1">
+          <Field label="Tipus activitat">
+            <select name="activitat_tipus" value={actTipus} onChange={e => setActTipus(e.target.value)}
+              className="outline-none text-[13px] w-full font-medium"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: actTipus ? BK : LABEL }}>
+              {ACTIVITAT_TIPUS.map(t => <option key={t.val} value={t.val}>{t.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Km / Distància">
+            <input type="number" name="running_km" value={runningKm}
+              onChange={e => setRunningKm(e.target.value)}
+              min={0} max={200} step={0.1} placeholder="0.0"
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
+          </Field>
+          <Field label="Durada (min)">
+            <input type="number" name="running_min" value={runningMin}
+              onChange={e => setRunningMin(e.target.value)}
+              min={0} max={600} placeholder="0"
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
+          </Field>
+          <Field label="FC Mitjana (bpm)">
+            <input type="number" name="act_fc_mit" value={actFcMit}
+              onChange={e => setActFcMit(e.target.value)}
+              min={30} max={220} placeholder="–"
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
+          </Field>
+          <Field label="FC Màxima (bpm)">
+            <input type="number" name="act_fc_max" value={actFcMax}
+              onChange={e => setActFcMax(e.target.value)}
+              min={30} max={220} placeholder="–"
+              className="outline-none w-full text-[14px] font-semibold"
+              style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${BORDER}`, paddingBottom: "7px", color: BK }} />
+          </Field>
+          {pace && (
+            <Field label="Ritme">
+              <p className="text-[14px] font-semibold pt-1" style={{ color: "#2A7A4A" }}>{pace}</p>
+            </Field>
+          )}
+        </div>
+        <Field label="Notes activitat">
+          <TInput name="running_notes" value={runningNotes} onChange={setRunningNotes} placeholder="Ruta, sensacions…" />
         </Field>
       </Section>
 
-      {/* ── Examen vespre ── */}
+      {/* ── Nota del dia ── */}
+      <Section label="Nota del dia">
+        <Field label="Valoració global">
+          <Stars name="nota_dia" value={notaDia} onChange={setNotaDia} />
+        </Field>
+      </Section>
+
+      {/* ── Examen de vespre ── */}
       <Section label="Examen de vespre">
-        <TextArea name="examen_vespre" value={examenVespre} onChange={setExamenVespre}
+        <TArea name="examen_vespre" value={examenVespre} onChange={setExamenVespre}
           placeholder="He actuat des dels meus valors? He estat coherent? Que repetiria?" rows={4} />
       </Section>
 
       {/* ── Check final ── */}
-      <Section label="Check final">
-        <div className="space-y-4">
+      <Section label="Check final del dia">
+        <div className="space-y-1">
           {([
             ["Tasca clau completada", tascaCompletada, setTascaCompletada],
             ["Disciplina complerta", disciplinaComp, setDisciplinaComp],
@@ -458,27 +538,29 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
           ] as const).map(([label, val, setVal]) => (
             <button key={label} type="button"
               onClick={() => (setVal as (v: boolean) => void)(!val)}
-              className="flex items-center gap-4 py-3 w-full text-left transition-all"
-              style={{ borderBottom: `1px solid ${val ? C.accentLo : C.border}` }}
-            >
-              <div className="w-1.5 h-1.5 rounded-full shrink-0 transition-colors"
-                style={{ backgroundColor: val ? "#C4964A" : "#D0C4B8" }} />
-              <span className="text-[13px] font-medium transition-colors"
-                style={{ color: val ? C.text : "#B0A498" }}>
+              className="flex items-center gap-3 py-2 px-1 w-full text-left rounded-lg transition-all hover:bg-gray-50">
+              <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all"
+                style={{ borderColor: val ? R : BORDER, backgroundColor: val ? R : "transparent" }}>
+                {val && (
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="white" strokeWidth="1.8">
+                    <path d="M1 4l3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-[13px] font-medium" style={{ color: val ? BK : DIM }}>
                 {label}
               </span>
             </button>
           ))}
         </div>
-        <Field label="Resultat · avui he avançat perquè…">
-          <TextInput name="resultat" value={resultat} onChange={setResultat}
-            placeholder="He tancat la proposta perquè…" />
+        <Field label="Avui he avançat perquè…">
+          <TInput name="resultat" value={resultat} onChange={setResultat} placeholder="He tancat la proposta perquè…" />
         </Field>
       </Section>
 
       {/* ── Autoavaluació ── */}
       <Section label="Autoavaluació">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-x-8 gap-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
           {([
             ["Disciplina",   "av_disciplina",  avDisciplina,  setAvDisciplina],
             ["Mentalitat",   "av_mentalitat",  avMentalitat,  setAvMentalitat],
@@ -487,7 +569,7 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
             ["Serenitat",    "av_serenitat",   avSerenitat,   setAvSerenitat],
           ] as const).map(([label, name, val, setVal]) => (
             <Field key={name} label={label}>
-              <StarBar name={name} value={val} onChange={setVal as (v: number) => void} />
+              <Stars name={name} value={val} onChange={setVal as (v: number) => void} />
             </Field>
           ))}
         </div>
@@ -495,23 +577,19 @@ export function DiarioForm({ fecha, initial, fraseSetmana }: {
 
       {/* ── Tancament ── */}
       <Section label="Avui m'enduc…">
-        <TextArea name="avui_menduc" value={avuiMenduc} onChange={setAvuiMenduc}
+        <TArea name="avui_menduc" value={avuiMenduc} onChange={setAvuiMenduc}
           placeholder="La lliçó d'avui…" rows={3} />
       </Section>
 
-      {/* ── Save ── */}
-      <div className="flex items-center justify-between pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
-        <span
-          className="text-[11px] font-semibold transition-opacity"
-          style={{ color: "#2A7A4A", opacity: saved ? 1 : 0 }}
-        >
-          ✓ Guardat
+      {/* ── Guardar ── */}
+      <div className="flex items-center justify-between pt-2">
+        <span className="text-[11px] font-semibold transition-opacity"
+          style={{ color: "#2A7A4A", opacity: saved ? 1 : 0 }}>
+          ✓ Guardat correctament
         </span>
-        <button
-          type="submit" disabled={isPending}
-          className="px-5 py-2 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-40"
-          style={{ backgroundColor: C.accent, color: "#FFF" }}
-        >
+        <button type="submit" disabled={isPending}
+          className="px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all disabled:opacity-40 hover:opacity-90"
+          style={{ backgroundColor: R, color: "#FFF" }}>
           {isPending ? "Guardant…" : "Guardar entrada"}
         </button>
       </div>

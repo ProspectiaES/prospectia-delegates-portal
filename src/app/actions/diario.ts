@@ -73,6 +73,9 @@ export async function saveDiarioEntry(formData: FormData) {
     running_km:           safeFloat(formData.get("running_km")),
     running_min:          safeInt(formData.get("running_min")),
     running_notes:        (formData.get("running_notes") as string) || null,
+    activitat_tipus:      (formData.get("activitat_tipus") as string) || null,
+    act_fc_mit:           safeInt(formData.get("act_fc_mit")),
+    act_fc_max:           safeInt(formData.get("act_fc_max")),
   };
 
   await supabase
