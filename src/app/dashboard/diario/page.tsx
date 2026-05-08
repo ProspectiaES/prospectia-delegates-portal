@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getProfile } from "@/lib/profile";
 import { getDiarioCalendar } from "@/app/actions/diario";
+import { getFraseSetmana } from "@/lib/diario-constants";
 
 const MONTHS_CA = [
   "Gener", "Febrer", "Març", "Abril", "Maig", "Juny",
@@ -88,6 +89,7 @@ export default async function DiarioPage({
   const year = parseInt(sp.year ?? "") || new Date().getFullYear();
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  const { setmana: currentWeek } = getFraseSetmana();
   const calData = await getDiarioCalendar(year);
   const entriesMap = new Map(calData.map(e => [e.fecha, e.nota_dia]));
 
@@ -163,6 +165,42 @@ export default async function DiarioPage({
         {Array.from({ length: 12 }, (_, m) => (
           <MonthGrid key={m} year={year} month={m} entries={entriesMap} />
         ))}
+      </div>
+
+      {/* Planificació 2026 */}
+      <div>
+        <h2 className="text-sm font-bold text-[#0A0A0A] mb-3">Planificació d&apos;Alt Rendiment</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Link
+            href="/dashboard/diario/planificacio"
+            className="bg-white rounded-xl border border-[#E5E7EB] p-4 hover:border-[#8E0E1A]/30 hover:shadow-sm transition-all group"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#FEF2F2] flex items-center justify-center text-base shrink-0">
+                🗂️
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#0A0A0A]">Planificació</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Missió, prioritats, objectius</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href={`/dashboard/diario/setmana/${year}/${currentWeek}`}
+            className="bg-white rounded-xl border border-[#E5E7EB] p-4 hover:border-[#8E0E1A]/30 hover:shadow-sm transition-all group"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#FEF2F2] flex items-center justify-center text-base shrink-0">
+                📅
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#0A0A0A]">Setmana actual</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-0.5">Revisió setmana {currentWeek}</p>
+              </div>
+            </div>
+          </Link>
+        </div>
       </div>
     </div>
   );

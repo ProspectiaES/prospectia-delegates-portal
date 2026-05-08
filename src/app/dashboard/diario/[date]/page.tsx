@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getProfile } from "@/lib/profile";
 import { getDiarioEntry } from "@/app/actions/diario";
+import { getFraseSetmana } from "@/lib/diario-constants";
 import { DiarioForm } from "./DiarioForm";
 
 function addDays(iso: string, n: number): string {
@@ -23,6 +24,7 @@ export default async function DiarioDatePage({
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
   const entry = await getDiarioEntry(date);
+  const { frase: fraseSetmana } = getFraseSetmana(new Date(date + "T12:00:00"));
   const prevDate = addDays(date, -1);
   const nextDate = addDays(date, 1);
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -76,7 +78,7 @@ export default async function DiarioDatePage({
         </div>
       )}
 
-      <DiarioForm fecha={date} initial={entry} />
+      <DiarioForm fecha={date} initial={entry} fraseSetmana={fraseSetmana} />
     </div>
   );
 }

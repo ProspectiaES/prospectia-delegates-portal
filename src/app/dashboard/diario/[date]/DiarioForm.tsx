@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveDiarioEntry } from "@/app/actions/diario";
+import type { GarminDayData } from "@/lib/garmin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,9 @@ export interface DiarioEntry {
   av_relacions?: number | null;
   av_serenitat?: number | null;
   avui_menduc?: string | null;
+  running_km?: number | null;
+  running_min?: number | null;
+  running_notes?: string | null;
 }
 
 // ─── Star rating ──────────────────────────────────────────────────────────────
@@ -150,9 +154,15 @@ function TextInput({ name, value, onChange, placeholder, type = "text" }: {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioEntry | null }) {
+export function DiarioForm({ fecha, initial, fraseSetmana }: {
+  fecha: string;
+  initial: DiarioEntry | null;
+  fraseSetmana?: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [garminLoading, setGarminLoading] = useState(false);
+  const [garminMsg, setGarminMsg] = useState<string | null>(null);
 
   // ── State ──
   const [horaInici, setHoraInici]     = useState(initial?.hora_inici ?? "");
@@ -197,6 +207,10 @@ export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioE
   const [avSerenitat, setAvSerenitat]     = useState<number | null>(initial?.av_serenitat ?? null);
   const [avuiMenduc, setAvuiMenduc]       = useState(initial?.avui_menduc ?? "");
 
+  const [runningKm, setRunningKm]         = useState(initial?.running_km != null ? String(initial.running_km) : "");
+  const [runningMin, setRunningMin]       = useState(initial?.running_min != null ? String(initial.running_min) : "");
+  const [runningNotes, setRunningNotes]   = useState(initial?.running_notes ?? "");
+
   // ── Objectius helpers ──
   function addObjectiu() {
     setObjectius(prev => [...prev, { categoria: "", objectiu: "", accio: "", nota: null }]);
@@ -208,6 +222,29 @@ export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioE
     setObjectius(prev => prev.map((o, idx) => idx === i ? { ...o, [field]: val } : o));
   }
 
+  // ── Garmin sync ──
+  async function syncGarmin() {
+    setGarminLoading(true);
+    setGarminMsg(null);
+    try {
+      const res = await fetch(`/api/garmin/day?date=${fecha}`);
+      const json = await res.json() as { ok: boolean; data?: GarminDayData; error?: string };
+      if (!json.ok) throw new Error(json.error ?? "Error desconegut");
+      const d = json.data!;
+      if (d.son_hores  != null) setSonHores(String(d.son_hores));
+      if (d.energia    != null) setEnergia(d.energia);
+      if (d.serenitat  != null) setSerenitat(d.serenitat);
+      if (d.running_km != null) setRunningKm(String(d.running_km));
+      if (d.running_min != null) setRunningMin(String(d.running_min));
+      const items = d.origen.length > 0 ? d.origen.join(", ") : "cap dada nova";
+      setGarminMsg(`Sincronitzat: ${items}`);
+    } catch (e) {
+      setGarminMsg(`Error: ${(e as Error).message}`);
+    } finally {
+      setGarminLoading(false);
+    }
+  }
+
   // ── Submit ──
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -217,6 +254,9 @@ export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioE
     fd.set("tasca_completada", String(tascaCompletada));
     fd.set("disciplina_complerta", String(disciplinaComp));
     fd.set("criteri_mantingut", String(criteriMantingut));
+    if (runningKm) fd.set("running_km", runningKm);
+    if (runningMin) fd.set("running_min", runningMin);
+    if (runningNotes) fd.set("running_notes", runningNotes);
 
     startTransition(async () => {
       await saveDiarioEntry(fd);
@@ -229,13 +269,59 @@ export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioE
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
+  // Running pace calculation
+  const kmVal = parseFloat(runningKm);
+  const minVal = parseFloat(runningMin);
+  const pace = (!isNaN(kmVal) && !isNaN(minVal) && kmVal > 0 && minVal > 0)
+    ? (() => {
+        const totalSec = (minVal / kmVal) * 60;
+        const m = Math.floor(totalSec / 60);
+        const s = Math.round(totalSec % 60);
+        return `${m}:${String(s).padStart(2, "0")} min/km`;
+      })()
+    : null;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <input type="hidden" name="fecha" value={fecha} />
 
+      {/* ── Frase de la setmana ── */}
+      {fraseSetmana && (
+        <div className="bg-white rounded-xl border-l-4 border-l-[#8E0E1A] border border-[#E5E7EB] px-4 py-3">
+          <p className="text-[11px] font-semibold text-[#8E0E1A] uppercase tracking-wider mb-1">Frase de la setmana</p>
+          <p className="text-sm text-[#0A0A0A] italic">&ldquo;{fraseSetmana}&rdquo;</p>
+        </div>
+      )}
+
       {/* ── 1. Metrics ── */}
       <Card>
-        <SectionHeader emoji="📊" title="Dashboard del dia" subtitle={dateLabel} />
+        <div className="flex items-start justify-between gap-2">
+          <SectionHeader emoji="📊" title="Dashboard del dia" subtitle={dateLabel} />
+          <button
+            type="button"
+            onClick={syncGarmin}
+            disabled={garminLoading}
+            className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-xs font-semibold text-[#374151] hover:bg-[#F3F4F6] disabled:opacity-50 transition-colors"
+            title="Importar dades del Garmin Connect"
+          >
+            {garminLoading ? (
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 1v2M6 9v2M1 6h2M9 6h2" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M10.5 6A4.5 4.5 0 112.1 3.9" strokeLinecap="round"/>
+                <path d="M2 1.5V4h2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            Garmin
+          </button>
+        </div>
+        {garminMsg && (
+          <p className={`-mt-2 text-[11px] ${garminMsg.startsWith("Error") ? "text-red-500" : "text-emerald-600"}`}>
+            {garminMsg}
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
           <div>
@@ -438,6 +524,52 @@ export function DiarioForm({ fecha, initial }: { fecha: string; initial: DiarioE
           placeholder="Descriu com ha anat el dia, el que has fet, converses importants, decisions preses…"
           rows={6}
         />
+      </Card>
+
+      {/* ── 5b. Running / Moviment ── */}
+      <Card>
+        <SectionHeader emoji="🏃" title="Running / Moviment" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <Label>Km recorreguts</Label>
+            <input
+              type="number"
+              name="running_km"
+              value={runningKm}
+              onChange={e => setRunningKm(e.target.value)}
+              min={0} max={100} step={0.1}
+              placeholder="0.0"
+              className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+            />
+          </div>
+          <div>
+            <Label>Minuts</Label>
+            <input
+              type="number"
+              name="running_min"
+              value={runningMin}
+              onChange={e => setRunningMin(e.target.value)}
+              min={0} max={300}
+              placeholder="0"
+              className="w-full text-sm text-[#0A0A0A] placeholder-[#D1D5DB] bg-[#FAFAFA] border border-[#E5E7EB] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] transition-colors"
+            />
+          </div>
+          <div>
+            <Label>Ritme</Label>
+            <div className="flex items-center h-[38px] px-3 bg-[#F3F4F6] border border-[#E5E7EB] rounded-lg text-sm text-[#374151]">
+              {pace ?? "–"}
+            </div>
+          </div>
+        </div>
+        <div>
+          <Label>Ruta o notes</Label>
+          <TextInput
+            name="running_notes"
+            value={runningNotes}
+            onChange={setRunningNotes}
+            placeholder="Parc de la Ciutadella, 5K suau…"
+          />
+        </div>
       </Card>
 
       {/* ── 6. Examen de vespre ── */}
