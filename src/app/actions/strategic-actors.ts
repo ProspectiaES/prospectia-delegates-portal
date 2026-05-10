@@ -586,32 +586,74 @@ export async function analyzeDocument(documentId: string): Promise<void> {
   const profile = await requireOwner();
   const supabase = await createClient();
 
-  const { data: doc } = await supabase
+  const { data: doc, error: docErr } = await supabase
     .from("strategic_actor_documents")
     .select("*")
     .eq("id", documentId)
     .eq("user_id", profile.id)
     .single();
 
-  if (!doc || !doc.pregunta_ia) return;
+  if (docErr || !doc) throw new Error(`Document no trobat: ${docErr?.message ?? "desconegut"}`);
+  if (!doc.pregunta_ia) throw new Error("El document no té cap pregunta definida");
 
-  const { data: fileData } = await supabase.storage.from("actor-documents").download(doc.storage_path);
-  if (!fileData) return;
+  // Download from storage
+  const { data: fileData, error: storageErr } = await supabase.storage
+    .from("actor-documents")
+    .download(doc.storage_path);
+
+  if (storageErr || !fileData) {
+    const msg = `Error baixant el fitxer: ${storageErr?.message ?? "fitxer no accessible"}`;
+    await supabase.from("strategic_actor_documents")
+      .update({ resultat_ia: `⚠️ ${msg}`, analitzat: false })
+      .eq("id", documentId).eq("user_id", profile.id);
+    throw new Error(msg);
+  }
 
   const buf = await fileData.arrayBuffer();
   const base64 = Buffer.from(buf).toString("base64");
 
-  const prompt = `Ets un analista estratègic. Analitza el document adjunt i respon la pregunta de manera clara i concisa en català.
+  // Anthropic supports PDF and text/* natively; for others send as plain text block
+  const mimeType = doc.tipus_fitxer ?? "application/octet-stream";
+  const isNativeDoc = mimeType === "application/pdf" || mimeType.startsWith("text/");
+
+  let resultat: string;
+
+  if (isNativeDoc) {
+    const prompt = `Ets un analista estratègic. Analitza el document adjunt i respon la pregunta de manera clara i concisa en català.
 
 Pregunta: ${doc.pregunta_ia}
 
-Respon directament la pregunta. Sigues específic i basa't únicament en el contingut del document. Utilitza llistes o paràgrafs curts. Màxim 400 paraules.`;
+Respon directament la pregunta. Sigues específic i basa't únicament en el contingut del document. Màxim 400 paraules.`;
 
-  const resultat = await callClaudeWithDocs(
-    prompt,
-    [{ mediaType: doc.tipus_fitxer ?? "application/pdf", base64, nom: doc.nom_fitxer, notes: doc.notes }],
-    1200,
-  );
+    resultat = await callClaudeWithDocs(
+      prompt,
+      [{ mediaType: mimeType, base64, nom: doc.nom_fitxer, notes: doc.notes }],
+      1200,
+    );
+  } else {
+    // Non-native type (DOCX, etc.): send as plain text if possible, otherwise error
+    let textContent: string;
+    try {
+      textContent = Buffer.from(buf).toString("utf-8");
+    } catch {
+      textContent = "(contingut binari no llegible com a text)";
+    }
+
+    const prompt = `Ets un analista estratègic. A continuació tens el contingut d'un fitxer (${doc.nom_fitxer}).
+
+CONTINGUT DEL FITXER:
+${textContent.slice(0, 8000)}
+
+Pregunta: ${doc.pregunta_ia}
+
+Respon directament la pregunta en català. Sigues específic. Màxim 400 paraules.`;
+
+    resultat = await callClaude(prompt, 1200);
+  }
+
+  if (!resultat) {
+    resultat = "⚠️ La IA no ha retornat cap resposta. Torna-ho a intentar.";
+  }
 
   await supabase.from("strategic_actor_documents")
     .update({ resultat_ia: resultat, analitzat: true })

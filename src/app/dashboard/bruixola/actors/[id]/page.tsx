@@ -694,6 +694,7 @@ function TabDocuments({ actorId, onSaved }: { actorId: string; onSaved: () => vo
   const [docs, setDocs] = useState<ActorDocument[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isDeleting, startDelete] = useTransition();
+  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [pregunta, setPregunta] = useState("");
   const [fileRef, setFileRef] = useState<File | null>(null);
@@ -876,17 +877,49 @@ function TabDocuments({ actorId, onSaved }: { actorId: string; onSaved: () => vo
             {/* Question + Answer block */}
             {doc.pregunta_ia && (
               <div className="px-4 pb-4 space-y-2" style={{ borderTop: `1px solid ${BORDER}` }}>
-                <p className="text-[9px] font-bold uppercase tracking-wider pt-3" style={{ color: LABEL }}>Pregunta</p>
+                <div className="flex items-center justify-between pt-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: LABEL }}>Pregunta</p>
+                  <button type="button"
+                    onClick={async () => {
+                      setReanalyzingId(doc.id);
+                      try { await analyzeDocument(doc.id); await reload(); }
+                      catch { /* error saved to resultat_ia */ }
+                      finally { setReanalyzingId(null); }
+                    }}
+                    disabled={reanalyzingId === doc.id}
+                    className="text-[8px] font-semibold px-2 py-0.5 rounded disabled:opacity-40 hover:opacity-70 flex items-center gap-1"
+                    style={{ color: BLUE, border: `1px solid ${BLUE}30`, backgroundColor: `${BLUE}06` }}>
+                    {reanalyzingId === doc.id ? <><span className="animate-spin inline-block">◌</span> Analitzant…</> : "Re-analitzar"}
+                  </button>
+                </div>
                 <p className="text-[11px] italic" style={{ color: DIM }}>{doc.pregunta_ia}</p>
                 {doc.resultat_ia ? (
                   <>
-                    <p className="text-[9px] font-bold uppercase tracking-wider pt-1" style={{ color: GREEN }}>Resposta IA</p>
-                    <div className="rounded-lg p-3" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+                    <p className="text-[9px] font-bold uppercase tracking-wider pt-1"
+                      style={{ color: doc.resultat_ia.startsWith("⚠️") ? AMBER : GREEN }}>
+                      Resposta IA
+                    </p>
+                    <div className="rounded-lg p-3"
+                      style={{ backgroundColor: doc.resultat_ia.startsWith("⚠️") ? `${AMBER}06` : SURFACE, border: `1px solid ${doc.resultat_ia.startsWith("⚠️") ? AMBER+"30" : BORDER}` }}>
                       <p className="text-[11px] leading-relaxed whitespace-pre-line" style={{ color: TEXT }}>{doc.resultat_ia}</p>
                     </div>
                   </>
                 ) : (
-                  <p className="text-[10px]" style={{ color: LABEL }}>Pendent d&apos;anàlisi</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px]" style={{ color: LABEL }}>Pendent d&apos;anàlisi</p>
+                    <button type="button"
+                      onClick={async () => {
+                        setReanalyzingId(doc.id);
+                        try { await analyzeDocument(doc.id); await reload(); }
+                        catch { /* error saved to resultat_ia */ }
+                        finally { setReanalyzingId(null); }
+                      }}
+                      disabled={reanalyzingId === doc.id}
+                      className="text-[9px] font-bold px-2.5 py-1 rounded disabled:opacity-40 hover:opacity-80 flex items-center gap-1"
+                      style={{ backgroundColor: BLUE, color: "#FFFFFF" }}>
+                      {reanalyzingId === doc.id ? <><span className="animate-spin">◌</span> Analitzant…</> : "Analitzar ara"}
+                    </button>
+                  </div>
                 )}
               </div>
             )}
