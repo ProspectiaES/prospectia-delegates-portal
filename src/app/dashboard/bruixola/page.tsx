@@ -5,19 +5,19 @@ import { getBruixolaDashboard } from "@/app/actions/bruixola";
 import type { Objectiu, Projecte, KPI, Bloquejo } from "@/app/actions/bruixola";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const BG      = "#09090B";
-const CARD    = "#0F1013";
-const SURFACE = "#141720";
-const BORDER  = "#1C2030";
-const BORDER2 = "#252B3A";
-const TEXT    = "#E8EAF0";
-const DIM     = "#8892A0";
-const LABEL   = "#525E70";
-const GOLD    = "#C4A84A";
-const BLUE    = "#4A7EC4";
-const GREEN   = "#4A9C6A";
-const RED     = "#C44A4A";
-const AMBER   = "#C48040";
+const BG      = "#FFFFFF";
+const CARD    = "#FFFFFF";
+const SURFACE = "#F9FAFB";
+const BORDER  = "#E5E7EB";
+const BORDER2 = "#D1D5DB";
+const TEXT    = "#111827";
+const DIM     = "#6B7280";
+const LABEL   = "#9CA3AF";
+const GOLD    = "#B45309";
+const BLUE    = "#1D4ED8";
+const GREEN   = "#15803D";
+const RED     = "#DC2626";
+const AMBER   = "#D97706";
 
 const ESTAT_COLOR: Record<string, string> = {
   actiu:     BLUE,
@@ -220,7 +220,7 @@ export default async function BruixolaPage() {
           </Link>
           <Link href="/dashboard/bruixola/objectius/nou"
             className="px-4 py-2 rounded-lg text-[11px] font-bold transition-all hover:opacity-80"
-            style={{ backgroundColor: GOLD, color: "#09090B" }}>
+            style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
             + Objectiu
           </Link>
         </div>
@@ -252,7 +252,7 @@ export default async function BruixolaPage() {
           <div className="flex gap-3 justify-center">
             <Link href="/dashboard/bruixola/anamnesi"
               className="px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all hover:opacity-80"
-              style={{ backgroundColor: GOLD, color: "#09090B" }}>
+              style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
               Iniciar Anamnesi IA
             </Link>
             <Link href="/dashboard/bruixola/objectius/nou"

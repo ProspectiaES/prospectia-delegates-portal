@@ -8,18 +8,18 @@ import {
 } from "@/app/actions/bruixola";
 import type { Empresa, Actor } from "@/app/actions/bruixola";
 
-const CARD    = "#0F1013";
-const SURFACE = "#141720";
-const BORDER  = "#1C2030";
-const BORDER2 = "#252B3A";
-const TEXT    = "#E8EAF0";
-const DIM     = "#8892A0";
-const LABEL   = "#525E70";
-const GOLD    = "#C4A84A";
-const BLUE    = "#4A7EC4";
-const GREEN   = "#4A9C6A";
-const RED     = "#C44A4A";
-const AMBER   = "#C48040";
+const CARD    = "#FFFFFF";
+const SURFACE = "#F9FAFB";
+const BORDER  = "#E5E7EB";
+const BORDER2 = "#D1D5DB";
+const TEXT    = "#111827";
+const DIM     = "#6B7280";
+const LABEL   = "#9CA3AF";
+const GOLD    = "#B45309";
+const BLUE    = "#1D4ED8";
+const GREEN   = "#15803D";
+const RED     = "#DC2626";
+const AMBER   = "#D97706";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -58,7 +58,7 @@ function Scale5({ label, value, onChange, colorFn }: {
             style={{
               backgroundColor: value === n ? getC(n) : SURFACE,
               border: `1px solid ${value === n ? getC(n) : BORDER2}`,
-              color: value === n ? "#09090B" : DIM,
+              color: value === n ? "#FFFFFF" : DIM,
             }}>
             {n}
           </button>
@@ -124,7 +124,7 @@ function EmpresaForm({ empresa, onSave, onCancel }: {
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-lg text-[10px]" style={{ color: LABEL }}>Cancel·lar</button>
         <button type="submit" disabled={!nom || isPending} className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
-          style={{ backgroundColor: GOLD, color: "#09090B" }}>
+          style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
           {isPending ? "Guardant…" : empresa ? "Actualitzar" : "Crear empresa"}
         </button>
       </div>
@@ -217,7 +217,7 @@ function ActorForm({ actor, empreses, onSave, onCancel }: {
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-lg text-[10px]" style={{ color: LABEL }}>Cancel·lar</button>
         <button type="submit" disabled={!nom || isPending} className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
-          style={{ backgroundColor: BLUE, color: "#09090B" }}>
+          style={{ backgroundColor: BLUE, color: "#FFFFFF" }}>
           {isPending ? "Guardant…" : actor ? "Actualitzar" : "Crear actor"}
         </button>
       </div>
@@ -300,7 +300,7 @@ export default function EmpresesPage() {
         <button
           onClick={() => { if (tab === "empreses") { setShowEmpresaForm(true); setEditingEmpresa(undefined); } else { setShowActorForm(true); setEditingActor(undefined); } }}
           className="px-4 py-2.5 rounded-xl text-[11px] font-bold shrink-0 transition-all hover:opacity-80"
-          style={{ backgroundColor: tab === "empreses" ? GOLD : BLUE, color: "#09090B" }}>
+          style={{ backgroundColor: tab === "empreses" ? GOLD : BLUE, color: "#FFFFFF" }}>
           {tab === "empreses" ? "+ Nova empresa" : "+ Nou actor"}
         </button>
       </div>

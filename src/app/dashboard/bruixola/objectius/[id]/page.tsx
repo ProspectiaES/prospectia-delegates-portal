@@ -6,18 +6,18 @@ import Link from "next/link";
 import { getObjectiu, saveObjectiu, deleteObjectiu } from "@/app/actions/bruixola";
 import type { Objectiu } from "@/app/actions/bruixola";
 
-const CARD    = "#0F1013";
-const SURFACE = "#141720";
-const BORDER  = "#1C2030";
-const BORDER2 = "#252B3A";
-const TEXT    = "#E8EAF0";
-const DIM     = "#8892A0";
-const LABEL   = "#525E70";
-const GOLD    = "#C4A84A";
-const BLUE    = "#4A7EC4";
-const GREEN   = "#4A9C6A";
-const RED     = "#C44A4A";
-const AMBER   = "#C48040";
+const CARD    = "#FFFFFF";
+const SURFACE = "#F9FAFB";
+const BORDER  = "#E5E7EB";
+const BORDER2 = "#D1D5DB";
+const TEXT    = "#111827";
+const DIM     = "#6B7280";
+const LABEL   = "#9CA3AF";
+const GOLD    = "#B45309";
+const BLUE    = "#1D4ED8";
+const GREEN   = "#15803D";
+const RED     = "#DC2626";
+const AMBER   = "#D97706";
 
 const ESTAT_COLOR: Record<string, string> = { actiu: BLUE, assolit: GREEN, bloquejat: RED, desviat: AMBER, cancelat: LABEL, pendent: DIM };
 const ESTAT_OPTS = ["actiu", "pendent", "bloquejat", "desviat", "assolit", "cancelat"];
@@ -252,7 +252,7 @@ export default function ObjectiuDetailPage() {
           <span className="text-[10px] font-semibold transition-opacity" style={{ color: GREEN, opacity: saved ? 1 : 0 }}>✓ Guardat</span>
           <button type="submit" disabled={!titol || isPending}
             className="px-6 py-2.5 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40 hover:opacity-80"
-            style={{ backgroundColor: GOLD, color: "#09090B" }}>
+            style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
             {isPending ? "Guardant…" : "Guardar canvis"}
           </button>
         </div>

@@ -5,18 +5,18 @@ import Link from "next/link";
 import { getKPIs, saveKPI, addKPIValor, deleteKPI } from "@/app/actions/bruixola";
 import type { KPI } from "@/app/actions/bruixola";
 
-const CARD    = "#0F1013";
-const SURFACE = "#141720";
-const BORDER  = "#1C2030";
-const BORDER2 = "#252B3A";
-const TEXT    = "#E8EAF0";
-const DIM     = "#8892A0";
-const LABEL   = "#525E70";
-const GOLD    = "#C4A84A";
-const BLUE    = "#4A7EC4";
-const GREEN   = "#4A9C6A";
-const RED     = "#C44A4A";
-const AMBER   = "#C48040";
+const CARD    = "#FFFFFF";
+const SURFACE = "#F9FAFB";
+const BORDER  = "#E5E7EB";
+const BORDER2 = "#D1D5DB";
+const TEXT    = "#111827";
+const DIM     = "#6B7280";
+const LABEL   = "#9CA3AF";
+const GOLD    = "#B45309";
+const BLUE    = "#1D4ED8";
+const GREEN   = "#15803D";
+const RED     = "#DC2626";
+const AMBER   = "#D97706";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -121,7 +121,7 @@ function KPIForm({ kpi, onSave, onCancel }: {
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-lg text-[10px]" style={{ color: LABEL }}>Cancel·lar</button>
         <button type="submit" disabled={!nom || isPending} className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
-          style={{ backgroundColor: GOLD, color: "#09090B" }}>
+          style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
           {isPending ? "Guardant…" : kpi ? "Actualitzar" : "Crear KPI"}
         </button>
       </div>
@@ -166,7 +166,7 @@ function AddValueForm({ kpi, onSave, onCancel }: { kpi: KPI; onSave: () => void;
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-lg text-[10px]" style={{ color: LABEL }}>Cancel·lar</button>
         <button type="submit" disabled={!valor || isPending} className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
-          style={{ backgroundColor: GREEN, color: "#09090B" }}>
+          style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
           {isPending ? "Guardant…" : "Afegir"}
         </button>
       </div>
@@ -298,7 +298,7 @@ export default function KPIsPage() {
         </div>
         <button onClick={() => { setShowForm(true); setEditingKPI(undefined); }}
           className="px-4 py-2.5 rounded-xl text-[11px] font-bold shrink-0 transition-all hover:opacity-80"
-          style={{ backgroundColor: GOLD, color: "#09090B" }}>
+          style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
           + Nou KPI
         </button>
       </div>
@@ -334,7 +334,7 @@ export default function KPIsPage() {
           <p className="text-[11px] mb-6" style={{ color: DIM }}>Defineix els indicadors que mesuren la salut de l&apos;empresa.</p>
           <button onClick={() => setShowForm(true)}
             className="inline-block px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all hover:opacity-80"
-            style={{ backgroundColor: GOLD, color: "#09090B" }}>
+            style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
             + Crear primer KPI
           </button>
         </div>

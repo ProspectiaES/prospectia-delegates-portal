@@ -7,23 +7,23 @@ import { nextAnamnesiQuestion, generateDiagnostic, resetAnamnesi } from "@/app/a
 import type { AnamnesiTorn } from "@/lib/bruixola-prompts";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const BG      = "#09090B";
-const CARD    = "#0F1013";
-const SURFACE = "#141720";
-const BORDER  = "#1C2030";
-const BORDER2 = "#252B3A";
-const TEXT    = "#E8EAF0";
-const DIM     = "#8892A0";
-const LABEL   = "#525E70";
-const GOLD    = "#C4A84A";
-const GREEN   = "#4A9C6A";
-const BLUE    = "#4A7EC4";
+const BG      = "#FFFFFF";
+const CARD    = "#FFFFFF";
+const SURFACE = "#F9FAFB";
+const BORDER  = "#E5E7EB";
+const BORDER2 = "#D1D5DB";
+const TEXT    = "#111827";
+const DIM     = "#6B7280";
+const LABEL   = "#9CA3AF";
+const GOLD    = "#B45309";
+const GREEN   = "#15803D";
+const BLUE    = "#1D4ED8";
 
 const FASE_INFO: Record<number, { label: string; desc: string; color: string }> = {
   1: { label: "Mapa Empresarial",     desc: "Estructura, empreses, marques, línies de negoci", color: BLUE },
   2: { label: "Actors i Rols",        desc: "Qui decideix, qui executa, qui bloqueja",          color: GOLD },
   3: { label: "Productes i Projectes", desc: "Estat actual, caixa, esforç, viabilitat",         color: "#9C6ACA" },
-  4: { label: "Realitat Empresarial", desc: "Problemes reals, colls d'ampolla, decisions",       color: "#C44A4A" },
+  4: { label: "Realitat Empresarial", desc: "Problemes reals, colls d'ampolla, decisions",       color: "#DC2626" },
   5: { label: "Construcció Objectius", desc: "Convertir el caos en direcció executable",         color: GREEN },
 };
 
@@ -233,7 +233,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
           </p>
           <button onClick={handleStart}
             className="px-6 py-3 rounded-xl text-[12px] font-bold transition-all hover:opacity-80"
-            style={{ backgroundColor: GOLD, color: "#09090B" }}>
+            style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
             Iniciar Anamnesi Estratègica
           </button>
         </div>
@@ -303,7 +303,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
                 onClick={handleEnviar}
                 disabled={!resposta.trim() || isPending}
                 className="px-5 py-2 rounded-lg text-[11px] font-bold transition-all disabled:opacity-30 hover:opacity-80"
-                style={{ backgroundColor: faseColor, color: "#09090B" }}>
+                style={{ backgroundColor: faseColor, color: "#FFFFFF" }}>
                 Continuar →
               </button>
             </div>
@@ -324,7 +324,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
           </p>
           <button onClick={handleGenerarDiagnostic} disabled={isGenerating || diagnosticGenerat}
             className="px-6 py-3 rounded-xl text-[12px] font-bold transition-all disabled:opacity-50 hover:opacity-80"
-            style={{ backgroundColor: GREEN, color: "#09090B" }}>
+            style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
             {isGenerating ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin">◌</span> Generant diagnòstic…
@@ -336,8 +336,8 @@ export function AnamnesiClient({ historialInicial }: Props) {
 
       {/* Error */}
       {error && (
-        <div className="rounded-xl p-3 mt-4" style={{ backgroundColor: "#C44A4A18", border: "1px solid #C44A4A30" }}>
-          <p className="text-[11px]" style={{ color: "#C44A4A" }}>{error}</p>
+        <div className="rounded-xl p-3 mt-4" style={{ backgroundColor: "#DC262618", border: "1px solid #DC262630" }}>
+          <p className="text-[11px]" style={{ color: "#DC2626" }}>{error}</p>
         </div>
       )}
 
