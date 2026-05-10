@@ -1298,6 +1298,7 @@ export default function ActorDetailPage() {
   const [actor, setActor] = useState<StrategicActor | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [estrategiaExpanded, setEstrategiaExpanded] = useState(false);
   const [, startDeleteTransition] = useTransition();
 
   async function reload() {
@@ -1406,9 +1407,28 @@ export default function ActorDetailPage() {
           </div>
         </div>
         {actor.estrategia_ia && (
-          <div className="mt-4 pt-4 flex items-start gap-2" style={{ borderTop: `1px solid ${BORDER}` }}>
-            <span className="text-[9px] shrink-0 mt-0.5 font-bold" style={{ color: BLUE }}>ESTRATÈGIA →</span>
-            <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: DIM }}>{actor.estrategia_ia}</p>
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER}` }}>
+            <div className="flex items-start gap-2">
+              <span className="text-[9px] shrink-0 mt-0.5 font-bold" style={{ color: BLUE }}>ESTRATÈGIA →</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] leading-relaxed" style={{ color: DIM,
+                  display: estrategiaExpanded ? "block" : "-webkit-box",
+                  WebkitLineClamp: estrategiaExpanded ? undefined : 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: estrategiaExpanded ? "visible" : "hidden",
+                }}>
+                  {actor.estrategia_ia}
+                </p>
+                {actor.estrategia_ia.length > 160 && (
+                  <button
+                    onClick={() => setEstrategiaExpanded(v => !v)}
+                    className="text-[9px] font-bold mt-1 hover:opacity-70 transition-opacity"
+                    style={{ color: BLUE }}>
+                    {estrategiaExpanded ? "Amagar ▲" : "Llegir tot ▼"}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
