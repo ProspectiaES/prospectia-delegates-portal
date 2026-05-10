@@ -160,6 +160,14 @@ const IconEmails = () => (
   </svg>
 );
 
+const IconBruixola = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <circle cx="8" cy="8" r="6.5"/>
+    <path d="M8 3v2M8 11v2M3 8h2M11 8h2" strokeLinecap="round"/>
+    <path d="M8 8l-2-3 5 1-3 2z" fill="currentColor" strokeWidth="0.5"/>
+  </svg>
+);
+
 // ─── Role config ──────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<string, string> = {
@@ -470,6 +478,18 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
       ],
     },
+    ...(isOwner ? [{
+      label: "Estratègia",
+      items: [
+        { href: "/dashboard/bruixola",            label: "Brúixola",    Icon: IconBruixola, exact: true },
+        { href: "/dashboard/bruixola/objectius",  label: "Objectius",   Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/projectes",  label: "Projectes",   Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/kpis",       label: "KPIs",        Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/empreses",   label: "Empreses",    Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic",  Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/anamnesi",   label: "Anamnesi IA", Icon: IconBruixola, exact: false },
+      ],
+    }] : []),
     ...(isOwner ? [{
       label: "Sistema",
       items: [
