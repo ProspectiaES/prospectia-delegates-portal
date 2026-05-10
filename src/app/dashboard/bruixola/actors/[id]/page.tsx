@@ -690,16 +690,15 @@ function DocIcon({ tipus }: { tipus: string | null }) {
   return <span className="text-lg">📎</span>;
 }
 
-function TabDocuments({ actorId }: { actorId: string }) {
+function TabDocuments({ actorId, onSaved }: { actorId: string; onSaved: () => void }) {
   const [docs, setDocs] = useState<ActorDocument[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [isUploading, startUpload] = useTransition();
   const [isDeleting, startDelete] = useTransition();
   const [notes, setNotes] = useState("");
   const [pregunta, setPregunta] = useState("");
   const [fileRef, setFileRef] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [uploadOk, setUploadOk] = useState(false);
+  const [phase, setPhase] = useState<"" | "uploading" | "analyzing">("");
 
   const reload = useCallback(async () => {
     const d = await getActorDocuments(actorId);
@@ -719,7 +718,7 @@ function TabDocuments({ actorId }: { actorId: string }) {
     }
   }
 
-  function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!fileRef) { setError("Selecciona un fitxer"); return; }
     const fd = new FormData(e.currentTarget);
@@ -727,16 +726,21 @@ function TabDocuments({ actorId }: { actorId: string }) {
     fd.set("file", fileRef);
     fd.set("notes", notes);
     fd.set("pregunta_ia", pregunta);
-    startUpload(async () => {
-      try {
-        await uploadActorDocument(fd);
-        setShowForm(false); setFileRef(null); setNotes(""); setPregunta(""); setUploadOk(true);
-        setTimeout(() => setUploadOk(false), 2500);
-        reload();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error en la pujada");
-      }
-    });
+    setError(null);
+    setPhase("uploading");
+    try {
+      await uploadActorDocument(fd);
+      setShowForm(false); setFileRef(null); setNotes(""); setPregunta("");
+      await reload();
+      setPhase("analyzing");
+      await analyzeActor(actorId);
+      await reload();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error en la pujada o anàlisi");
+    } finally {
+      setPhase("");
+    }
   }
 
   async function handleOpen(storagePath: string) {
@@ -755,22 +759,31 @@ function TabDocuments({ actorId }: { actorId: string }) {
             PDF, TXT, CSV, DOCX · màx {MAX_MB} MB · fins 5 documents per anàlisi
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {uploadOk && <span className="text-[10px] font-semibold" style={{ color: GREEN }}>✓ Pujat</span>}
+        {phase === "" && (
           <button onClick={() => setShowForm(!showForm)}
             className="px-4 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80"
             style={{ backgroundColor: TEXT, color: "#FFFFFF" }}>
             + Pujar document
           </button>
-        </div>
+        )}
+        {phase === "uploading" && (
+          <span className="text-[10px] font-semibold flex items-center gap-1.5" style={{ color: BLUE }}>
+            <span className="animate-spin inline-block">◌</span> Pujant fitxer…
+          </span>
+        )}
+        {phase === "analyzing" && (
+          <span className="text-[10px] font-semibold flex items-center gap-1.5" style={{ color: BLUE }}>
+            <span className="animate-spin inline-block">◌</span> Analitzant amb IA…
+          </span>
+        )}
       </div>
 
       {/* Info banner */}
       <div className="rounded-xl p-3 flex gap-2" style={{ backgroundColor: `${BLUE}06`, border: `1px solid ${BLUE}20` }}>
         <div className="w-0.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: BLUE }} />
         <p className="text-[10px] leading-relaxed" style={{ color: DIM }}>
-          Els documents aquí pujats s&apos;inclouen automàticament quan fas clic a <strong style={{ color: TEXT }}>&quot;Generar anàlisi IA&quot;</strong>.
-          Claude llegeix el contingut i extreu informació rellevant per complementar el perfil de l&apos;actor.
+          En pujar un document, <strong style={{ color: TEXT }}>Claude l&apos;analitza automàticament</strong> i actualitza el perfil de l&apos;actor.
+          La pregunta que indiques orienta l&apos;anàlisi cap al que t&apos;interessa saber.
         </p>
       </div>
 
@@ -806,10 +819,10 @@ function TabDocuments({ actorId }: { actorId: string }) {
               className="px-3 py-1.5 text-[10px] rounded-lg" style={{ color: LABEL }}>
               Cancel·lar
             </button>
-            <button type="submit" disabled={!fileRef || !pregunta.trim() || isUploading}
+            <button type="submit" disabled={!fileRef || !pregunta.trim() || phase !== ""}
               className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
               style={{ backgroundColor: TEXT, color: "#FFFFFF" }}>
-              {isUploading ? "Pujant…" : "Pujar"}
+              {phase === "uploading" ? "Pujant…" : phase === "analyzing" ? "Analitzant…" : "Pujar i analitzar"}
             </button>
           </div>
         </form>
@@ -1379,7 +1392,7 @@ export default function ActorDetailPage() {
         {activeTab === 2 && <TabPotencialitat actor={actor} onSaved={reload} />}
         {activeTab === 3 && <TabRisc actor={actor} onSaved={reload} />}
         {activeTab === 4 && <TabVincles actorId={actor.id} />}
-        {activeTab === 5 && <TabDocuments actorId={actor.id} />}
+        {activeTab === 5 && <TabDocuments actorId={actor.id} onSaved={reload} />}
         {activeTab === 6 && <TabHistorial actorId={actor.id} />}
         {activeTab === 7 && <TabIA actor={actor} onSaved={reload} />}
       </div>
