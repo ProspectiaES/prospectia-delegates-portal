@@ -213,6 +213,11 @@ export default async function BruixolaPage() {
           )}
         </div>
         <div className="flex gap-2 shrink-0">
+          <Link href="/dashboard/bruixola/focus"
+            className="px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-80"
+            style={{ backgroundColor: SURFACE, color: LABEL, border: `1px solid ${BORDER}` }}>
+            {focus ? "Editar focus" : "Definir focus"}
+          </Link>
           <Link href="/dashboard/bruixola/anamnesi"
             className="px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all hover:opacity-80"
             style={{ backgroundColor: SURFACE, color: GOLD, border: `1px solid ${GOLD}30` }}>
@@ -407,13 +412,14 @@ export default async function BruixolaPage() {
       )}
 
       {/* Bottom nav */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
         {[
           { href: "/dashboard/bruixola/objectius",  label: "Objectius" },
           { href: "/dashboard/bruixola/projectes",  label: "Projectes" },
           { href: "/dashboard/bruixola/kpis",       label: "KPIs" },
           { href: "/dashboard/bruixola/empreses",   label: "Empreses · Actors" },
           { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic IA" },
+          { href: "/dashboard/bruixola/focus",      label: "Focus" },
         ].map(item => (
           <Link key={item.href} href={item.href}
             className="rounded-xl py-2.5 px-3 text-center text-[10px] font-bold uppercase tracking-wide transition-all hover:border-[#2A3045]"
