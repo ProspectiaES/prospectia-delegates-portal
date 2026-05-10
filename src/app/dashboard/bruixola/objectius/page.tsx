@@ -62,6 +62,11 @@ function ObjectiuRow({ o }: { o: Objectiu }) {
             <span className="text-[9px] font-semibold" style={{ color: LABEL }}>
               {o.tipus === "anual" ? `Anual ${o.any ?? ""}` : o.tipus === "trimestral" ? `Q${o.trimestre ?? "?"} ${o.any ?? ""}` : `Mensual`}
             </span>
+            {o.created_by_nom && (
+              <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#F1F5F9", color: LABEL }}>
+                {o.created_by_nom.split(" ").slice(0, 2).join(" ")}
+              </span>
+            )}
             {hasMetric && (
               <span className="text-[9px]" style={{ color: DIM }}>
                 {o.valor_actual ?? "–"} / {o.valor_objectiu} {o.metrica}
@@ -102,7 +107,7 @@ function ObjectiuRow({ o }: { o: Objectiu }) {
 
 export default async function ObjectiusPage() {
   const profile = await getProfile();
-  if (!profile || profile.role !== "OWNER") redirect("/dashboard");
+  if (!profile || (profile.role !== "OWNER" && profile.role !== "CONSIGLIERE")) redirect("/dashboard");
 
   const objectius = await getObjectius();
 

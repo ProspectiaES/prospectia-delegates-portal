@@ -88,6 +88,8 @@ export interface Projecte {
   caixa_esperada: number | null;
   risc_text: string | null;
   notes: string | null;
+  created_by: string | null;
+  created_by_nom: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +122,8 @@ export interface Objectiu {
   seguent_accio: string | null;
   decisio_pendent: string | null;
   notes: string | null;
+  created_by: string | null;
+  created_by_nom: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -203,12 +207,23 @@ export interface BruixolaDashboard {
   };
 }
 
-// ─── Auth helper ──────────────────────────────────────────────────────────────
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 async function requireOwner() {
   const profile = await getProfile();
   if (!profile || profile.role !== "OWNER") redirect("/dashboard");
   return profile;
+}
+
+// Permite OWNER y CONSIGLIERE. Devuelve { profile, ownerId } donde
+// ownerId siempre apunta al OWNER de los datos (nunca al CONSIGLIERE).
+async function requireBruixola(): Promise<{ profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>; ownerId: string }> {
+  const profile = await getProfile();
+  if (!profile) redirect("/dashboard");
+  if (profile.role === "OWNER") return { profile, ownerId: profile.id };
+  if (profile.role === "CONSIGLIERE" && profile.owner_id) return { profile, ownerId: profile.owner_id };
+  redirect("/dashboard");
+  return { profile: profile!, ownerId: "" }; // unreachable, satisfies TS
 }
 
 // ─── Safe converters ──────────────────────────────────────────────────────────
@@ -269,7 +284,7 @@ function normalizeDiagnostic(r: any): Diagnostic {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getBruixolaDashboard(): Promise<BruixolaDashboard> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
 
   const [
@@ -280,12 +295,12 @@ export async function getBruixolaDashboard(): Promise<BruixolaDashboard> {
     { data: bloquejoData },
     { data: diagnosticData },
   ] = await Promise.all([
-    supabase.from("bruixola_focus").select("*").eq("user_id", profile.id).eq("actiu", true).order("created_at", { ascending: false }).limit(1),
-    supabase.from("bruixola_objectius").select("*").eq("user_id", profile.id).order("prioritat", { ascending: false }),
-    supabase.from("bruixola_projectes").select("*").eq("user_id", profile.id).order("prioritat", { ascending: false }),
-    supabase.from("bruixola_kpis").select("*").eq("user_id", profile.id).eq("actiu", true),
-    supabase.from("bruixola_bloquejos").select("*").eq("user_id", profile.id).eq("resolt", false),
-    supabase.from("bruixola_diagnostic").select("*").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(1),
+    supabase.from("bruixola_focus").select("*").eq("user_id", ownerId).eq("actiu", true).order("created_at", { ascending: false }).limit(1),
+    supabase.from("bruixola_objectius").select("*").eq("user_id", ownerId).order("prioritat", { ascending: false }),
+    supabase.from("bruixola_projectes").select("*").eq("user_id", ownerId).order("prioritat", { ascending: false }),
+    supabase.from("bruixola_kpis").select("*").eq("user_id", ownerId).eq("actiu", true),
+    supabase.from("bruixola_bloquejos").select("*").eq("user_id", ownerId).eq("resolt", false),
+    supabase.from("bruixola_diagnostic").select("*").eq("user_id", ownerId).order("created_at", { ascending: false }).limit(1),
   ]);
 
   const objectius = (objectiusData ?? []) as Objectiu[];
@@ -408,25 +423,25 @@ export async function getProductes(): Promise<Producte[]> {
 // ─── Projectes ────────────────────────────────────────────────────────────────
 
 export async function getProjectes(): Promise<Projecte[]> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  const { data } = await supabase.from("bruixola_projectes").select("*").eq("user_id", profile.id).order("prioritat", { ascending: false });
+  const { data } = await supabase.from("bruixola_projectes").select("*").eq("user_id", ownerId).order("prioritat", { ascending: false });
   return (data ?? []).map(normalizeProjecte);
 }
 
 export async function getProjecte(id: string): Promise<Projecte | null> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  const { data } = await supabase.from("bruixola_projectes").select("*").eq("id", id).eq("user_id", profile.id).maybeSingle();
+  const { data } = await supabase.from("bruixola_projectes").select("*").eq("id", id).eq("user_id", ownerId).maybeSingle();
   return data ? normalizeProjecte(data) : null;
 }
 
 export async function saveProjecte(formData: FormData): Promise<{ id: string }> {
-  const profile = await requireOwner();
+  const { profile, ownerId } = await requireBruixola();
   const supabase = await createClient();
   const id = safeText(formData.get("id"));
-  const payload = {
-    user_id: profile.id,
+  const base = {
+    user_id: ownerId,
     empresa_id: safeText(formData.get("empresa_id")),
     responsable_id: safeText(formData.get("responsable_id")),
     nom: formData.get("nom") as string,
@@ -451,9 +466,11 @@ export async function saveProjecte(formData: FormData): Promise<{ id: string }> 
   };
   let resultId = id;
   if (id) {
-    await supabase.from("bruixola_projectes").update(payload).eq("id", id).eq("user_id", profile.id);
+    await supabase.from("bruixola_projectes").update(base).eq("id", id).eq("user_id", ownerId);
   } else {
-    const { data } = await supabase.from("bruixola_projectes").insert(payload).select("id").single();
+    const { data } = await supabase.from("bruixola_projectes")
+      .insert({ ...base, created_by: profile.id, created_by_nom: profile.full_name })
+      .select("id").single();
     resultId = data?.id;
   }
   revalidatePath("/dashboard/bruixola");
@@ -463,9 +480,9 @@ export async function saveProjecte(formData: FormData): Promise<{ id: string }> 
 }
 
 export async function deleteProjecte(id: string): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  await supabase.from("bruixola_projectes").delete().eq("id", id).eq("user_id", profile.id);
+  await supabase.from("bruixola_projectes").delete().eq("id", id).eq("user_id", ownerId);
   revalidatePath("/dashboard/bruixola/projectes");
   revalidatePath("/dashboard/bruixola");
 }
@@ -473,9 +490,9 @@ export async function deleteProjecte(id: string): Promise<void> {
 // ─── Objectius ────────────────────────────────────────────────────────────────
 
 export async function getObjectius(filters?: { tipus?: string; any?: number; trimestre?: number; estat?: string }): Promise<Objectiu[]> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  let q = supabase.from("bruixola_objectius").select("*").eq("user_id", profile.id);
+  let q = supabase.from("bruixola_objectius").select("*").eq("user_id", ownerId);
   if (filters?.tipus) q = q.eq("tipus", filters.tipus);
   if (filters?.any) q = q.eq("any", filters.any);
   if (filters?.trimestre) q = q.eq("trimestre", filters.trimestre);
@@ -485,18 +502,18 @@ export async function getObjectius(filters?: { tipus?: string; any?: number; tri
 }
 
 export async function getObjectiu(id: string): Promise<Objectiu | null> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  const { data } = await supabase.from("bruixola_objectius").select("*").eq("id", id).eq("user_id", profile.id).maybeSingle();
+  const { data } = await supabase.from("bruixola_objectius").select("*").eq("id", id).eq("user_id", ownerId).maybeSingle();
   return data as Objectiu | null;
 }
 
 export async function saveObjectiu(formData: FormData): Promise<{ id: string }> {
-  const profile = await requireOwner();
+  const { profile, ownerId } = await requireBruixola();
   const supabase = await createClient();
   const id = safeText(formData.get("id"));
-  const payload = {
-    user_id: profile.id,
+  const base = {
+    user_id: ownerId,
     empresa_id: safeText(formData.get("empresa_id")),
     projecte_id: safeText(formData.get("projecte_id")),
     responsable_id: safeText(formData.get("responsable_id")),
@@ -526,9 +543,11 @@ export async function saveObjectiu(formData: FormData): Promise<{ id: string }> 
   };
   let resultId = id;
   if (id) {
-    await supabase.from("bruixola_objectius").update(payload).eq("id", id).eq("user_id", profile.id);
+    await supabase.from("bruixola_objectius").update(base).eq("id", id).eq("user_id", ownerId);
   } else {
-    const { data } = await supabase.from("bruixola_objectius").insert(payload).select("id").single();
+    const { data } = await supabase.from("bruixola_objectius")
+      .insert({ ...base, created_by: profile.id, created_by_nom: profile.full_name })
+      .select("id").single();
     resultId = data?.id;
   }
   revalidatePath("/dashboard/bruixola");
@@ -538,9 +557,9 @@ export async function saveObjectiu(formData: FormData): Promise<{ id: string }> 
 }
 
 export async function deleteObjectiu(id: string): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  await supabase.from("bruixola_objectius").delete().eq("id", id).eq("user_id", profile.id);
+  await supabase.from("bruixola_objectius").delete().eq("id", id).eq("user_id", ownerId);
   revalidatePath("/dashboard/bruixola/objectius");
   revalidatePath("/dashboard/bruixola");
 }
@@ -548,11 +567,11 @@ export async function deleteObjectiu(id: string): Promise<void> {
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 
 export async function getKPIs(): Promise<KPI[]> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
   const [{ data: kpisData }, { data: historialData }] = await Promise.all([
-    supabase.from("bruixola_kpis").select("*").eq("user_id", profile.id).order("categoria"),
-    supabase.from("bruixola_kpis_historial").select("kpi_id, valor, data").eq("user_id", profile.id).order("data", { ascending: false }),
+    supabase.from("bruixola_kpis").select("*").eq("user_id", ownerId).order("categoria"),
+    supabase.from("bruixola_kpis_historial").select("kpi_id, valor, data").eq("user_id", ownerId).order("data", { ascending: false }),
   ]);
   const histByKpi: Record<string, Array<{ id: string; valor: number; data: string }>> = {};
   (historialData ?? []).forEach(h => {
@@ -563,11 +582,11 @@ export async function getKPIs(): Promise<KPI[]> {
 }
 
 export async function saveKPI(formData: FormData): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
   const id = safeText(formData.get("id"));
   const payload = {
-    user_id: profile.id,
+    user_id: ownerId,
     empresa_id: safeText(formData.get("empresa_id")),
     objectiu_id: safeText(formData.get("objectiu_id")),
     nom: formData.get("nom") as string,
@@ -582,7 +601,7 @@ export async function saveKPI(formData: FormData): Promise<void> {
     updated_at: new Date().toISOString(),
   };
   if (id) {
-    await supabase.from("bruixola_kpis").update(payload).eq("id", id).eq("user_id", profile.id);
+    await supabase.from("bruixola_kpis").update(payload).eq("id", id).eq("user_id", ownerId);
   } else {
     await supabase.from("bruixola_kpis").insert(payload);
   }
@@ -591,31 +610,31 @@ export async function saveKPI(formData: FormData): Promise<void> {
 }
 
 export async function addKPIValor(kpiId: string, valor: number, data?: string, notes?: string | null): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
   await supabase.from("bruixola_kpis_historial").insert({
-    kpi_id: kpiId, user_id: profile.id, valor, data: data ?? new Date().toISOString().slice(0, 10), notes: notes || null,
+    kpi_id: kpiId, user_id: ownerId, valor, data: data ?? new Date().toISOString().slice(0, 10), notes: notes || null,
   });
-  await supabase.from("bruixola_kpis").update({ valor_actual: valor, updated_at: new Date().toISOString() }).eq("id", kpiId).eq("user_id", profile.id);
+  await supabase.from("bruixola_kpis").update({ valor_actual: valor, updated_at: new Date().toISOString() }).eq("id", kpiId).eq("user_id", ownerId);
   revalidatePath("/dashboard/bruixola/kpis");
   revalidatePath("/dashboard/bruixola");
 }
 
 export async function deleteKPI(id: string): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  await supabase.from("bruixola_kpis").delete().eq("id", id).eq("user_id", profile.id);
+  await supabase.from("bruixola_kpis").delete().eq("id", id).eq("user_id", ownerId);
   revalidatePath("/dashboard/bruixola/kpis");
 }
 
 // ─── Bloquejos ────────────────────────────────────────────────────────────────
 
 export async function saveBloqueig(formData: FormData): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
   const id = safeText(formData.get("id"));
   const payload = {
-    user_id: profile.id,
+    user_id: ownerId,
     projecte_id: safeText(formData.get("projecte_id")),
     objectiu_id: safeText(formData.get("objectiu_id")),
     titol: formData.get("titol") as string,
@@ -626,7 +645,7 @@ export async function saveBloqueig(formData: FormData): Promise<void> {
     updated_at: new Date().toISOString(),
   };
   if (id) {
-    await supabase.from("bruixola_bloquejos").update(payload).eq("id", id).eq("user_id", profile.id);
+    await supabase.from("bruixola_bloquejos").update(payload).eq("id", id).eq("user_id", ownerId);
   } else {
     await supabase.from("bruixola_bloquejos").insert(payload);
   }
@@ -634,9 +653,9 @@ export async function saveBloqueig(formData: FormData): Promise<void> {
 }
 
 export async function resoldreBloquejo(id: string): Promise<void> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  await supabase.from("bruixola_bloquejos").update({ resolt: true, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", profile.id);
+  await supabase.from("bruixola_bloquejos").update({ resolt: true, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", ownerId);
   revalidatePath("/dashboard/bruixola");
 }
 
@@ -737,9 +756,9 @@ export async function resetAnamnesi(): Promise<void> {
 // ─── Diagnòstic ───────────────────────────────────────────────────────────────
 
 export async function getDiagnostic(): Promise<Diagnostic | null> {
-  const profile = await requireOwner();
+  const { ownerId } = await requireBruixola();
   const supabase = await createClient();
-  const { data } = await supabase.from("bruixola_diagnostic").select("*").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(1);
+  const { data } = await supabase.from("bruixola_diagnostic").select("*").eq("user_id", ownerId).order("created_at", { ascending: false }).limit(1);
   return data?.[0] ? normalizeDiagnostic(data[0]) : null;
 }
 

@@ -167,7 +167,7 @@ function BloqueigRow({ b }: { b: Bloquejo }) {
 
 export default async function BruixolaPage() {
   const profile = await getProfile();
-  if (!profile || profile.role !== "OWNER") redirect("/dashboard");
+  if (!profile || (profile.role !== "OWNER" && profile.role !== "CONSIGLIERE")) redirect("/dashboard");
 
   const { focus, objectius, projectes, kpis, bloquejos, diagnostic, stats } = await getBruixolaDashboard();
 

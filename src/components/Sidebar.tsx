@@ -171,23 +171,25 @@ const IconBruixola = () => (
 // ─── Role config ──────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<string, string> = {
-  OWNER:       "Owner",
-  KOL:         "KOL",
-  COORDINATOR: "Coordinador",
-  ADMIN:       "Admin",
-  DELEGATE:    "Delegado",
-  COM6:        "Comisión 6",
-  CLIENT:      "Cliente",
+  OWNER:        "Owner",
+  KOL:          "KOL",
+  COORDINATOR:  "Coordinador",
+  ADMIN:        "Admin",
+  DELEGATE:     "Delegado",
+  COM6:         "Comisión 6",
+  CLIENT:       "Cliente",
+  CONSIGLIERE:  "Consigliere",
 };
 
 const ROLE_COLOR: Record<string, string> = {
-  OWNER:       "bg-[#FEF2F2] text-[#8E0E1A]",
-  KOL:         "bg-purple-50 text-purple-700",
-  COORDINATOR: "bg-blue-50 text-blue-700",
-  ADMIN:       "bg-amber-50 text-amber-700",
-  DELEGATE:    "bg-emerald-50 text-emerald-700",
-  COM6:        "bg-[#F3F4F6] text-[#6B7280]",
-  CLIENT:      "bg-[#F3F4F6] text-[#6B7280]",
+  OWNER:        "bg-[#FEF2F2] text-[#8E0E1A]",
+  KOL:          "bg-purple-50 text-purple-700",
+  COORDINATOR:  "bg-blue-50 text-blue-700",
+  ADMIN:        "bg-amber-50 text-amber-700",
+  DELEGATE:     "bg-emerald-50 text-emerald-700",
+  COM6:         "bg-[#F3F4F6] text-[#6B7280]",
+  CLIENT:       "bg-[#F3F4F6] text-[#6B7280]",
+  CONSIGLIERE:  "bg-slate-100 text-slate-700",
 };
 
 export type UserProps = {
@@ -419,9 +421,10 @@ function IdentityPanel({ user, open, onToggle }: {
 // ─── Navigation tree ──────────────────────────────────────────────────────────
 
 function buildSections(role: string, userId: string, isKol = false, isCoordinator = false) {
-  const isDelegate    = role === "DELEGATE";
-  const isOwner       = role === "OWNER";
-  const canSeeTeam    = !isDelegate || isKol || isCoordinator;
+  const isDelegate      = role === "DELEGATE";
+  const isOwner         = role === "OWNER";
+  const isConsigliere   = role === "CONSIGLIERE";
+  const canSeeTeam      = !isDelegate || isKol || isCoordinator;
   return [
     {
       label: "General",
@@ -490,6 +493,15 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/bruixola/pdi",        label: "PDI",            Icon: IconBruixola, exact: false },
         { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic",     Icon: IconBruixola, exact: false },
         { href: "/dashboard/bruixola/anamnesi",   label: "Anamnesi IA",    Icon: IconBruixola, exact: false },
+      ],
+    }] : []),
+    ...(isConsigliere ? [{
+      label: "Estratègia",
+      items: [
+        { href: "/dashboard/bruixola",           label: "Brúixola",   Icon: IconBruixola, exact: true },
+        { href: "/dashboard/bruixola/objectius", label: "Objectius",  Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/projectes", label: "Projectes",  Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/kpis",      label: "KPIs",       Icon: IconBruixola, exact: false },
       ],
     }] : []),
     ...(isOwner ? [{

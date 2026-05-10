@@ -75,6 +75,11 @@ function ProjecteCard({ p }: { p: Projecte }) {
                 {new Date(p.data_objectiu).toLocaleDateString("ca-ES", { day: "numeric", month: "short", year: "numeric" })}
               </span>
             )}
+            {p.created_by_nom && (
+              <span className="text-[8px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#F1F5F9", color: LABEL }}>
+                {p.created_by_nom.split(" ").slice(0, 2).join(" ")}
+              </span>
+            )}
           </div>
 
           <div className="mt-2.5 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: BORDER2 }}>
@@ -121,7 +126,7 @@ function MatriuCell({ label, color, items }: { label: string; color: string; ite
 
 export default async function ProjectesPage() {
   const profile = await getProfile();
-  if (!profile || profile.role !== "OWNER") redirect("/dashboard");
+  if (!profile || (profile.role !== "OWNER" && profile.role !== "CONSIGLIERE")) redirect("/dashboard");
 
   const projectes = await getProjectes();
   const actius = projectes.filter(p => p.estat !== "cancelat" && p.estat !== "completat");
