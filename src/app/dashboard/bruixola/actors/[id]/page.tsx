@@ -7,8 +7,9 @@ import {
   getActor, saveActor, deleteActor, analyzeActor,
   getInteractions, saveInteraction, deleteInteraction,
   getLinks, saveLink, deleteLink, exportPDI,
+  getActorDocuments, uploadActorDocument, deleteActorDocument, getDocumentSignedUrl,
 } from "@/app/actions/strategic-actors";
-import type { StrategicActor, ActorInteraction, ActorLink, ActorAlert } from "@/app/actions/strategic-actors";
+import type { StrategicActor, ActorInteraction, ActorLink, ActorAlert, ActorDocument } from "@/app/actions/strategic-actors";
 
 const CARD    = "#FFFFFF";
 const SURFACE = "#F8FAFC";
@@ -49,7 +50,7 @@ const POT_LABELS: Record<string,string> = { molt_alt:"Molt alt", alt:"Alt", mitj
 const RISC_LABELS: Record<string,string> = { baix:"Baix", mitja:"Mitjà", alt:"Alt", critic:"Crític", desconegut:"Desconegut" };
 const RISC_COLORS: Record<string,string> = { baix:GREEN, mitja:AMBER, alt:RED, critic:"#7F1D1D", desconegut:LABEL };
 const RISC_NIVEL: string[] = ["Desconegut","Baix","Mitjà","Alt","Crític"];
-const TABS = ["Visió General","Conducta","Potencialitat","Risc","Vincles","Historial","Anàlisi IA"];
+const TABS = ["Visió General","Conducta","Potencialitat","Risc","Vincles","Documents","Historial","Anàlisi IA"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -672,6 +673,203 @@ function TabVincles({ actorId }: { actorId: string }) {
   );
 }
 
+// ─── Tab: Documents ───────────────────────────────────────────────────────────
+
+const ACCEPTED_TYPES = ".pdf,.txt,.md,.csv,.docx";
+const MAX_MB = 20;
+
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function DocIcon({ tipus }: { tipus: string | null }) {
+  if (tipus?.includes("pdf")) return <span className="text-lg">📄</span>;
+  if (tipus?.includes("text") || tipus?.includes("csv")) return <span className="text-lg">📝</span>;
+  return <span className="text-lg">📎</span>;
+}
+
+function TabDocuments({ actorId }: { actorId: string }) {
+  const [docs, setDocs] = useState<ActorDocument[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [isUploading, startUpload] = useTransition();
+  const [isDeleting, startDelete] = useTransition();
+  const [notes, setNotes] = useState("");
+  const [pregunta, setPregunta] = useState("");
+  const [fileRef, setFileRef] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadOk, setUploadOk] = useState(false);
+
+  const reload = useCallback(async () => {
+    const d = await getActorDocuments(actorId);
+    setDocs(d);
+  }, [actorId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (f && f.size > MAX_MB * 1024 * 1024) {
+      setError(`El fitxer supera ${MAX_MB} MB`);
+      setFileRef(null);
+    } else {
+      setError(null);
+      setFileRef(f);
+    }
+  }
+
+  function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!fileRef) { setError("Selecciona un fitxer"); return; }
+    const fd = new FormData(e.currentTarget);
+    fd.set("actor_id", actorId);
+    fd.set("file", fileRef);
+    fd.set("notes", notes);
+    fd.set("pregunta_ia", pregunta);
+    startUpload(async () => {
+      try {
+        await uploadActorDocument(fd);
+        setShowForm(false); setFileRef(null); setNotes(""); setPregunta(""); setUploadOk(true);
+        setTimeout(() => setUploadOk(false), 2500);
+        reload();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error en la pujada");
+      }
+    });
+  }
+
+  async function handleOpen(storagePath: string) {
+    const url = await getDocumentSignedUrl(storagePath);
+    if (url) window.open(url, "_blank");
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] font-semibold" style={{ color: DIM }}>
+            Documents per enriquir l&apos;anàlisi IA
+          </p>
+          <p className="text-[9px] mt-0.5" style={{ color: LABEL }}>
+            PDF, TXT, CSV, DOCX · màx {MAX_MB} MB · fins 5 documents per anàlisi
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {uploadOk && <span className="text-[10px] font-semibold" style={{ color: GREEN }}>✓ Pujat</span>}
+          <button onClick={() => setShowForm(!showForm)}
+            className="px-4 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80"
+            style={{ backgroundColor: TEXT, color: "#FFFFFF" }}>
+            + Pujar document
+          </button>
+        </div>
+      </div>
+
+      {/* Info banner */}
+      <div className="rounded-xl p-3 flex gap-2" style={{ backgroundColor: `${BLUE}06`, border: `1px solid ${BLUE}20` }}>
+        <div className="w-0.5 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: BLUE }} />
+        <p className="text-[10px] leading-relaxed" style={{ color: DIM }}>
+          Els documents aquí pujats s&apos;inclouen automàticament quan fas clic a <strong style={{ color: TEXT }}>&quot;Generar anàlisi IA&quot;</strong>.
+          Claude llegeix el contingut i extreu informació rellevant per complementar el perfil de l&apos;actor.
+        </p>
+      </div>
+
+      {/* Upload form */}
+      {showForm && (
+        <form onSubmit={handleUpload} className="p-4 space-y-3 rounded-xl"
+          style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+          <Field label="Fitxer *">
+            <input type="file" accept={ACCEPTED_TYPES} onChange={handleFileChange}
+              className="w-full text-[11px] rounded-lg px-3 py-2 cursor-pointer"
+              style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, color: TEXT }} />
+          </Field>
+          {fileRef && (
+            <p className="text-[9px]" style={{ color: DIM }}>
+              {fileRef.name} · {fmtBytes(fileRef.size)} · {fileRef.type || "tipus desconegut"}
+            </p>
+          )}
+          <Field label="Que vols saber d'aquest document? *">
+            <textarea value={pregunta} onChange={e => setPregunta(e.target.value)} rows={2}
+              placeholder="Ex: «Quins compromisos ha adquirit l'actor?», «Quins riscos veig en la proposta?», «Com posiciona l'empresa en el mercat?»"
+              className="w-full outline-none resize-none text-[11px] rounded-lg px-3 py-2"
+              style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, color: TEXT }} />
+          </Field>
+          <Field label="Context addicional (opcional)">
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={1}
+              placeholder="Ex: «Proposta comercial al març 2025», «Informe intern confidencial»…"
+              className="w-full outline-none resize-none text-[11px] rounded-lg px-3 py-2"
+              style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, color: TEXT }} />
+          </Field>
+          {error && <p className="text-[10px] font-semibold" style={{ color: RED }}>{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => { setShowForm(false); setError(null); setFileRef(null); }}
+              className="px-3 py-1.5 text-[10px] rounded-lg" style={{ color: LABEL }}>
+              Cancel·lar
+            </button>
+            <button type="submit" disabled={!fileRef || !pregunta.trim() || isUploading}
+              className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
+              style={{ backgroundColor: TEXT, color: "#FFFFFF" }}>
+              {isUploading ? "Pujant…" : "Pujar"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Empty state */}
+      {docs.length === 0 && !showForm && (
+        <div className="rounded-xl p-10 text-center" style={{ backgroundColor: SURFACE, border: `1px dashed ${BORDER}` }}>
+          <p className="text-[12px] font-semibold mb-1" style={{ color: TEXT }}>Cap document pujat</p>
+          <p className="text-[10px]" style={{ color: DIM }}>
+            Puja propostes, informes, correus o notes per que la IA tingui més context en l&apos;anàlisi.
+          </p>
+        </div>
+      )}
+
+      {/* Document list */}
+      <div className="space-y-2">
+        {docs.map(doc => (
+          <div key={doc.id} className="rounded-xl px-4 py-3 flex items-start gap-3"
+            style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+            <DocIcon tipus={doc.tipus_fitxer} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" onClick={() => handleOpen(doc.storage_path)}
+                  className="text-[12px] font-semibold hover:opacity-60 transition-opacity text-left"
+                  style={{ color: BLUE }}>
+                  {doc.nom_fitxer}
+                </button>
+                {doc.analitzat && (
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
+                    style={{ backgroundColor: `${GREEN}12`, color: GREEN, border: `1px solid ${GREEN}25` }}>
+                    Analitzat IA ✓
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                {doc.mida_bytes && <span className="text-[9px]" style={{ color: LABEL }}>{fmtBytes(doc.mida_bytes)}</span>}
+                <span className="text-[9px]" style={{ color: LABEL }}>
+                  {new Date(doc.created_at).toLocaleDateString("ca-ES", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              </div>
+              {doc.pregunta_ia && (
+                <p className="text-[9px] mt-1 italic" style={{ color: BLUE }}>
+                  &ldquo;{doc.pregunta_ia}&rdquo;
+                </p>
+              )}
+              {doc.notes && <p className="text-[10px] mt-0.5" style={{ color: DIM }}>{doc.notes}</p>}
+            </div>
+            <button type="button" disabled={isDeleting}
+              onClick={() => startDelete(async () => { await deleteActorDocument(doc.id, actorId); reload(); })}
+              className="text-[10px] hover:opacity-70 shrink-0 disabled:opacity-30" style={{ color: LABEL }}>
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab: Historial ───────────────────────────────────────────────────────────
 
 function TabHistorial({ actorId }: { actorId: string }) {
@@ -1181,8 +1379,9 @@ export default function ActorDetailPage() {
         {activeTab === 2 && <TabPotencialitat actor={actor} onSaved={reload} />}
         {activeTab === 3 && <TabRisc actor={actor} onSaved={reload} />}
         {activeTab === 4 && <TabVincles actorId={actor.id} />}
-        {activeTab === 5 && <TabHistorial actorId={actor.id} />}
-        {activeTab === 6 && <TabIA actor={actor} onSaved={reload} />}
+        {activeTab === 5 && <TabDocuments actorId={actor.id} />}
+        {activeTab === 6 && <TabHistorial actorId={actor.id} />}
+        {activeTab === 7 && <TabIA actor={actor} onSaved={reload} />}
       </div>
     </div>
   );

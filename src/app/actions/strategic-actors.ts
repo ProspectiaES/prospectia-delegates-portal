@@ -183,7 +183,7 @@ function normalizeActor(r: any): StrategicActor {
   };
 }
 
-// ─── Claude helper ────────────────────────────────────────────────────────────
+// ─── Claude helpers ───────────────────────────────────────────────────────────
 
 async function callClaude(prompt: string, maxTokens = 1500): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -195,6 +195,48 @@ async function callClaude(prompt: string, maxTokens = 1500): Promise<string> {
       model: "claude-haiku-4-5-20251001",
       max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const json = await res.json() as { content?: Array<{ type: string; text: string }> };
+  return json.content?.[0]?.text ?? "";
+}
+
+// Versió amb documents adjunts (PDFs / text). Usa Sonnet per més capacitat analítica.
+async function callClaudeWithDocs(
+  prompt: string,
+  docs: Array<{ mediaType: string; base64: string; nom: string; notes: string | null }>,
+  maxTokens = 3000
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+  type ContentBlock =
+    | { type: "text"; text: string }
+    | { type: "document"; source: { type: "base64"; media_type: string; data: string }; title?: string; context?: string }
+    | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
+  const content: ContentBlock[] = [];
+
+  for (const doc of docs) {
+    if (doc.mediaType === "application/pdf" || doc.mediaType.startsWith("text/")) {
+      content.push({
+        type: "document",
+        source: { type: "base64", media_type: doc.mediaType, data: doc.base64 },
+        title: doc.nom,
+        ...(doc.notes ? { context: doc.notes } : {}),
+      });
+    }
+  }
+
+  content.push({ type: "text", text: prompt });
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content }],
     }),
   });
   const json = await res.json() as { content?: Array<{ type: string; text: string }> };
@@ -399,9 +441,15 @@ export async function analyzeActor(actorId: string): Promise<void> {
   const { data: actorData } = await supabase.from("strategic_actors").select("*").eq("id", actorId).eq("user_id", profile.id).single();
   if (!actorData) return;
 
-  const { data: interactionData } = await supabase.from("strategic_actor_interactions").select("*").eq("actor_id", actorId).eq("user_id", profile.id).order("data", { ascending: false }).limit(10);
-
-  const { data: linkData } = await supabase.from("strategic_actor_links").select("*").eq("actor_id", actorId).eq("user_id", profile.id);
+  const [
+    { data: interactionData },
+    { data: linkData },
+    { data: docsData },
+  ] = await Promise.all([
+    supabase.from("strategic_actor_interactions").select("*").eq("actor_id", actorId).eq("user_id", profile.id).order("data", { ascending: false }).limit(10),
+    supabase.from("strategic_actor_links").select("*").eq("actor_id", actorId).eq("user_id", profile.id),
+    supabase.from("strategic_actor_documents").select("*").eq("actor_id", actorId).eq("user_id", profile.id).order("created_at", { ascending: false }).limit(5),
+  ]);
 
   const actor = normalizeActor(actorData);
   const interactions = (interactionData ?? []) as ActorInteraction[];
@@ -424,7 +472,33 @@ export async function analyzeActor(actorId: string): Promise<void> {
     objectius_vinculats: objectiuVincles,
   });
 
-  const raw = await callClaude(prompt, 2000);
+  // Fetch document contents from storage for enriched analysis
+  const docs: Array<{ mediaType: string; base64: string; nom: string; notes: string | null; pregunta_ia: string | null }> = [];
+  for (const doc of (docsData ?? [])) {
+    try {
+      const { data: fileData } = await supabase.storage.from("actor-documents").download(doc.storage_path);
+      if (fileData) {
+        const buf = await fileData.arrayBuffer();
+        const base64 = Buffer.from(buf).toString("base64");
+        docs.push({ mediaType: doc.tipus_fitxer ?? "application/pdf", base64, nom: doc.nom_fitxer, notes: doc.notes, pregunta_ia: doc.pregunta_ia ?? null });
+      }
+    } catch { /* skip unreadable doc */ }
+  }
+
+  let finalPrompt = prompt;
+  if (docs.length > 0) {
+    const docQuestions = docs
+      .filter(d => d.pregunta_ia)
+      .map(d => `- Document "${d.nom}": ${d.pregunta_ia}`)
+      .join("\n");
+    if (docQuestions) {
+      finalPrompt = `PREGUNTES ESPECÍFIQUES SOBRE ELS DOCUMENTS:\n${docQuestions}\n\nRespon aquestes preguntes dins de la secció ai_analisi_complet de la resposta JSON.\n\n${prompt}`;
+    }
+  }
+
+  const raw = docs.length > 0
+    ? await callClaudeWithDocs(finalPrompt, docs, 3000)
+    : await callClaude(finalPrompt, 2000);
 
   let result: ActorAnalysisResult;
   try {
@@ -448,8 +522,102 @@ export async function analyzeActor(actorId: string): Promise<void> {
     updated_at: new Date().toISOString(),
   }).eq("id", actorId).eq("user_id", profile.id);
 
+  // Mark documents as analysed
+  if (docs.length > 0) {
+    await supabase.from("strategic_actor_documents").update({ analitzat: true }).eq("actor_id", actorId).eq("user_id", profile.id);
+  }
+
   revalidatePath(`/dashboard/bruixola/actors/${actorId}`);
   revalidatePath("/dashboard/bruixola/actors");
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+export interface ActorDocument {
+  id: string;
+  actor_id: string;
+  nom_fitxer: string;
+  tipus_fitxer: string | null;
+  mida_bytes: number | null;
+  storage_path: string;
+  notes: string | null;
+  pregunta_ia: string | null;
+  analitzat: boolean;
+  created_at: string;
+}
+
+export async function getActorDocuments(actorId: string): Promise<ActorDocument[]> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const { data } = await supabase.from("strategic_actor_documents")
+    .select("*")
+    .eq("actor_id", actorId)
+    .eq("user_id", profile.id)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as ActorDocument[];
+}
+
+export async function uploadActorDocument(formData: FormData): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  const actorId = formData.get("actor_id") as string;
+  const notes = (formData.get("notes") as string | null)?.trim() || null;
+  const preguntaIa = (formData.get("pregunta_ia") as string | null)?.trim() || null;
+  const file = formData.get("file") as File;
+  if (!file || file.size === 0) throw new Error("Cap fitxer seleccionat");
+
+  const ext = file.name.split(".").pop() ?? "bin";
+  const path = `${profile.id}/${actorId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const bytes = await file.arrayBuffer();
+  const { error } = await supabase.storage.from("actor-documents").upload(path, bytes, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+
+  await supabase.from("strategic_actor_documents").insert({
+    actor_id: actorId,
+    user_id: profile.id,
+    nom_fitxer: file.name,
+    tipus_fitxer: file.type || null,
+    mida_bytes: file.size,
+    storage_path: path,
+    notes,
+    pregunta_ia: preguntaIa,
+  });
+
+  revalidatePath(`/dashboard/bruixola/actors/${actorId}`);
+}
+
+export async function deleteActorDocument(id: string, actorId: string): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  const { data: doc } = await supabase.from("strategic_actor_documents")
+    .select("storage_path")
+    .eq("id", id)
+    .eq("user_id", profile.id)
+    .single();
+
+  if (doc?.storage_path) {
+    await supabase.storage.from("actor-documents").remove([doc.storage_path]);
+  }
+
+  await supabase.from("strategic_actor_documents").delete().eq("id", id).eq("user_id", profile.id);
+  revalidatePath(`/dashboard/bruixola/actors/${actorId}`);
+}
+
+export async function getDocumentSignedUrl(storagePath: string): Promise<string | null> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  // verify ownership via DB first
+  const { data: doc } = await supabase.from("strategic_actor_documents")
+    .select("id").eq("storage_path", storagePath).eq("user_id", profile.id).maybeSingle();
+  if (!doc) return null;
+  const { data } = await supabase.storage.from("actor-documents").createSignedUrl(storagePath, 300);
+  return data?.signedUrl ?? null;
 }
 
 // ─── PDI ──────────────────────────────────────────────────────────────────────
