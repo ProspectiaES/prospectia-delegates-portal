@@ -9,6 +9,7 @@ import {
   buildDiagnosticPrompt,
   buildObjectiuSMARTPrompt,
   buildAlertesPrompt,
+  type RichDiagnosticResult,
   type DiagnosticResult,
   type ObjectiuSMART,
   type AnamnesiTorn,
@@ -710,7 +711,7 @@ export async function skipFaseOptionals(fase: number): Promise<void> {
   const { ANAMNESI_PREGUNTES } = await import("@/lib/bruixola-prompts");
   const opts = ANAMNESI_PREGUNTES.filter(p => p.fase === fase && !p.core);
   for (const q of opts) {
-    await supabase.from("bruixola_anamnesi").upsert({
+    const { error } = await supabase.from("bruixola_anamnesi").upsert({
       user_id: profile.id,
       ordre: q.ordre,
       fase: q.fase,
@@ -718,6 +719,7 @@ export async function skipFaseOptionals(fase: number): Promise<void> {
       resposta: "__skip__",
       completada: false,
     }, { onConflict: "user_id,ordre" });
+    if (error) throw new Error(error.message);
   }
   revalidatePath("/dashboard/bruixola/anamnesi");
 }
@@ -729,7 +731,7 @@ export async function saveAnamnesiAnswer(ordre: number, resposta: string): Promi
   const { ANAMNESI_PREGUNTES } = await import("@/lib/bruixola-prompts");
   const q = ANAMNESI_PREGUNTES.find(p => p.ordre === ordre);
   if (!q) return;
-  await supabase.from("bruixola_anamnesi").upsert({
+  const { error } = await supabase.from("bruixola_anamnesi").upsert({
     user_id: profile.id,
     ordre,
     fase: q.fase,
@@ -737,6 +739,7 @@ export async function saveAnamnesiAnswer(ordre: number, resposta: string): Promi
     resposta: resposta.trim(),
     completada: true,
   }, { onConflict: "user_id,ordre" });
+  if (error) throw new Error(error.message);
   revalidatePath("/dashboard/bruixola/anamnesi");
 }
 
@@ -756,7 +759,7 @@ export async function getDiagnostic(): Promise<Diagnostic | null> {
   return data?.[0] ? normalizeDiagnostic(data[0]) : null;
 }
 
-export async function generateDiagnostic(): Promise<DiagnosticResult> {
+export async function generateDiagnostic(): Promise<RichDiagnosticResult> {
   const profile = await requireOwner();
   const supabase = await createClient();
 
@@ -773,7 +776,7 @@ export async function generateDiagnostic(): Promise<DiagnosticResult> {
     supabase.from("bruixola_productes").select("nom,tipus,estat,caixa_actual,potencial,esforc").eq("user_id", profile.id),
     supabase.from("bruixola_projectes").select("nom,estat,prioritat,impacte,esforc,seguent_accio").eq("user_id", profile.id),
     supabase.from("bruixola_objectius").select("titol,tipus,estat,progress").eq("user_id", profile.id),
-    supabase.from("bruixola_anamnesi").select("fase,pregunta,resposta").eq("user_id", profile.id).eq("completada", true).order("ordre"),
+    supabase.from("bruixola_anamnesi").select("fase,pregunta,resposta").eq("user_id", profile.id).order("ordre"),
   ]);
 
   const prompt = buildDiagnosticPrompt({
@@ -785,36 +788,63 @@ export async function generateDiagnostic(): Promise<DiagnosticResult> {
     anamnesi: (anamnesiData ?? []).map(r => ({ fase: r.fase, pregunta: r.pregunta, resposta: r.resposta ?? undefined })),
   });
 
-  const raw = await callClaude(prompt, 1200, "claude-sonnet-4-6");
-  let result: DiagnosticResult;
+  const raw = await callOpenAI(prompt, 4000, "gpt-4o");
+  let result: RichDiagnosticResult;
   try {
-    const jm = raw.match(/\{[\s\S]*\}/);
-    result = JSON.parse(jm?.[0] ?? raw);
+    result = JSON.parse(raw);
   } catch {
-    throw new Error("Error parsejant el diagnòstic IA");
+    throw new Error(`Error parsejant el diagnòstic: ${raw.slice(0, 300)}`);
   }
+
+  // Get current version count for this user
+  const { count } = await supabase.from("bruixola_diagnostic").select("*", { count: "exact", head: true }).eq("user_id", profile.id);
 
   await supabase.from("bruixola_diagnostic").insert({
     user_id: profile.id,
     data_diagnostic: new Date().toISOString().slice(0, 10),
+    versio: (count ?? 0) + 1,
+    // Legacy flat columns (for backwards compat)
     estat_global: result.estat_global,
-    resum_executiu: result.resum_executiu,
+    resum_executiu: result.visio_executiva,
     forces: result.forces,
     riscos: result.riscos,
     oportunitats: result.oportunitats,
-    problemes: result.problemes,
+    problemes: [result.problema_central],
     dispersio_detectada: result.dispersio_detectada,
-    focus_recomanat: result.focus_recomanat,
+    focus_recomanat: result.roadmap_30_dies?.focus ?? "",
     projectes_congelar: result.projectes_congelar,
     projectes_potenciar: result.projectes_potenciar,
-    decisions_pendents: result.decisions_pendents,
-    seguents_accions: result.seguents_accions,
-    recomanacio: result.recomanacio,
+    decisions_pendents: result.decisions_urgents,
+    seguents_accions: result.roadmap_30_dies?.accions ?? [],
+    recomanacio: result.recomanacio_principal,
+    // Full rich data
+    full_data: result,
   });
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/diagnostic");
   return result;
+}
+
+export async function getDiagnosticHistory(): Promise<Array<{ id: string; data_diagnostic: string; versio: number; estat_global: string; revisada: boolean }>> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const { data } = await supabase.from("bruixola_diagnostic")
+    .select("id, data_diagnostic, versio, estat_global, revisada")
+    .eq("user_id", profile.id)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as Array<{ id: string; data_diagnostic: string; versio: number; estat_global: string; revisada: boolean }>;
+}
+
+export async function getDiagnosticById(id: string): Promise<RichDiagnosticResult | null> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const { data } = await supabase.from("bruixola_diagnostic")
+    .select("full_data")
+    .eq("user_id", profile.id)
+    .eq("id", id)
+    .maybeSingle();
+  return (data?.full_data as RichDiagnosticResult) ?? null;
 }
 
 // ─── Objectiu SMART ───────────────────────────────────────────────────────────
@@ -865,7 +895,28 @@ export async function getAlertes(): Promise<Array<{ tipus: string; area: string;
   } catch { return []; }
 }
 
-// ─── Claude helper ────────────────────────────────────────────────────────────
+// ─── AI helpers ───────────────────────────────────────────────────────────────
+
+async function callOpenAI(prompt: string, maxTokens = 2000, model = "gpt-4o"): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI error ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json() as { choices: Array<{ message: { content: string } }> };
+  return data.choices[0]?.message?.content ?? "";
+}
 
 async function callClaude(prompt: string, maxTokens = 800, model = "claude-haiku-4-5-20251001"): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;

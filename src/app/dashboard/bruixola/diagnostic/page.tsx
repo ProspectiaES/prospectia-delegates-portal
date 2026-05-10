@@ -2,8 +2,13 @@
 
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { getDiagnostic, generateDiagnostic } from "@/app/actions/bruixola";
-import type { Diagnostic } from "@/app/actions/bruixola";
+import {
+  getDiagnostic,
+  generateDiagnostic,
+  getDiagnosticHistory,
+  getDiagnosticById,
+} from "@/app/actions/bruixola";
+import type { RichDiagnosticResult } from "@/lib/bruixola-prompts";
 
 const CARD    = "#FFFFFF";
 const SURFACE = "#F9FAFB";
@@ -12,62 +17,123 @@ const BORDER2 = "#D1D5DB";
 const TEXT    = "#111827";
 const DIM     = "#6B7280";
 const LABEL   = "#9CA3AF";
-const GOLD    = "#B45309";
-const BLUE    = "#1D4ED8";
+const RED     = "#8E0E1A";
 const GREEN   = "#15803D";
-const RED     = "#DC2626";
 const AMBER   = "#D97706";
+const BLUE    = "#1D4ED8";
+const GOLD    = "#B45309";
 
-function Section({ title, color, items, icon }: { title: string; color: string; items: string[]; icon: string }) {
-  if (items.length === 0) return null;
+type HistoryItem = {
+  id: string;
+  data_diagnostic: string;
+  versio: number;
+  estat_global: string;
+  revisada: boolean;
+};
+
+function SectionLabel({ children, color = LABEL }: { children: React.ReactNode; color?: string }) {
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${color}25`, backgroundColor: CARD }}>
-      <div className="px-4 py-3 flex items-center gap-2"
-        style={{ backgroundColor: `${color}08`, borderBottom: `1px solid ${color}20` }}>
-        <span className="text-sm">{icon}</span>
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color }}>{title}</p>
-      </div>
-      <ul className="p-4 space-y-2">
-        {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <div className="w-1 h-1 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: color }} />
-            <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{item}</p>
-          </li>
-        ))}
-      </ul>
+    <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color }}>
+      {children}
+    </p>
+  );
+}
+
+function Card({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      className={`rounded-2xl p-6 ${className}`}
+      style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, ...style }}
+    >
+      {children}
     </div>
   );
 }
 
-function ListSection({ title, color, items, icon }: { title: string; color: string; items: string[]; icon: string }) {
-  if (items.length === 0) return null;
+function BulletList({ items, color, numbered = false }: { items: string[]; color: string; numbered?: boolean }) {
+  if (!items?.length) return null;
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <span>{icon}</span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color }}>{title}</p>
+    <ul className="space-y-2">
+      {items.map((item, i) => (
+        <li key={i} className="flex items-start gap-2">
+          <span className="text-[10px] font-bold shrink-0 mt-0.5" style={{ color }}>
+            {numbered ? `${i + 1}.` : "→"}
+          </span>
+          <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{item}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AreaCard({ title, text }: { title: string; text: string }) {
+  if (!text) return null;
+  return (
+    <div className="rounded-xl p-4" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+      <p className="text-[8px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: LABEL }}>{title}</p>
+      <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{text}</p>
+    </div>
+  );
+}
+
+function RoadmapCol({ label, focus, objectius, decisions, accions }: {
+  label: string;
+  focus: string;
+  objectius: string[];
+  decisions: string[];
+  accions: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-4 p-5 rounded-xl" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+      <div>
+        <p className="text-[8px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: GOLD }}>{label}</p>
+        <p className="text-[12px] font-semibold leading-snug" style={{ color: TEXT }}>{focus}</p>
       </div>
-      <ul className="space-y-1">
-        {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span className="text-[9px] mt-0.5 shrink-0" style={{ color }}>→</span>
-            <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{item}</p>
-          </li>
-        ))}
-      </ul>
+      {objectius?.length > 0 && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Objectius</p>
+          <BulletList items={objectius} color={BLUE} />
+        </div>
+      )}
+      {decisions?.length > 0 && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Decisions</p>
+          <BulletList items={decisions} color={AMBER} />
+        </div>
+      )}
+      {accions?.length > 0 && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Accions</p>
+          <BulletList items={accions} color={GREEN} />
+        </div>
+      )}
     </div>
   );
 }
 
 export default function DiagnosticPage() {
-  const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
+  const [d, setD] = useState<RichDiagnosticResult | null>(null);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState<string | null>(null);
+  const [currentVersio, setCurrentVersio] = useState<number | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isGenerating, startGenerateTransition] = useTransition();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState("");
+  const [isGenerating, startGenerateTransition] = useTransition();
+  const [isDownloading, startDownloadTransition] = useTransition();
 
   async function reload() {
-    const d = await getDiagnostic();
-    setDiagnostic(d);
+    setLoading(true);
+    const [raw, hist] = await Promise.all([getDiagnostic(), getDiagnosticHistory()]);
+    setHistory(hist);
+    if (raw) {
+      const rich = (raw as unknown as { full_data?: RichDiagnosticResult }).full_data ?? null;
+      setD(rich);
+      setCurrentId((raw as unknown as { id: string }).id ?? null);
+      setCurrentDate((raw as unknown as { data_diagnostic: string }).data_diagnostic ?? null);
+      setCurrentVersio((raw as unknown as { versio: number }).versio ?? null);
+    }
     setLoading(false);
   }
 
@@ -77,59 +143,148 @@ export default function DiagnosticPage() {
     setError("");
     startGenerateTransition(async () => {
       try {
-        await generateDiagnostic();
-        await reload();
+        const result = await generateDiagnostic();
+        const [, hist] = await Promise.all([Promise.resolve(), getDiagnosticHistory()]);
+        setHistory(hist);
+        setD(result);
+        if (hist[0]) {
+          setCurrentId(hist[0].id);
+          setCurrentDate(hist[0].data_diagnostic);
+          setCurrentVersio(hist[0].versio);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Error generant el diagnòstic");
       }
     });
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-[12px]" style={{ color: LABEL }}>Carregant…</p>
-    </div>
-  );
+  async function handleLoadVersion(item: HistoryItem) {
+    setHistoryOpen(false);
+    setLoading(true);
+    const rich = await getDiagnosticById(item.id);
+    setD(rich);
+    setCurrentId(item.id);
+    setCurrentDate(item.data_diagnostic);
+    setCurrentVersio(item.versio);
+    setLoading(false);
+  }
 
-  const d = diagnostic;
+  function handleDownload() {
+    startDownloadTransition(async () => {
+      const res = await fetch("/api/diagnostic-pdf");
+      if (!res.ok) { setError("Error generant el PDF"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "diagnostic-prospectia.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-[12px]" style={{ color: LABEL }}>Carregant…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-3xl mx-auto px-5 md:px-8 py-10 space-y-6">
+    <div className="max-w-5xl mx-auto px-5 md:px-8 py-10" style={{ backgroundColor: "#FFFFFF", minHeight: "100vh" }}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-4 mb-3">
-            <Link href="/dashboard/bruixola" className="text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-70" style={{ color: LABEL }}>
+          <div className="mb-3">
+            <Link
+              href="/dashboard/bruixola"
+              className="text-[10px] font-bold uppercase tracking-[0.2em] hover:opacity-70 transition-opacity"
+              style={{ color: LABEL }}
+            >
               ← Brúixola
             </Link>
           </div>
-          <h1 className="text-[26px] font-black leading-tight tracking-tight" style={{ color: TEXT }}>Diagnòstic IA</h1>
-          {d && (
+          <h1 className="text-[28px] font-black leading-tight tracking-tight" style={{ color: TEXT }}>
+            Diagnòstic Estratègic
+          </h1>
+          {d && currentDate && (
             <p className="text-[11px] mt-1" style={{ color: DIM }}>
-              Generat: {new Date(d.data_diagnostic).toLocaleDateString("ca-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {new Date(currentDate).toLocaleDateString("ca-ES", { day: "numeric", month: "long", year: "numeric" })}
+              {currentVersio && (
+                <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: `${GOLD}15`, color: GOLD }}>
+                  Versió {currentVersio}
+                </span>
+              )}
             </p>
           )}
         </div>
-        <button onClick={handleGenerate} disabled={isGenerating}
-          className="px-4 py-2.5 rounded-xl text-[11px] font-bold shrink-0 transition-all hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: d ? SURFACE : GOLD, color: d ? DIM : "#FFFFFF", border: d ? `1px solid ${BORDER2}` : "none" }}>
-          {isGenerating ? (
-            <span className="flex items-center gap-1.5">
-              <span className="animate-spin">◌</span> Generant…
-            </span>
-          ) : d ? "Regenerar" : "Generar diagnòstic"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {history.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setHistoryOpen(v => !v)}
+                className="px-3 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80"
+                style={{ backgroundColor: SURFACE, color: DIM, border: `1px solid ${BORDER2}` }}
+              >
+                Historial ({history.length})
+              </button>
+              {historyOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-72 rounded-xl shadow-lg z-50 overflow-hidden"
+                  style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+                >
+                  {history.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleLoadVersion(item)}
+                      className="w-full text-left px-4 py-3 hover:opacity-80 transition-opacity border-b last:border-b-0"
+                      style={{ borderColor: BORDER }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-bold" style={{ color: TEXT }}>Versió {item.versio}</p>
+                        <p className="text-[9px]" style={{ color: LABEL }}>
+                          {new Date(item.data_diagnostic).toLocaleDateString("ca-ES")}
+                        </p>
+                      </div>
+                      <p className="text-[10px] mt-0.5 truncate" style={{ color: DIM }}>{item.estat_global}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {d && (
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="px-3 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
+              style={{ backgroundColor: SURFACE, color: BLUE, border: `1px solid ${BLUE}30` }}
+            >
+              {isDownloading ? "Generant…" : "Descarregar PDF"}
+            </button>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="px-4 py-2 rounded-xl text-[11px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
+            style={{ backgroundColor: d ? SURFACE : GOLD, color: d ? DIM : "#FFFFFF", border: d ? `1px solid ${BORDER2}` : "none" }}
+          >
+            {isGenerating ? (
+              <span className="flex items-center gap-1.5">
+                <span className="animate-spin inline-block">◌</span> Generant…
+              </span>
+            ) : d ? "Regenerar" : "Generar diagnòstic"}
+          </button>
+        </div>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="rounded-xl p-3" style={{ backgroundColor: `${RED}18`, border: `1px solid ${RED}30` }}>
+        <div className="rounded-xl p-3 mb-6" style={{ backgroundColor: `${RED}12`, border: `1px solid ${RED}25` }}>
           <p className="text-[11px]" style={{ color: RED }}>{error}</p>
         </div>
       )}
 
-      {/* Empty state */}
       {!d && !isGenerating && (
         <div className="rounded-2xl p-12 text-center" style={{ backgroundColor: CARD, border: `1px dashed ${BORDER2}` }}>
           <p className="text-[13px] font-bold mb-2" style={{ color: TEXT }}>Cap diagnòstic generat</p>
@@ -137,21 +292,25 @@ export default function DiagnosticPage() {
             Completa l&apos;anamnesi estratègica primer per obtenir un diagnòstic de qualitat.
           </p>
           <div className="flex justify-center gap-3">
-            <Link href="/dashboard/bruixola/anamnesi"
+            <Link
+              href="/dashboard/bruixola/anamnesi"
               className="px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all hover:opacity-80"
-              style={{ backgroundColor: SURFACE, color: DIM, border: `1px solid ${BORDER2}` }}>
+              style={{ backgroundColor: SURFACE, color: DIM, border: `1px solid ${BORDER2}` }}
+            >
               Fer anamnesi
             </Link>
-            <button onClick={handleGenerate} disabled={isGenerating}
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
               className="px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
-              style={{ backgroundColor: GOLD, color: "#FFFFFF" }}>
+              style={{ backgroundColor: GOLD, color: "#FFFFFF" }}
+            >
               Generar igualment
             </button>
           </div>
         </div>
       )}
 
-      {/* Generating */}
       {isGenerating && (
         <div className="rounded-2xl p-10 text-center" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
           <div className="flex items-center justify-center gap-3 mb-3">
@@ -159,76 +318,282 @@ export default function DiagnosticPage() {
             <p className="text-[13px] font-semibold" style={{ color: TEXT }}>Analitzant l&apos;empresa…</p>
           </div>
           <p className="text-[11px]" style={{ color: DIM }}>
-            Claude Sonnet analitza objectius, projectes, anamnesi i KPIs. Pot trigar 20–40 segons.
+            GPT-4o analitza objectius, projectes, anamnesi i KPIs. Pot trigar 20–40 segons.
           </p>
         </div>
       )}
 
-      {/* Diagnostic content */}
       {d && !isGenerating && (
-        <>
-          {/* Estat global */}
-          {d.estat_global && (
-            <div className="rounded-2xl p-6" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: GOLD }}>Estat Global</p>
-              <p className="text-[18px] font-black leading-tight" style={{ color: TEXT }}>{d.estat_global}</p>
-              {d.resum_executiu && (
-                <p className="text-[12px] leading-relaxed mt-3" style={{ color: DIM }}>{d.resum_executiu}</p>
-              )}
+        <div className="space-y-6">
+
+          <Card style={{ border: `2px solid ${RED}20` }}>
+            <SectionLabel color={RED}>Estat Global</SectionLabel>
+            <p className="text-[22px] font-black leading-tight tracking-tight mb-3" style={{ color: TEXT }}>{d.estat_global}</p>
+            {d.dispersio_detectada && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: `${AMBER}12`, border: `1px solid ${AMBER}30` }}>
+                <span className="text-[11px]" style={{ color: AMBER }}>⚠</span>
+                <p className="text-[10px] font-bold" style={{ color: AMBER }}>Dispersió estratègica detectada</p>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <SectionLabel color={BLUE}>Visió Executiva</SectionLabel>
+            <p className="text-[13px] leading-relaxed" style={{ color: TEXT }}>{d.visio_executiva}</p>
+          </Card>
+
+          <Card>
+            <SectionLabel>Diagnòstic General</SectionLabel>
+            <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{d.diagnostic_general}</p>
+          </Card>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card>
+              <SectionLabel color={RED}>Problema Central</SectionLabel>
+              <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{d.problema_central}</p>
+            </Card>
+            <Card>
+              <SectionLabel color={AMBER}>Dispersió</SectionLabel>
               {d.dispersio_detectada && (
-                <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: `${AMBER}12`, border: `1px solid ${AMBER}25` }}>
-                  <span style={{ color: AMBER }}>⚠</span>
-                  <p className="text-[11px] font-semibold" style={{ color: AMBER }}>Dispersió estratègica detectada</p>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-2 inline-block px-2 py-0.5 rounded" style={{ backgroundColor: `${AMBER}15`, color: AMBER }}>
+                  Detectada
+                </p>
+              )}
+              <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{d.dispersio_detall}</p>
+            </Card>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${GREEN}25`, backgroundColor: CARD }}>
+              <div className="px-4 py-3" style={{ backgroundColor: `${GREEN}08`, borderBottom: `1px solid ${GREEN}20` }}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>Forces</p>
+              </div>
+              <div className="p-4">
+                <BulletList items={d.forces} color={GREEN} />
+              </div>
+            </div>
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${RED}25`, backgroundColor: CARD }}>
+              <div className="px-4 py-3" style={{ backgroundColor: `${RED}08`, borderBottom: `1px solid ${RED}20` }}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: RED }}>Riscos</p>
+              </div>
+              <div className="p-4">
+                <BulletList items={d.riscos} color={RED} />
+              </div>
+            </div>
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BLUE}25`, backgroundColor: CARD }}>
+              <div className="px-4 py-3" style={{ backgroundColor: `${BLUE}08`, borderBottom: `1px solid ${BLUE}20` }}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: BLUE }}>Oportunitats</p>
+              </div>
+              <div className="p-4">
+                <BulletList items={d.oportunitats} color={BLUE} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: LABEL }}>Diagnòstic per Àrees</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              <AreaCard title="Comercial" text={d.diagnostic_comercial} />
+              <AreaCard title="Execució" text={d.diagnostic_execucio} />
+              <AreaCard title="Estructura" text={d.diagnostic_estructura} />
+              <AreaCard title="Focus" text={d.diagnostic_focus} />
+              <AreaCard title="Dispersió" text={d.diagnostic_dispersio} />
+              <AreaCard title="Equip" text={d.diagnostic_equip} />
+              <AreaCard title="Pipeline" text={d.diagnostic_pipeline} />
+              <AreaCard title="Financer" text={d.diagnostic_financera} />
+            </div>
+          </div>
+
+          {d.prioritats?.length > 0 && (
+            <Card>
+              <SectionLabel color={GOLD}>Prioritats</SectionLabel>
+              <BulletList items={d.prioritats} color={GOLD} numbered />
+            </Card>
+          )}
+
+          {d.objectius_90_dies?.length > 0 && (
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: LABEL }}>Objectius 90 Dies</p>
+              <div className="space-y-3">
+                {d.objectius_90_dies.map((obj, i) => (
+                  <div key={i} className="rounded-xl p-4" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <p className="text-[12px] font-bold" style={{ color: TEXT }}>{obj.titol}</p>
+                      {obj.responsable && (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: `${BLUE}10`, color: BLUE }}>
+                          {obj.responsable}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-relaxed mb-3" style={{ color: DIM }}>{obj.descripcio}</p>
+                    {obj.kpis?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {obj.kpis.map((kpi, k) => (
+                          <span key={k} className="text-[9px] px-2 py-0.5 rounded" style={{ backgroundColor: `${GOLD}12`, color: GOLD }}>
+                            {kpi}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {d.objectius_12_mesos?.length > 0 && (
+            <Card>
+              <SectionLabel>Objectius 12 Mesos</SectionLabel>
+              <div className="space-y-3">
+                {d.objectius_12_mesos.map((obj, i) => (
+                  <div key={i} className="pb-3 border-b last:border-b-0" style={{ borderColor: BORDER }}>
+                    <p className="text-[11px] font-bold mb-1" style={{ color: TEXT }}>{obj.titol}</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{obj.descripcio}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {d.decisions_urgents?.length > 0 && (
+            <div className="rounded-2xl p-6" style={{ backgroundColor: `${AMBER}06`, border: `1px solid ${AMBER}25` }}>
+              <SectionLabel color={AMBER}>Decisions Urgents</SectionLabel>
+              <BulletList items={d.decisions_urgents} color={AMBER} />
+            </div>
+          )}
+
+          {(d.projectes_potenciar?.length > 0 || d.projectes_congelar?.length > 0) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {d.projectes_potenciar?.length > 0 && (
+                <div className="rounded-2xl p-5" style={{ backgroundColor: `${GREEN}06`, border: `1px solid ${GREEN}20` }}>
+                  <SectionLabel color={GREEN}>Projectes a Potenciar</SectionLabel>
+                  <BulletList items={d.projectes_potenciar} color={GREEN} />
+                </div>
+              )}
+              {d.projectes_congelar?.length > 0 && (
+                <div className="rounded-2xl p-5" style={{ backgroundColor: `${LABEL}08`, border: `1px solid ${BORDER2}` }}>
+                  <SectionLabel>Projectes a Congelar</SectionLabel>
+                  <BulletList items={d.projectes_congelar} color={LABEL} />
                 </div>
               )}
             </div>
           )}
 
-          {/* Focus recomanat */}
-          {d.focus_recomanat && (
-            <div className="rounded-xl p-4" style={{ backgroundColor: `${GOLD}08`, border: `1px solid ${GOLD}25` }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: GOLD }}>Focus Recomanat</p>
-              <p className="text-[14px] font-semibold leading-relaxed" style={{ color: TEXT }}>{d.focus_recomanat}</p>
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-3" style={{ color: LABEL }}>Roadmap Estratègic</p>
+            <div className="grid md:grid-cols-3 gap-4">
+              <RoadmapCol
+                label="30 Dies"
+                focus={d.roadmap_30_dies?.focus}
+                objectius={d.roadmap_30_dies?.objectius}
+                decisions={d.roadmap_30_dies?.decisions}
+                accions={d.roadmap_30_dies?.accions}
+              />
+              <RoadmapCol
+                label="90 Dies"
+                focus={d.roadmap_90_dies?.focus}
+                objectius={d.roadmap_90_dies?.objectius}
+                decisions={d.roadmap_90_dies?.decisions}
+                accions={d.roadmap_90_dies?.accions}
+              />
+              <RoadmapCol
+                label="12 Mesos"
+                focus={d.roadmap_12_mesos?.focus}
+                objectius={d.roadmap_12_mesos?.objectius}
+                decisions={d.roadmap_12_mesos?.decisions}
+                accions={d.roadmap_12_mesos?.accions}
+              />
             </div>
-          )}
-
-          {/* 4 main sections */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <Section title="Forces" color={GREEN} items={d.forces} icon="↑" />
-            <Section title="Riscos" color={RED} items={d.riscos} icon="⚠" />
-            <Section title="Oportunitats" color={BLUE} items={d.oportunitats} icon="→" />
-            <Section title="Problemes" color={AMBER} items={d.problemes} icon="!" />
           </div>
 
-          {/* Action sections */}
-          {(d.projectes_potenciar.length > 0 || d.projectes_congelar.length > 0 ||
-            d.decisions_pendents.length > 0 || d.seguents_accions.length > 0) && (
-            <div className="rounded-xl p-5 space-y-5" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-              <ListSection title="Projectes a potenciar" color={GREEN} items={d.projectes_potenciar} icon="✓" />
-              <ListSection title="Projectes a congelar" color={LABEL} items={d.projectes_congelar} icon="✕" />
-              <ListSection title="Decisions pendents" color={AMBER} items={d.decisions_pendents} icon="?" />
-              <ListSection title="Seguents accions" color={GOLD} items={d.seguents_accions} icon="→" />
+          {d.consultoria && (
+            <div className="rounded-2xl p-6" style={{ backgroundColor: CARD, border: `2px solid ${RED}30` }}>
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-1 h-6 rounded-full" style={{ backgroundColor: RED }} />
+                <SectionLabel color={RED}>Consultoria Executiva</SectionLabel>
+              </div>
+              <div className="grid md:grid-cols-2 gap-5">
+                {d.consultoria.que_faria && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Que faria jo</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{d.consultoria.que_faria}</p>
+                  </div>
+                )}
+                {d.consultoria.mal_enfocat && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Mal enfocat</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{d.consultoria.mal_enfocat}</p>
+                  </div>
+                )}
+                {d.consultoria.on_perdent_energia && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>On perdeu energia</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{d.consultoria.on_perdent_energia}</p>
+                  </div>
+                )}
+                {d.consultoria.potencial_real && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-1.5" style={{ color: LABEL }}>Potencial real</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{d.consultoria.potencial_real}</p>
+                  </div>
+                )}
+              </div>
+              <div className="grid md:grid-cols-2 gap-5 mt-5 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
+                {d.consultoria.decisions_inajornables?.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-2" style={{ color: AMBER }}>Decisions inajornables</p>
+                    <BulletList items={d.consultoria.decisions_inajornables} color={AMBER} />
+                  </div>
+                )}
+                {d.consultoria.projectes_sense_sentit?.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-2" style={{ color: LABEL }}>Projectes sense sentit</p>
+                    <BulletList items={d.consultoria.projectes_sense_sentit} color={LABEL} />
+                  </div>
+                )}
+                {d.consultoria.que_professionalitzar?.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-2" style={{ color: BLUE }}>Que professionalitzar</p>
+                    <BulletList items={d.consultoria.que_professionalitzar} color={BLUE} />
+                  </div>
+                )}
+                {d.consultoria.sistemes_falten?.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-2" style={{ color: GREEN }}>Sistemes que falten</p>
+                    <BulletList items={d.consultoria.sistemes_falten} color={GREEN} />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Recommendation */}
-          {d.recomanacio && (
-            <div className="rounded-xl p-5" style={{ backgroundColor: `${BLUE}08`, border: `1px solid ${BLUE}25` }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: BLUE }}>Recomanació Estratègica</p>
-              <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{d.recomanacio}</p>
+          {d.conclusions_finals && (
+            <Card>
+              <SectionLabel>Conclusions Finals</SectionLabel>
+              <p className="text-[12px] leading-relaxed" style={{ color: DIM }}>{d.conclusions_finals}</p>
+            </Card>
+          )}
+
+          {d.recomanacio_principal && (
+            <div className="rounded-2xl p-6" style={{ backgroundColor: `${GOLD}08`, border: `2px solid ${GOLD}30` }}>
+              <SectionLabel color={GOLD}>Recomanació Principal</SectionLabel>
+              <p className="text-[15px] font-semibold leading-relaxed" style={{ color: TEXT }}>{d.recomanacio_principal}</p>
             </div>
           )}
-        </>
+
+        </div>
       )}
 
-      {/* Nav bottom */}
-      <div className="pt-4 flex justify-center">
-        <Link href="/dashboard/bruixola/anamnesi"
+      <div className="pt-8 flex justify-center">
+        <Link
+          href="/dashboard/bruixola/anamnesi"
           className="text-[10px] hover:opacity-70 transition-opacity"
-          style={{ color: LABEL }}>
+          style={{ color: LABEL }}
+        >
           Refinar l&apos;anamnesi per millorar el diagnòstic →
         </Link>
       </div>
+
     </div>
   );
 }

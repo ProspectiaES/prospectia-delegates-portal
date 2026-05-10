@@ -36,10 +36,13 @@ export function AnamnesiClient({ respostesInicials }: Props) {
   const [deepeningFase, setDeepeningFase] = useState<number | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
+  const [editingOrdre, setEditingOrdre] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [isSaving, startSave] = useTransition();
   const [isSkipping, startSkip] = useTransition();
   const [isGenerating, startGenerate] = useTransition();
   const [isResetting, startReset] = useTransition();
+  const [isEditing, startEdit] = useTransition();
 
   // Fase on totes les core estan contestades però cap opcional ha estat tocada
   // (ni contestada ni saltada) → mostrar panell de decisió
@@ -141,6 +144,19 @@ export function AnamnesiClient({ respostesInicials }: Props) {
     navigator.clipboard.writeText(lines).then(() => { setCopyOk(true); setTimeout(() => setCopyOk(false), 2000); });
   }
 
+  function handleStartEdit(ordre: number) {
+    setEditingOrdre(ordre);
+    setEditingText(respostes[ordre] ?? "");
+  }
+
+  function handleSaveEdit(ordre: number) {
+    const text = editingText.trim();
+    if (!text || isEditing) return;
+    setRespostes(prev => ({ ...prev, [ordre]: text }));
+    setEditingOrdre(null);
+    startEdit(async () => { await saveAnamnesiAnswer(ordre, text); });
+  }
+
   const faseActual = currentPregunta?.fase ?? pendingDecisionFase ?? (isComplete ? 6 : 1);
   const faseColor = FASE_COLORS[faseActual] ?? GOLD;
 
@@ -226,9 +242,9 @@ export function AnamnesiClient({ respostesInicials }: Props) {
               {copyOk ? "✓ Copiat!" : "Copiar tot"}
             </button>
           </div>
-          <div className="p-4 space-y-4 max-h-[50vh] overflow-y-auto">
+          <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
             {[1,2,3,4,5].map(f => {
-              const faseQs = ANAMNESI_PREGUNTES.filter(q => q.fase === f && respostes[q.ordre]);
+              const faseQs = ANAMNESI_PREGUNTES.filter(q => q.fase === f && respostes[q.ordre] && respostes[q.ordre] !== "__skip__");
               if (faseQs.length === 0) return null;
               const fc = FASE_COLORS[f];
               return (
@@ -238,13 +254,46 @@ export function AnamnesiClient({ respostesInicials }: Props) {
                   </p>
                   <div className="space-y-2">
                     {faseQs.map(q => (
-                      <div key={q.ordre} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
-                        <div className="px-3 py-1.5" style={{ backgroundColor: SURFACE }}>
-                          <p className="text-[10px]" style={{ color: DIM }}>{q.text}</p>
+                      <div key={q.ordre} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${editingOrdre === q.ordre ? fc : BORDER}` }}>
+                        <div className="px-3 py-1.5 flex items-start justify-between gap-2" style={{ backgroundColor: SURFACE }}>
+                          <p className="text-[10px] leading-snug flex-1" style={{ color: DIM }}>{q.text}</p>
+                          {editingOrdre !== q.ordre && (
+                            <button onClick={() => handleStartEdit(q.ordre)}
+                              className="text-[8px] font-semibold shrink-0 px-2 py-0.5 rounded hover:opacity-80"
+                              style={{ color: BLUE, border: `1px solid ${BLUE}30`, backgroundColor: `${BLUE}06` }}>
+                              Editar
+                            </button>
+                          )}
                         </div>
-                        <div className="px-3 py-2">
-                          <p className="text-[11px] leading-relaxed whitespace-pre-line" style={{ color: TEXT }}>{respostes[q.ordre]}</p>
-                        </div>
+                        {editingOrdre === q.ordre ? (
+                          <div className="px-3 py-2">
+                            <textarea
+                              autoFocus
+                              value={editingText}
+                              onChange={e => setEditingText(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveEdit(q.ordre); }}
+                              rows={4}
+                              className="w-full rounded-lg outline-none resize-none text-[12px] leading-relaxed p-3 mb-2"
+                              style={{ backgroundColor: SURFACE, border: `1px solid ${fc}`, color: TEXT }}
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => setEditingOrdre(null)}
+                                className="text-[9px] px-3 py-1 rounded-lg hover:opacity-70"
+                                style={{ color: LABEL, border: `1px solid ${BORDER}` }}>
+                                Cancel·lar
+                              </button>
+                              <button onClick={() => handleSaveEdit(q.ordre)} disabled={!editingText.trim() || isEditing}
+                                className="text-[9px] font-bold px-3 py-1 rounded-lg hover:opacity-80 disabled:opacity-40"
+                                style={{ backgroundColor: fc, color: "#FFFFFF" }}>
+                                {isEditing ? "Desant…" : "Desar ✓"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="px-3 py-2">
+                            <p className="text-[11px] leading-relaxed whitespace-pre-line" style={{ color: TEXT }}>{respostes[q.ordre]}</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -375,24 +424,25 @@ export function AnamnesiClient({ respostesInicials }: Props) {
 
       {/* Complete */}
       {isComplete && (
-        <div className="rounded-2xl p-6 text-center"
+        <div className="rounded-2xl p-6"
           style={{ border: `1px solid ${GREEN}30`, backgroundColor: `${GREEN}05` }}>
-          <p className="text-[13px] font-bold mb-1.5" style={{ color: GREEN }}>
+          <p className="text-[13px] font-bold mb-1" style={{ color: GREEN }}>
             Anamnesi completada ✓
           </p>
           <p className="text-[11px] mb-5" style={{ color: DIM }}>
-            {totalAnswered} respostes en 5 fases. Genera ara el diagnòstic empresarial.
+            {totalAnswered} respostes en 5 fases. Revisa i edita les respostes si cal, i genera el diagnòstic quan estiguis a punt.
           </p>
-          <button onClick={() => startGenerate(async () => { await generateDiagnostic(); router.push("/dashboard/bruixola/diagnostic"); })}
-            disabled={isGenerating}
-            className="px-6 py-3 rounded-xl text-[12px] font-bold disabled:opacity-50 hover:opacity-80 transition-all"
-            style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
-            {isGenerating ? <span className="flex items-center gap-2"><span className="animate-spin">◌</span>Generant diagnòstic…</span> : "Generar Diagnòstic Empresarial →"}
-          </button>
-          <div className="mt-4">
+          <div className="flex flex-wrap gap-3 items-center">
             <button onClick={() => startGenerate(async () => { await generateDiagnostic(); router.push("/dashboard/bruixola/diagnostic"); })}
-              disabled={isGenerating} className="text-[10px] hover:underline" style={{ color: LABEL }}>
-              Saltar a diagnòstic amb les dades actuals
+              disabled={isGenerating}
+              className="px-6 py-2.5 rounded-xl text-[12px] font-bold disabled:opacity-50 hover:opacity-80 transition-all"
+              style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
+              {isGenerating ? <span className="flex items-center gap-2"><span className="animate-spin">◌</span>Generant diagnòstic…</span> : "Generar Diagnòstic →"}
+            </button>
+            <button onClick={() => setShowExport(!showExport)}
+              className="px-4 py-2.5 rounded-xl text-[11px] font-semibold hover:opacity-80 transition-all"
+              style={{ border: `1px solid ${GREEN}40`, color: GREEN, backgroundColor: CARD }}>
+              {showExport ? "Tancar respostes" : "Revisar i editar respostes"}
             </button>
           </div>
         </div>

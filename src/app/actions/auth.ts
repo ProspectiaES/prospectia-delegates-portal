@@ -45,6 +45,20 @@ export async function login(
   redirect("/dashboard");
 }
 
+export async function resetPassword(
+  _prevState: string | null,
+  formData: FormData
+): Promise<string | null> {
+  const email = formData.get("email") as string;
+  if (!email) return "Cal introduir un email.";
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: "https://dashboard.prospectia.es/auth/callback?next=/auth/reset-password",
+  });
+  if (error) return error.message;
+  return null; // null = èxit
+}
+
 export async function logout() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

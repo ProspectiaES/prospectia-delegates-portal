@@ -115,6 +115,57 @@ export function buildAnamnesiPrompt(
   return historial.map(t => `[Fase ${t.fase}] ${t.pregunta}\n→ ${t.resposta ?? ""}`).join("\n\n");
 }
 
+// ─── Rich Diagnostic Result ───────────────────────────────────────────────────
+
+export interface RichDiagnosticResult {
+  // Summary
+  estat_global: string;
+  visio_executiva: string;
+  diagnostic_general: string;
+  // Per-area
+  diagnostic_comercial: string;
+  diagnostic_execucio: string;
+  diagnostic_estructura: string;
+  diagnostic_focus: string;
+  diagnostic_dispersio: string;
+  diagnostic_equip: string;
+  diagnostic_pipeline: string;
+  diagnostic_financera: string;
+  // Key findings
+  problema_central: string;
+  forces: string[];
+  riscos: string[];
+  oportunitats: string[];
+  dispersio_detectada: boolean;
+  dispersio_detall: string;
+  // Priorities & objectives
+  prioritats: string[];
+  objectius_90_dies: Array<{ titol: string; descripcio: string; kpis: string[]; responsable: string }>;
+  objectius_12_mesos: Array<{ titol: string; descripcio: string }>;
+  // Decisions & projects
+  decisions_urgents: string[];
+  projectes_potenciar: string[];
+  projectes_congelar: string[];
+  // Roadmap
+  roadmap_30_dies: { focus: string; objectius: string[]; decisions: string[]; accions: string[] };
+  roadmap_90_dies: { focus: string; objectius: string[]; decisions: string[]; accions: string[] };
+  roadmap_12_mesos: { focus: string; objectius: string[]; decisions: string[]; accions: string[] };
+  // Executive consulting
+  consultoria: {
+    que_faria: string;
+    mal_enfocat: string;
+    on_perdent_energia: string;
+    potencial_real: string;
+    decisions_inajornables: string[];
+    projectes_sense_sentit: string[];
+    que_professionalitzar: string[];
+    sistemes_falten: string[];
+  };
+  // Conclusion
+  conclusions_finals: string;
+  recomanacio_principal: string;
+}
+
 // ─── Diagnòstic Empresarial ───────────────────────────────────────────────────
 
 export function buildDiagnosticPrompt(ctx: {
@@ -126,38 +177,42 @@ export function buildDiagnosticPrompt(ctx: {
   anamnesi: AnamnesiTorn[];
 }): string {
   const anamnesiText = ctx.anamnesi
-    .filter(t => t.resposta)
+    .filter(t => t.resposta && t.resposta !== "__skip__")
     .map(t => `[Fase ${t.fase}] ${t.pregunta}\n→ ${t.resposta}`)
     .join("\n\n");
 
   const empresesText = ctx.empreses.length > 0
-    ? ctx.empreses.map(e => `${e.nom} (${e.tipus ?? "?"}, ${e.sector ?? "?"})` ).join(", ")
+    ? ctx.empreses.map(e => `${e.nom} (${e.tipus ?? "?"}, ${e.sector ?? "?"})`).join(", ")
     : "No definides";
 
   const actorsText = ctx.actors.length > 0
-    ? ctx.actors.map(a => `${a.nom}: rol formal="${a.rol_formal ?? "?"}", rol real="${a.rol_real ?? "?"}", poder=${a.poder_decisio ?? "?"}/5, càrrega=${a.carrega_actual ?? "?"}/5`).join("\n")
+    ? ctx.actors.map(a => `${a.nom}: formal="${a.rol_formal ?? "?"}", real="${a.rol_real ?? "?"}", poder=${a.poder_decisio ?? "?"}/5, càrrega=${a.carrega_actual ?? "?"}/5`).join("\n")
     : "No definits";
 
   const productesText = ctx.productes.length > 0
-    ? ctx.productes.map(p => `${p.nom} (${p.tipus ?? "?"}): estat=${p.estat ?? "?"}, caixa=${p.caixa_actual != null ? `${p.caixa_actual}€` : "?"}, potencial=${p.potencial ?? "?"}/5, esforç=${p.esforc ?? "?"}/5`).join("\n")
+    ? ctx.productes.map(p => `${p.nom}: estat=${p.estat ?? "?"}, caixa=${p.caixa_actual != null ? `${p.caixa_actual}€` : "?"}, potencial=${p.potencial ?? "?"}/5, esforç=${p.esforc ?? "?"}/5`).join("\n")
     : "No definits";
 
   const projectesText = ctx.projectes.length > 0
-    ? ctx.projectes.map(p => `${p.nom}: estat=${p.estat ?? "?"}, prioritat=${p.prioritat ?? "?"}/5, impacte=${p.impacte ?? "?"}/5, esforç=${p.esforc ?? "?"}/5, pròxim=${p.seguent_accio ?? "sense acció"}`).join("\n")
+    ? ctx.projectes.map(p => `${p.nom}: estat=${p.estat ?? "?"}, prioritat=${p.prioritat ?? "?"}/5, impacte=${p.impacte ?? "?"}/5`).join("\n")
     : "No definits";
 
   const objectiusText = ctx.objectius.length > 0
-    ? ctx.objectius.map(o => `${o.titol} (${o.tipus ?? "?"}): estat=${o.estat ?? "?"}, progrés=${o.progress ?? 0}%`).join("\n")
+    ? ctx.objectius.map(o => `${o.titol}: ${o.estat ?? "?"}, ${o.progress ?? 0}%`).join("\n")
     : "No definits";
 
-  return `Ets el Sistema de Diagnòstic Estratègic Empresarial. La teva funció és generar un diagnòstic executiu real, honest i accionable d'una empresa.
+  return `Ets un consultor senior de direcció empresarial i desenvolupament de negoci. La teva especialització: business development, reestructuració empresarial, escalabilitat, sistemes comercials, focus executiu, govern empresarial.
 
-El teu to és: racional, elegant, executiu, constructiu. No jutges. No uses frases de consultor buit. Ets honest però constructiu. El diagnòstic ha de fer sentir: "Ara finalment tenim direcció."
+El teu to: executiu, sobri, clar, racional, honest, elegant, molt orientat a decisió.
+NO: frases buides, motivació barata, startup bullshit, llenguatge LinkedIn.
 
-DADES DE L'EMPRESA:
-Empreses: ${empresesText}
+El diagnòstic ha de fer sentir: "Ara entenem realment què passa i què hem de fer."
 
-Actors:
+═══ DADES DE L'EMPRESA ═══
+
+Empreses/Marques: ${empresesText}
+
+Actors i equip:
 ${actorsText}
 
 Productes/Serveis:
@@ -169,28 +224,80 @@ ${projectesText}
 Objectius:
 ${objectiusText}
 
-ANAMNESI ESTRATÈGICA (conversa prèvia):
-${anamnesiText || "(Sense anamnesi prèvia)"}
+═══ ANAMNESI ESTRATÈGICA ═══
+${anamnesiText || "(Sense anamnesi — basar el diagnòstic en les dades estructurals disponibles)"}
 
-Genera un diagnòstic empresarial complet en format JSON estrictament vàlid, sense text addicional:
+═══ INSTRUCCIONS ═══
+
+Genera el diagnòstic complet com a consultor senior extern. NO resumeixis les dades. Interpreta, connecta punts, detecta contradiccions, detecta patrons ocults, detecta potencial real.
+
+Respon ÚNICAMENT en JSON vàlid amb aquesta estructura exacta:
+
 {
-  "estat_global": "Frase executiva breu que descriu l'estat real de l'empresa (1 frase, màxim 20 paraules)",
-  "resum_executiu": "Diagnòstic executiu en 3-5 línies. Honest, directe, constructiu. Descriu la situació real.",
-  "forces": ["punt fort real 1", "punt fort real 2", "punt fort real 3"],
-  "riscos": ["risc real 1", "risc real 2", "risc real 3"],
-  "oportunitats": ["oportunitat concreta 1", "oportunitat concreta 2"],
-  "problemes": ["problema sistèmic 1", "problema sistèmic 2", "problema sistèmic 3"],
+  "estat_global": "1 frase executiva (màx 20 paraules) que descriu l'estat real de l'empresa",
+  "visio_executiva": "Visió executiva en 3-4 línies. Síntesi brutal de la situació real.",
+  "diagnostic_general": "Diagnòstic general en 4-6 línies. Honest, directe, sense eufemismes.",
+  "diagnostic_comercial": "Diagnòstic de l'àrea comercial: pipeline, conversió, seguiment, estructura de vendes.",
+  "diagnostic_execucio": "Diagnòstic d'execució: velocitat, follow-through, colls d'ampolla, responsabilitats.",
+  "diagnostic_estructura": "Diagnòstic estructural: organigrama real vs formal, dependències crítiques.",
+  "diagnostic_focus": "Diagnòstic de focus: on va l'energia vs on hauria d'anar.",
+  "diagnostic_dispersio": "Diagnòstic de dispersió: quants fronts, quins estan actius de veritat, cost de la dispersió.",
+  "diagnostic_equip": "Diagnòstic d'equip: capacitat, càrrega, rols buits, dependències de persones.",
+  "diagnostic_pipeline": "Diagnòstic de pipeline: estat, qualitat, predictibilitat, bloquejos.",
+  "diagnostic_financera": "Diagnòstic financer: caixa, recurrència, exposició, sostenibilitat.",
+  "problema_central": "El problema real principal. 2-3 línies. Directe.",
+  "forces": ["força real 1", "força real 2", "força real 3"],
+  "riscos": ["risc real i concret 1", "risc real i concret 2", "risc real i concret 3", "risc 4"],
+  "oportunitats": ["oportunitat real 1", "oportunitat real 2", "oportunitat real 3"],
   "dispersio_detectada": true,
-  "focus_recomanat": "El focus principal que l'empresa hauria de tenir ara. 1-2 frases concretes.",
-  "projectes_congelar": ["projecte o línia a congelar 1"],
-  "projectes_potenciar": ["projecte o línia a potenciar 1", "projecte o línia a potenciar 2"],
-  "decisions_pendents": ["decisió específica que s'ha d'abordar 1", "decisió específica 2"],
-  "seguents_accions": ["acció immediata concreta 1", "acció immediata concreta 2", "acció immediata concreta 3"],
-  "recomanacio": "Recomanació estratègica principal en 2-3 línies. La més important de tot el diagnòstic."
+  "dispersio_detall": "Descripció concreta de la dispersió detectada i el seu impacte.",
+  "prioritats": ["prioritat real 1", "prioritat real 2", "prioritat real 3", "prioritat real 4"],
+  "objectius_90_dies": [
+    {"titol": "Objectiu 1", "descripcio": "Descripció concreta", "kpis": ["KPI mesurable 1", "KPI 2"], "responsable": "Qui"},
+    {"titol": "Objectiu 2", "descripcio": "Descripció concreta", "kpis": ["KPI 1"], "responsable": "Qui"},
+    {"titol": "Objectiu 3", "descripcio": "Descripció concreta", "kpis": ["KPI 1"], "responsable": "Qui"}
+  ],
+  "objectius_12_mesos": [
+    {"titol": "Objectiu anual 1", "descripcio": "Descripció amb resultat esperat mesurable"},
+    {"titol": "Objectiu anual 2", "descripcio": "Descripció amb resultat esperat mesurable"},
+    {"titol": "Objectiu anual 3", "descripcio": "Descripció amb resultat esperat mesurable"}
+  ],
+  "decisions_urgents": ["decisió urgent 1", "decisió urgent 2", "decisió urgent 3"],
+  "projectes_potenciar": ["projecte o línia a potenciar 1", "projecte 2"],
+  "projectes_congelar": ["projecte a congelar o parar 1", "projecte 2"],
+  "roadmap_30_dies": {
+    "focus": "Focus principal dels 30 primers dies",
+    "objectius": ["objectiu 1", "objectiu 2"],
+    "decisions": ["decisió a prendre 1", "decisió 2"],
+    "accions": ["acció concreta 1", "acció 2", "acció 3"]
+  },
+  "roadmap_90_dies": {
+    "focus": "Focus dels 90 dies",
+    "objectius": ["objectiu 1", "objectiu 2"],
+    "decisions": ["decisió 1"],
+    "accions": ["acció 1", "acció 2", "acció 3"]
+  },
+  "roadmap_12_mesos": {
+    "focus": "Focus dels 12 mesos",
+    "objectius": ["objectiu 1", "objectiu 2"],
+    "decisions": ["decisió estructural 1"],
+    "accions": ["acció estratègica 1", "acció 2"]
+  },
+  "consultoria": {
+    "que_faria": "Què faria si dirigís l'empresa avui. Directe, executiu, clar.",
+    "mal_enfocat": "Què està mal enfocat. On s'ha invertit energia on no cal.",
+    "on_perdent_energia": "On s'està perdent energia concretament.",
+    "potencial_real": "On és el potencial real que no s'està explotant.",
+    "decisions_inajornables": ["decisió que no es pot evitar més 1", "decisió 2", "decisió 3"],
+    "projectes_sense_sentit": ["projecte que no té sentit mantenir 1"],
+    "que_professionalitzar": ["àrea o procés a professionalitzar 1", "àrea 2"],
+    "sistemes_falten": ["sistema o eina que falta 1", "sistema 2"]
+  },
+  "conclusions_finals": "Conclusions en 3-4 línies. Síntesi. El missatge final del consultor.",
+  "recomanacio_principal": "La recomanació principal. La més important. 2-3 línies. La que canvia tot."
 }
 
-Màxim 3 forces, 3 riscos, 2 oportunitats, 3 problemes, 2 projectes_congelar, 3 projectes_potenciar, 3 decisions_pendents, 3 seguents_accions.
-Tota la resposta en català. To executiu, sòbri i directe.`;
+Tota la resposta en català. Màxim rigor executiu.`;
 }
 
 // ─── Conversió Idea → Objectiu SMART ─────────────────────────────────────────
