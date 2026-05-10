@@ -47,6 +47,8 @@ export function AnamnesiClient({ historialInicial }: Props) {
   });
   const [observacio, setObservacio] = useState<string | null>(null);
   const [resposta, setResposta] = useState("");
+  const [showExport, setShowExport] = useState(false);
+  const [copyOk, setCopyOk] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isGenerating, startGenerateTransition] = useTransition();
   const [isResetting, startResetTransition] = useTransition();
@@ -59,6 +61,25 @@ export function AnamnesiClient({ historialInicial }: Props) {
   const fase5Complete = historial.filter(t => t.fase === 5 && t.resposta).length >= 2;
   const totalFasesCompletes = new Set(historial.filter(t => t.resposta).map(t => t.fase)).size;
   const isFirstQuestion = historial.length === 0 && !preguntaActual;
+  const DRAFT_KEY = "anamnesi-draft";
+
+  // Restore draft when question loads
+  useEffect(() => {
+    if (!preguntaActual) return;
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const { q, t } = JSON.parse(saved) as { q: string; t: string };
+        if (q === preguntaActual) setResposta(t);
+      }
+    } catch { /* ignore */ }
+  }, [preguntaActual]);
+
+  // Auto-save draft on every keystroke
+  function handleRespostaChange(v: string) {
+    setResposta(v);
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ q: preguntaActual, t: v })); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,6 +107,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
     if (!resposta.trim() || !preguntaActual) return;
     const respostaTrim = resposta.trim();
     setResposta("");
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
 
     const historialAmbResposta = [...historial, { fase: faseActual, pregunta: preguntaActual, resposta: respostaTrim }];
     setHistorial(historialAmbResposta);
@@ -125,6 +147,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
 
   function handleReset() {
     if (!confirm("Reiniciar l'anamnesi? Es perdran totes les respostes anteriors.")) return;
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     startResetTransition(async () => {
       await resetAnamnesi();
       setHistorial([]);
@@ -133,6 +156,17 @@ export function AnamnesiClient({ historialInicial }: Props) {
       setResposta("");
       setDone(false);
       setDiagnosticGenerat(false);
+    });
+  }
+
+  function handleCopyAll() {
+    const answered = historial.filter(t => t.resposta);
+    const text = answered.map((t, i) =>
+      `[F${t.fase}] Pregunta ${i + 1}:\n${t.pregunta}\n\nResposta:\n${t.resposta}`
+    ).join("\n\n---\n\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopyOk(true);
+      setTimeout(() => setCopyOk(false), 2000);
     });
   }
 
@@ -149,13 +183,22 @@ export function AnamnesiClient({ historialInicial }: Props) {
           style={{ color: LABEL }}>
           ← Brúixola
         </Link>
-        {historial.length > 0 && (
-          <button onClick={handleReset} disabled={isResetting}
-            className="text-[10px] hover:opacity-70 transition-opacity"
-            style={{ color: LABEL }}>
-            {isResetting ? "Reiniciant…" : "Reiniciar"}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {historial.filter(t => t.resposta).length > 0 && (
+            <button onClick={() => setShowExport(!showExport)}
+              className="text-[10px] font-semibold px-3 py-1.5 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: BLUE, border: `1px solid ${BLUE}30`, backgroundColor: `${BLUE}06` }}>
+              {showExport ? "Tancar" : "Veure respostes"}
+            </button>
+          )}
+          {historial.length > 0 && (
+            <button onClick={handleReset} disabled={isResetting}
+              className="text-[10px] hover:opacity-70 transition-opacity"
+              style={{ color: LABEL }}>
+              {isResetting ? "Reiniciant…" : "Reiniciar"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Header */}
@@ -194,6 +237,43 @@ export function AnamnesiClient({ historialInicial }: Props) {
           );
         })}
       </div>
+
+      {/* Export panel */}
+      {showExport && historial.filter(t => t.resposta).length > 0 && (
+        <div className="rounded-2xl overflow-hidden mb-8" style={{ border: `1px solid ${BORDER}`, backgroundColor: CARD }}>
+          <div className="px-5 py-3 flex items-center justify-between" style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}>
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: LABEL }}>
+              Respostes guardades — {historial.filter(t => t.resposta).length} preguntes
+            </p>
+            <button onClick={handleCopyAll}
+              className="text-[9px] font-bold px-3 py-1 rounded-lg transition-all hover:opacity-80"
+              style={{ backgroundColor: copyOk ? GREEN : GOLD, color: "#FFFFFF" }}>
+              {copyOk ? "✓ Copiat!" : "Copiar tot"}
+            </button>
+          </div>
+          <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+            {historial.filter(t => t.resposta).map((t, i) => {
+              const fc = FASE_COLORS[t.fase] ?? GOLD;
+              return (
+                <div key={i} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+                  <div className="px-3 py-1.5 flex items-center gap-2" style={{ backgroundColor: `${fc}10`, borderBottom: `1px solid ${fc}20` }}>
+                    <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: fc }}>
+                      F{t.fase} · {FASE_INFO[t.fase]?.label}
+                    </span>
+                    <span className="text-[8px]" style={{ color: LABEL }}>· P{i + 1}</span>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <p className="text-[11px]" style={{ color: DIM }}>{t.pregunta}</p>
+                    <div className="rounded-lg p-3" style={{ backgroundColor: SURFACE }}>
+                      <p className="text-[12px] leading-relaxed whitespace-pre-line" style={{ color: TEXT }}>{t.resposta}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Historial */}
       {historial.filter(t => t.resposta).length > 0 && (
@@ -283,7 +363,7 @@ export function AnamnesiClient({ historialInicial }: Props) {
             <textarea
               ref={textareaRef}
               value={resposta}
-              onChange={e => setResposta(e.target.value)}
+              onChange={e => handleRespostaChange(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleEnviar(); }}
               placeholder="Respon amb honestedat i concreció…"
               rows={4}
@@ -298,7 +378,9 @@ export function AnamnesiClient({ historialInicial }: Props) {
             />
 
             <div className="flex items-center justify-between mt-3">
-              <p className="text-[9px]" style={{ color: LABEL }}>⌘↵ per enviar</p>
+              <p className="text-[9px]" style={{ color: LABEL }}>
+                {resposta.trim() ? "✓ Esborrany guardat localment · " : ""}⌘↵ per enviar
+              </p>
               <button
                 onClick={handleEnviar}
                 disabled={!resposta.trim() || isPending}
