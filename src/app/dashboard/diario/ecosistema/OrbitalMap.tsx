@@ -3,19 +3,33 @@
 import { useEffect, useRef } from "react";
 import type { Persona } from "@/app/actions/ecosistema";
 
+// Orbital radii per categoria
+const CAT_RADIUS: Record<string, number> = {
+  familia:    72,
+  nucli:      135,
+  estrategic: 198,
+  expansio:   252,
+  drenant:    295,
+};
+
+// Warm light colors per categoria
 const CAT_COLORS: Record<string, string> = {
+  familia:    "#8B5A28",
   nucli:      "#7D1120",
   estrategic: "#A87830",
   expansio:   "#2A6A8A",
   drenant:    "#5A5A6A",
 };
 
-const CAT_RADIUS: Record<string, number> = {
-  nucli:      100,
-  estrategic: 175,
-  expansio:   240,
-  drenant:    240,
+const CAT_RGB: Record<string, string> = {
+  familia:    "139,90,40",
+  nucli:      "125,17,32",
+  estrategic: "168,120,48",
+  expansio:   "42,106,138",
+  drenant:    "90,90,106",
 };
+
+const CATEGORIES = ["familia", "nucli", "estrategic", "expansio", "drenant"] as const;
 
 interface Props {
   persones: Persona[];
@@ -23,10 +37,21 @@ interface Props {
   selectedId: string | null;
 }
 
+type Position = {
+  p: Persona;
+  x: number;
+  y: number;
+  baseAngle: number;
+  r: number;
+  color: string;
+  rgb: string;
+  nodeR: number;
+};
+
 export function OrbitalMap({ persones, onSelect, selectedId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
-  const timeRef = useRef(0);
+  const posRef = useRef<Position[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,63 +65,91 @@ export function OrbitalMap({ persones, onSelect, selectedId }: Props) {
     const cy = H / 2;
 
     // Pre-compute positions
-    const positions: Array<{
-      p: Persona; x: number; y: number; baseAngle: number; r: number; color: string;
-    }> = [];
-
-    const byCategory: Record<string, Persona[]> = {
-      nucli: [], estrategic: [], expansio: [], drenant: [],
-    };
+    const byCategory: Record<string, Persona[]> = {};
+    CATEGORIES.forEach(c => { byCategory[c] = []; });
     persones.forEach(p => { byCategory[p.categoria]?.push(p); });
 
-    (["nucli", "estrategic", "expansio", "drenant"] as const).forEach(cat => {
+    posRef.current = [];
+    CATEGORIES.forEach(cat => {
       const group = byCategory[cat];
+      if (!group?.length) return;
       const radius = CAT_RADIUS[cat];
       const color = CAT_COLORS[cat];
+      const rgb = CAT_RGB[cat];
+      const nodeR = cat === "nucli" || cat === "familia" ? 16 : cat === "estrategic" ? 13 : 10;
+
       group.forEach((p, i) => {
-        const baseAngle = (i / Math.max(group.length, 1)) * Math.PI * 2 - Math.PI / 2;
-        positions.push({ p, x: 0, y: 0, baseAngle, r: radius, color });
+        const baseAngle = (i / group.length) * Math.PI * 2 - Math.PI / 2;
+        posRef.current.push({ p, x: cx, y: cy, baseAngle, r: radius, color, rgb, nodeR });
       });
     });
+
+    // Stars
+    const stars: Array<{ x: number; y: number; r: number; a: number }> = Array.from({ length: 60 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 0.8 + 0.2,
+      a: Math.random() * 0.3 + 0.05,
+    }));
 
     function draw(t: number) {
       ctx!.clearRect(0, 0, W, H);
 
+      // Warm light background
+      ctx!.fillStyle = "#FAFAF8";
+      ctx!.fillRect(0, 0, W, H);
+
       // Orbital rings
-      [100, 175, 240].forEach(r => {
+      CATEGORIES.forEach(cat => {
+        const r = CAT_RADIUS[cat];
+        const rgb = CAT_RGB[cat];
+        const hasPeople = posRef.current.some(p => p.p.categoria === cat);
+
         ctx!.beginPath();
         ctx!.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx!.strokeStyle = "rgba(180,160,140,0.08)";
-        ctx!.lineWidth = 1;
+        ctx!.strokeStyle = hasPeople
+          ? `rgba(${rgb},0.18)`
+          : "rgba(180,160,140,0.08)";
+        ctx!.lineWidth = hasPeople ? 1 : 0.5;
+        ctx!.setLineDash([3, 8]);
         ctx!.stroke();
+        ctx!.setLineDash([]);
       });
 
-      // Center dot
-      const pulse = 0.8 + Math.sin(t * 0.002) * 0.2;
+      // Center ambient
+      const centerGlow = ctx!.createRadialGradient(cx, cy, 0, cx, cy, 55);
+      centerGlow.addColorStop(0, "rgba(125,17,32,0.12)");
+      centerGlow.addColorStop(1, "rgba(125,17,32,0)");
       ctx!.beginPath();
-      ctx!.arc(cx, cy, 8 * pulse, 0, Math.PI * 2);
+      ctx!.arc(cx, cy, 55, 0, Math.PI * 2);
+      ctx!.fillStyle = centerGlow;
+      ctx!.fill();
+
+      // Center pulse
+      const pulse = 0.85 + Math.sin(t * 0.0018) * 0.15;
+      ctx!.beginPath();
+      ctx!.arc(cx, cy, 9 * pulse, 0, Math.PI * 2);
       ctx!.fillStyle = "#7D1120";
       ctx!.fill();
 
-      // Soft glow center
-      const grad = ctx!.createRadialGradient(cx, cy, 0, cx, cy, 40);
-      grad.addColorStop(0, "rgba(125,17,32,0.15)");
-      grad.addColorStop(1, "rgba(125,17,32,0)");
+      // Center outer ring
       ctx!.beginPath();
-      ctx!.arc(cx, cy, 40, 0, Math.PI * 2);
-      ctx!.fillStyle = grad;
-      ctx!.fill();
+      ctx!.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx!.strokeStyle = "rgba(125,17,32,0.25)";
+      ctx!.lineWidth = 1;
+      ctx!.stroke();
 
       // Center label
-      ctx!.font = "bold 8px system-ui";
-      ctx!.fillStyle = "rgba(180,160,140,0.4)";
+      ctx!.font = "bold 7px system-ui";
+      ctx!.fillStyle = "rgba(92,72,60,0.45)";
       ctx!.textAlign = "center";
-      ctx!.fillText("TU", cx, cy + 20);
+      ctx!.textBaseline = "middle";
+      ctx!.fillText("TU", cx, cy + 22);
 
-      // Persons
-      positions.forEach(pos => {
-        // Very subtle slow drift
-        const drift = pos.p.categoria === "nucli" ? 0 : Math.sin(t * 0.0004 + pos.baseAngle) * 0.02;
+      // Connection lines & nodes
+      posRef.current.forEach(pos => {
+        const isDrenant = pos.p.categoria === "drenant";
+        const drift = isDrenant ? 0 : Math.sin(t * 0.0003 + pos.baseAngle * 2) * 0.025;
         const angle = pos.baseAngle + drift;
         const px = cx + Math.cos(angle) * pos.r;
         const py = cy + Math.sin(angle) * pos.r;
@@ -104,66 +157,96 @@ export function OrbitalMap({ persones, onSelect, selectedId }: Props) {
         pos.y = py;
 
         const isSelected = pos.p.id === selectedId;
-        const nodeR = pos.p.categoria === "nucli" ? 18 : pos.p.categoria === "estrategic" ? 14 : 11;
+        const confianca = pos.p.confianca ?? 3;
+        const lineOpacity = isDrenant ? 0.06 : 0.05 + (confianca / 5) * 0.12;
 
         // Connection line
         ctx!.beginPath();
         ctx!.moveTo(cx, cy);
         ctx!.lineTo(px, py);
-        ctx!.strokeStyle = pos.p.categoria === "drenant"
-          ? "rgba(90,90,106,0.08)"
-          : `rgba(${hexToRgb(pos.color)},0.12)`;
-        ctx!.lineWidth = isSelected ? 1.5 : 0.8;
+        ctx!.strokeStyle = `rgba(${pos.rgb},${isSelected ? lineOpacity * 3 : lineOpacity})`;
+        ctx!.lineWidth = isSelected ? 1.2 : 0.6;
         ctx!.stroke();
 
-        // Node glow (selected)
-        if (isSelected) {
-          const glow = ctx!.createRadialGradient(px, py, 0, px, py, nodeR + 10);
-          glow.addColorStop(0, `rgba(${hexToRgb(pos.color)},0.3)`);
-          glow.addColorStop(1, `rgba(${hexToRgb(pos.color)},0)`);
+        // Stability glow
+        const estabilitat = pos.p.estabilitat_kpi;
+        const desgast = pos.p.desgast_energetic;
+        if (!isDrenant && estabilitat != null && estabilitat >= 7) {
+          const glow = ctx!.createRadialGradient(px, py, 0, px, py, pos.nodeR + 12);
+          glow.addColorStop(0, `rgba(${pos.rgb},0.22)`);
+          glow.addColorStop(1, `rgba(${pos.rgb},0)`);
           ctx!.beginPath();
-          ctx!.arc(px, py, nodeR + 10, 0, Math.PI * 2);
+          ctx!.arc(px, py, pos.nodeR + 12, 0, Math.PI * 2);
           ctx!.fillStyle = glow;
           ctx!.fill();
         }
 
-        // Node circle
-        ctx!.beginPath();
-        ctx!.arc(px, py, nodeR, 0, Math.PI * 2);
-        ctx!.fillStyle = isSelected
-          ? pos.color
-          : `rgba(${hexToRgb(pos.color)},${pos.p.categoria === "drenant" ? 0.25 : 0.55})`;
-        ctx!.fill();
-        if (isSelected) {
-          ctx!.strokeStyle = "#FFF";
-          ctx!.lineWidth = 1.5;
-          ctx!.stroke();
+        if (desgast != null && desgast >= 7) {
+          const dangerGlow = ctx!.createRadialGradient(px, py, 0, px, py, pos.nodeR + 10);
+          dangerGlow.addColorStop(0, "rgba(180,50,30,0.2)");
+          dangerGlow.addColorStop(1, "rgba(180,50,30,0)");
+          ctx!.beginPath();
+          ctx!.arc(px, py, pos.nodeR + 10, 0, Math.PI * 2);
+          ctx!.fillStyle = dangerGlow;
+          ctx!.fill();
         }
 
-        // Emoji or initials
+        // Selection halo
+        if (isSelected) {
+          const halo = ctx!.createRadialGradient(px, py, pos.nodeR, px, py, pos.nodeR + 16);
+          halo.addColorStop(0, `rgba(${pos.rgb},0.4)`);
+          halo.addColorStop(1, `rgba(${pos.rgb},0)`);
+          ctx!.beginPath();
+          ctx!.arc(px, py, pos.nodeR + 16, 0, Math.PI * 2);
+          ctx!.fillStyle = halo;
+          ctx!.fill();
+        }
+
+        // Node fill
+        const fillAlpha = isDrenant ? 0.22 : 0.65;
+        ctx!.beginPath();
+        ctx!.arc(px, py, pos.nodeR, 0, Math.PI * 2);
+        ctx!.fillStyle = isSelected
+          ? pos.color
+          : `rgba(${pos.rgb},${fillAlpha})`;
+        ctx!.fill();
+
+        // Node border
+        ctx!.beginPath();
+        ctx!.arc(px, py, pos.nodeR, 0, Math.PI * 2);
+        ctx!.strokeStyle = isSelected
+          ? "rgba(255,255,255,0.6)"
+          : `rgba(${pos.rgb},0.4)`;
+        ctx!.lineWidth = isSelected ? 1.5 : 0.8;
+        ctx!.stroke();
+
+        // Initials
         const initials = pos.p.nom.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-        ctx!.font = `${pos.p.categoria === "nucli" ? "bold 10px" : "bold 8px"} system-ui`;
-        ctx!.fillStyle = isSelected ? "#FFF" : "rgba(255,255,255,0.85)";
+        ctx!.font = `${pos.p.categoria === "nucli" || pos.p.categoria === "familia" ? "bold 9px" : "bold 7px"} system-ui`;
+        ctx!.fillStyle = isSelected ? "#FFF" : `rgba(255,255,255,${isDrenant ? 0.7 : 0.9})`;
         ctx!.textAlign = "center";
         ctx!.textBaseline = "middle";
         ctx!.fillText(initials, px, py);
 
         // Name label
-        ctx!.font = `${isSelected ? "bold " : ""}9px system-ui`;
-        ctx!.fillStyle = isSelected ? "#1C1510" : "rgba(92,80,72,0.8)";
+        const firstName = pos.p.nom.split(" ")[0];
+        ctx!.font = `${isSelected ? "bold " : ""}8px system-ui`;
+        ctx!.fillStyle = isSelected
+          ? "#1C1510"
+          : `rgba(92,72,60,${isDrenant ? 0.55 : 0.8})`;
         ctx!.textBaseline = "top";
-        ctx!.fillText(pos.p.nom.split(" ")[0], px, py + nodeR + 4);
+        ctx!.fillText(firstName, px, py + pos.nodeR + 4);
       });
     }
 
+    let raf: number;
     function loop(t: number) {
-      timeRef.current = t;
       draw(t);
-      animRef.current = requestAnimationFrame(loop);
+      raf = requestAnimationFrame(loop);
     }
-
     animRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animRef.current);
+
+    return () => cancelAnimationFrame(raf);
   }, [persones, selectedId]);
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -172,30 +255,16 @@ export function OrbitalMap({ persones, onSelect, selectedId }: Props) {
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
     const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-
-    const byCategory: Record<string, Persona[]> = {
-      nucli: [], estrategic: [], expansio: [], drenant: [],
-    };
-    persones.forEach(p => { byCategory[p.categoria]?.push(p); });
 
     let closest: string | null = null;
-    let minDist = 30;
+    let minDist = 28;
 
-    (["nucli", "estrategic", "expansio", "drenant"] as const).forEach(cat => {
-      const group = byCategory[cat];
-      const radius = CAT_RADIUS[cat];
-      group.forEach((p, i) => {
-        const angle = (i / Math.max(group.length, 1)) * Math.PI * 2 - Math.PI / 2;
-        const px = cx + Math.cos(angle) * radius;
-        const py = cy + Math.sin(angle) * radius;
-        const dist = Math.sqrt((mx - px) ** 2 + (my - py) ** 2);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = p.id;
-        }
-      });
+    posRef.current.forEach(pos => {
+      const dist = Math.sqrt((mx - pos.x) ** 2 + (my - pos.y) ** 2);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = pos.p.id;
+      }
     });
 
     if (closest) onSelect(closest);
@@ -204,18 +273,11 @@ export function OrbitalMap({ persones, onSelect, selectedId }: Props) {
   return (
     <canvas
       ref={canvasRef}
-      width={500}
-      height={500}
+      width={620}
+      height={620}
       onClick={handleClick}
       className="w-full cursor-pointer"
-      style={{ maxWidth: "500px" }}
+      style={{ maxWidth: "620px" }}
     />
   );
-}
-
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `${r},${g},${b}`;
 }
