@@ -337,12 +337,18 @@ export default async function BruixolaPage() {
           <div className="space-y-4">
             {bloquejosPendents.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}`, backgroundColor: CARD }}>
-                <div className="px-5 py-3.5 flex items-center gap-2"
+                <div className="px-5 py-3.5 flex items-center justify-between"
                   style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}>
-                  <div className="w-0.5 h-4 rounded-full" style={{ backgroundColor: RED }} />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: RED }}>
-                    Bloquejos ({bloquejosPendents.length})
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-0.5 h-4 rounded-full" style={{ backgroundColor: RED }} />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: RED }}>
+                      Bloquejos ({bloquejosPendents.length})
+                    </p>
+                  </div>
+                  <Link href="/dashboard/bruixola/bloquejos"
+                    className="text-[9px] font-bold uppercase tracking-widest hover:opacity-70" style={{ color: LABEL }}>
+                    Gestionar →
+                  </Link>
                 </div>
                 <div className="px-5 py-2">
                   {bloquejosPendents.map(b => <BloqueigRow key={b.id} b={b} />)}
@@ -412,12 +418,13 @@ export default async function BruixolaPage() {
       )}
 
       {/* Bottom nav */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
         {[
           { href: "/dashboard/bruixola/objectius",  label: "Objectius" },
           { href: "/dashboard/bruixola/projectes",  label: "Projectes" },
           { href: "/dashboard/bruixola/kpis",       label: "KPIs" },
           { href: "/dashboard/bruixola/empreses",   label: "Empreses · Actors" },
+          { href: "/dashboard/bruixola/bloquejos",  label: "Bloquejos" },
           { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic IA" },
           { href: "/dashboard/bruixola/focus",      label: "Focus" },
         ].map(item => (

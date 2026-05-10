@@ -632,6 +632,15 @@ export async function deleteKPI(id: string): Promise<void> {
 
 // ─── Bloquejos ────────────────────────────────────────────────────────────────
 
+export async function getBloquejos(includeResolt = false): Promise<Bloquejo[]> {
+  const { ownerId } = await requireBruixola();
+  const supabase = await createClient();
+  let q = supabase.from("bruixola_bloquejos").select("*").eq("user_id", ownerId).order("severitat", { ascending: false });
+  if (!includeResolt) q = q.eq("resolt", false);
+  const { data } = await q;
+  return (data ?? []) as Bloquejo[];
+}
+
 export async function saveBloqueig(formData: FormData): Promise<void> {
   const { ownerId } = await requireBruixola();
   const supabase = await createClient();
