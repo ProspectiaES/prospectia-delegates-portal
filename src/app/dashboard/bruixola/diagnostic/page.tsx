@@ -142,18 +142,18 @@ export default function DiagnosticPage() {
   function handleGenerate() {
     setError("");
     startGenerateTransition(async () => {
-      try {
-        const result = await generateDiagnostic();
-        const [, hist] = await Promise.all([Promise.resolve(), getDiagnosticHistory()]);
-        setHistory(hist);
-        setD(result);
-        if (hist[0]) {
-          setCurrentId(hist[0].id);
-          setCurrentDate(hist[0].data_diagnostic);
-          setCurrentVersio(hist[0].versio);
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Error generant el diagnòstic");
+      const res = await generateDiagnostic();
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      const hist = await getDiagnosticHistory();
+      setHistory(hist);
+      setD(res.data);
+      if (hist[0]) {
+        setCurrentId(hist[0].id);
+        setCurrentDate(hist[0].data_diagnostic);
+        setCurrentVersio(hist[0].versio);
       }
     });
   }

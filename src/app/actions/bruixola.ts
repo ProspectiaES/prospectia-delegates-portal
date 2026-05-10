@@ -759,7 +759,7 @@ export async function getDiagnostic(): Promise<Diagnostic | null> {
   return data?.[0] ? normalizeDiagnostic(data[0]) : null;
 }
 
-export async function generateDiagnostic(): Promise<RichDiagnosticResult> {
+export async function generateDiagnostic(): Promise<{ data: RichDiagnosticResult } | { error: string }> {
   const profile = await requireOwner();
   const supabase = await createClient();
 
@@ -788,22 +788,26 @@ export async function generateDiagnostic(): Promise<RichDiagnosticResult> {
     anamnesi: (anamnesiData ?? []).map(r => ({ fase: r.fase, pregunta: r.pregunta, resposta: r.resposta ?? undefined })),
   });
 
-  const raw = await callOpenAI(prompt, 4000, "gpt-4o");
+  let raw: string;
+  try {
+    raw = await callOpenAI(prompt, 4000, "gpt-4o");
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Error cridant l'API d'IA" };
+  }
+
   let result: RichDiagnosticResult;
   try {
     result = JSON.parse(raw);
   } catch {
-    throw new Error(`Error parsejant el diagnòstic: ${raw.slice(0, 300)}`);
+    return { error: `Error parsejant el diagnòstic. Resposta rebuda: ${raw.slice(0, 200)}` };
   }
 
-  // Get current version count for this user
   const { count } = await supabase.from("bruixola_diagnostic").select("*", { count: "exact", head: true }).eq("user_id", profile.id);
 
   await supabase.from("bruixola_diagnostic").insert({
     user_id: profile.id,
     data_diagnostic: new Date().toISOString().slice(0, 10),
     versio: (count ?? 0) + 1,
-    // Legacy flat columns (for backwards compat)
     estat_global: result.estat_global,
     resum_executiu: result.visio_executiva,
     forces: result.forces,
@@ -817,13 +821,12 @@ export async function generateDiagnostic(): Promise<RichDiagnosticResult> {
     decisions_pendents: result.decisions_urgents,
     seguents_accions: result.roadmap_30_dies?.accions ?? [],
     recomanacio: result.recomanacio_principal,
-    // Full rich data
     full_data: result,
   });
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/diagnostic");
-  return result;
+  return { data: result };
 }
 
 export async function getDiagnosticHistory(): Promise<Array<{ id: string; data_diagnostic: string; versio: number; estat_global: string; revisada: boolean }>> {

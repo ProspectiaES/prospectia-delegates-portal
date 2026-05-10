@@ -41,6 +41,7 @@ export function AnamnesiClient({ respostesInicials }: Props) {
   const [isSaving, startSave] = useTransition();
   const [isSkipping, startSkip] = useTransition();
   const [isGenerating, startGenerate] = useTransition();
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [isResetting, startReset] = useTransition();
   const [isEditing, startEdit] = useTransition();
 
@@ -422,6 +423,14 @@ export function AnamnesiClient({ respostesInicials }: Props) {
         </div>
       )}
 
+      {/* Generate error */}
+      {generateError && (
+        <div className="rounded-xl px-4 py-3 mb-4 text-[11px]"
+          style={{ backgroundColor: "#FEF2F2", border: "1px solid #FCA5A5", color: RED }}>
+          <strong>Error generant el diagnòstic:</strong> {generateError}
+        </div>
+      )}
+
       {/* Complete */}
       {isComplete && (
         <div className="rounded-2xl p-6"
@@ -433,7 +442,14 @@ export function AnamnesiClient({ respostesInicials }: Props) {
             {totalAnswered} respostes en 5 fases. Revisa i edita les respostes si cal, i genera el diagnòstic quan estiguis a punt.
           </p>
           <div className="flex flex-wrap gap-3 items-center">
-            <button onClick={() => startGenerate(async () => { await generateDiagnostic(); router.push("/dashboard/bruixola/diagnostic"); })}
+            <button onClick={() => {
+              setGenerateError(null);
+              startGenerate(async () => {
+                const res = await generateDiagnostic();
+                if ("error" in res) { setGenerateError(res.error); }
+                else { router.push("/dashboard/bruixola/diagnostic"); }
+              });
+            }}
               disabled={isGenerating}
               className="px-6 py-2.5 rounded-xl text-[12px] font-bold disabled:opacity-50 hover:opacity-80 transition-all"
               style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
@@ -451,7 +467,14 @@ export function AnamnesiClient({ respostesInicials }: Props) {
       {/* Early diagnostic option */}
       {!isComplete && totalAnswered >= 9 && (
         <div className="mt-4 text-center">
-          <button onClick={() => startGenerate(async () => { await generateDiagnostic(); router.push("/dashboard/bruixola/diagnostic"); })}
+          <button onClick={() => {
+            setGenerateError(null);
+            startGenerate(async () => {
+              const res = await generateDiagnostic();
+              if ("error" in res) { setGenerateError(res.error); }
+              else { router.push("/dashboard/bruixola/diagnostic"); }
+            });
+          }}
             disabled={isGenerating} className="text-[10px] hover:underline transition-opacity" style={{ color: LABEL }}>
             Generar diagnòstic amb les {totalAnswered} respostes actuals (sense completar)
           </button>
