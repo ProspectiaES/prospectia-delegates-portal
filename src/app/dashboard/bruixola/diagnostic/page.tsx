@@ -7,6 +7,8 @@ import {
   generateDiagnostic,
   getDiagnosticHistory,
   getDiagnosticById,
+  poblarBruixola,
+  type PoblarResultat,
 } from "@/app/actions/bruixola";
 import type { RichDiagnosticResult } from "@/lib/bruixola-prompts";
 
@@ -122,6 +124,8 @@ export default function DiagnosticPage() {
   const [error, setError] = useState("");
   const [isGenerating, startGenerateTransition] = useTransition();
   const [isDownloading, startDownloadTransition] = useTransition();
+  const [isPobrant, startPobrarTransition] = useTransition();
+  const [pobrarResultat, setPobrarResultat] = useState<PoblarResultat | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -264,6 +268,24 @@ export default function DiagnosticPage() {
               {isDownloading ? "Generant…" : "Descarregar PDF"}
             </button>
           )}
+          {d && (
+            <button
+              onClick={() => {
+                setPobrarResultat(null);
+                setError("");
+                startPobrarTransition(async () => {
+                  const res = await poblarBruixola();
+                  if ("error" in res) { setError(res.error ?? "Error desconegut"); }
+                  else { setPobrarResultat(res); }
+                });
+              }}
+              disabled={isPobrant}
+              className="px-3 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
+              style={{ backgroundColor: `${GREEN}10`, color: GREEN, border: `1px solid ${GREEN}40` }}
+            >
+              {isPobrant ? <span className="flex items-center gap-1.5"><span className="animate-spin inline-block">◌</span> Pobrant…</span> : "Poblar Brúixola ✦"}
+            </button>
+          )}
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
@@ -282,6 +304,25 @@ export default function DiagnosticPage() {
       {error && (
         <div className="rounded-xl p-3 mb-6" style={{ backgroundColor: `${RED}12`, border: `1px solid ${RED}25` }}>
           <p className="text-[11px]" style={{ color: RED }}>{error}</p>
+        </div>
+      )}
+
+      {pobrarResultat && (
+        <div className="rounded-xl p-4 mb-6 flex items-start justify-between gap-4" style={{ backgroundColor: `${GREEN}08`, border: `1px solid ${GREEN}30` }}>
+          <div>
+            <p className="text-[11px] font-bold mb-1" style={{ color: GREEN }}>Brúixola poblada amb les dades del diagnòstic ✓</p>
+            <p className="text-[10px]" style={{ color: DIM }}>
+              {[
+                pobrarResultat.empreses > 0 && `${pobrarResultat.empreses} empreses`,
+                pobrarResultat.actors > 0 && `${pobrarResultat.actors} actors`,
+                pobrarResultat.productes > 0 && `${pobrarResultat.productes} productes`,
+                pobrarResultat.projectes > 0 && `${pobrarResultat.projectes} projectes`,
+                pobrarResultat.objectius > 0 && `${pobrarResultat.objectius} objectius`,
+              ].filter(Boolean).join(" · ")}
+              {pobrarResultat.omesos > 0 && ` · ${pobrarResultat.omesos} ja existien (omesos)`}
+            </p>
+          </div>
+          <button onClick={() => setPobrarResultat(null)} className="text-[10px] hover:opacity-60" style={{ color: LABEL }}>✕</button>
         </div>
       )}
 

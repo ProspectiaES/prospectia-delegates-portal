@@ -9,10 +9,12 @@ import {
   buildDiagnosticPrompt,
   buildObjectiuSMARTPrompt,
   buildAlertesPrompt,
+  buildExtraccioEntitatsPrompt,
   type RichDiagnosticResult,
   type DiagnosticResult,
   type ObjectiuSMART,
   type AnamnesiTorn,
+  type EntitatsExtretes,
 } from "@/lib/bruixola-prompts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -848,6 +850,140 @@ export async function getDiagnosticById(id: string): Promise<RichDiagnosticResul
     .eq("id", id)
     .maybeSingle();
   return (data?.full_data as RichDiagnosticResult) ?? null;
+}
+
+// ─── Poblar Brúixola des de Anamnesi + Diagnòstic ────────────────────────────
+
+export interface PoblarResultat {
+  empreses: number; actors: number; productes: number; projectes: number; objectius: number;
+  omesos: number; error?: string;
+}
+
+export async function poblarBruixola(): Promise<PoblarResultat | { error: string }> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  const [{ data: anamnesiData }, { data: diagData }] = await Promise.all([
+    supabase.from("bruixola_anamnesi").select("fase,pregunta,resposta").eq("user_id", profile.id).order("ordre"),
+    supabase.from("bruixola_diagnostic").select("full_data").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(1),
+  ]);
+
+  const anamnesiText = (anamnesiData ?? [])
+    .filter(r => r.resposta && r.resposta !== "__skip__")
+    .map(r => `[Fase ${r.fase}] ${r.pregunta}\n→ ${r.resposta}`)
+    .join("\n\n");
+
+  const diagnostic = (diagData?.[0]?.full_data as RichDiagnosticResult) ?? null;
+  const prompt = buildExtraccioEntitatsPrompt(anamnesiText, diagnostic);
+
+  let raw: string;
+  try { raw = await callOpenAI(prompt, 3000, "gpt-4o"); }
+  catch (e) { return { error: e instanceof Error ? e.message : "Error API" }; }
+
+  let entitats: EntitatsExtretes;
+  try { entitats = JSON.parse(raw); }
+  catch { return { error: `Error parsejant entitats. Resposta: ${raw.slice(0, 200)}` }; }
+
+  // Fetch existing names to avoid duplicates
+  const [{ data: exEmpreses }, { data: exActors }, { data: exProductes }, { data: exProjectes }, { data: exObjectius }] = await Promise.all([
+    supabase.from("bruixola_empreses").select("nom").eq("user_id", profile.id),
+    supabase.from("bruixola_actors").select("nom").eq("user_id", profile.id),
+    supabase.from("bruixola_productes").select("nom").eq("user_id", profile.id),
+    supabase.from("bruixola_projectes").select("nom").eq("user_id", profile.id),
+    supabase.from("bruixola_objectius").select("titol").eq("user_id", profile.id),
+  ]);
+
+  const norm = (s: string) => s.toLowerCase().trim();
+  const existsEmpreses = new Set((exEmpreses ?? []).map(e => norm(e.nom)));
+  const existsActors   = new Set((exActors ?? []).map(a => norm(a.nom)));
+  const existsProductes = new Set((exProductes ?? []).map(p => norm(p.nom)));
+  const existsProjectes = new Set((exProjectes ?? []).map(p => norm(p.nom)));
+  const existsObjectius = new Set((exObjectius ?? []).map(o => norm(o.titol)));
+
+  let created = { empreses: 0, actors: 0, productes: 0, projectes: 0, objectius: 0 };
+  let omesos = 0;
+
+  // Insert empreses
+  const novesEmpreses = (entitats.empreses ?? []).filter(e => !existsEmpreses.has(norm(e.nom)));
+  if (novesEmpreses.length > 0) {
+    const { error } = await supabase.from("bruixola_empreses").insert(
+      novesEmpreses.map(e => ({ user_id: profile.id, nom: e.nom, tipus: e.tipus, sector: e.sector, descripcio: e.descripcio }))
+    );
+    if (!error) created.empreses = novesEmpreses.length;
+  }
+  omesos += (entitats.empreses ?? []).length - novesEmpreses.length;
+
+  // Fetch empresa IDs for foreign keys
+  const { data: empresesRows } = await supabase.from("bruixola_empreses").select("id,nom").eq("user_id", profile.id);
+  const empresaIdByNom = new Map((empresesRows ?? []).map(e => [norm(e.nom), e.id]));
+  const firstEmpresaId = empresesRows?.[0]?.id ?? null;
+
+  // Insert actors
+  const nousActors = (entitats.actors ?? []).filter(a => !existsActors.has(norm(a.nom)));
+  if (nousActors.length > 0) {
+    const { error } = await supabase.from("bruixola_actors").insert(
+      nousActors.map(a => ({
+        user_id: profile.id, empresa_id: firstEmpresaId,
+        nom: a.nom, rol_formal: a.rol_formal, rol_real: a.rol_real, area: a.area,
+        poder_decisio: a.poder_decisio, capacitat_execucio: a.capacitat_execucio,
+        carrega_actual: a.carrega_actual, extern: a.extern ?? false, notes: a.notes,
+      }))
+    );
+    if (!error) created.actors = nousActors.length;
+  }
+  omesos += (entitats.actors ?? []).length - nousActors.length;
+
+  // Insert productes
+  const nousProductes = (entitats.productes ?? []).filter(p => !existsProductes.has(norm(p.nom)));
+  if (nousProductes.length > 0) {
+    const { error } = await supabase.from("bruixola_productes").insert(
+      nousProductes.map(p => ({
+        user_id: profile.id, empresa_id: firstEmpresaId,
+        nom: p.nom, tipus: p.tipus, descripcio: p.descripcio, estat: p.estat ?? "actiu",
+        recurrent: p.recurrent ?? false, esforc: p.esforc, potencial: p.potencial, seguent_accio: p.seguent_accio,
+      }))
+    );
+    if (!error) created.productes = nousProductes.length;
+  }
+  omesos += (entitats.productes ?? []).length - nousProductes.length;
+
+  // Insert projectes
+  const nousProjectes = (entitats.projectes ?? []).filter(p => !existsProjectes.has(norm(p.nom)));
+  if (nousProjectes.length > 0) {
+    const { error } = await supabase.from("bruixola_projectes").insert(
+      nousProjectes.map(p => ({
+        user_id: profile.id, empresa_id: firstEmpresaId,
+        nom: p.nom, descripcio: p.descripcio, estat: p.estat ?? "actiu",
+        prioritat: p.prioritat, impacte: p.impacte, urgencia: p.urgencia, esforc: p.esforc,
+        seguent_accio: p.seguent_accio, decisio_pendent: p.decisio_pendent,
+      }))
+    );
+    if (!error) created.projectes = nousProjectes.length;
+  }
+  omesos += (entitats.projectes ?? []).length - nousProjectes.length;
+
+  // Insert objectius
+  const nousObjectius = (entitats.objectius ?? []).filter(o => !existsObjectius.has(norm(o.titol)));
+  if (nousObjectius.length > 0) {
+    const { error } = await supabase.from("bruixola_objectius").insert(
+      nousObjectius.map(o => ({
+        user_id: profile.id,
+        titol: o.titol, descripcio: o.descripcio, tipus: o.tipus ?? "trimestral",
+        any: o.any, trimestre: o.trimestre, prioritat: o.prioritat, impacte: o.impacte,
+        metrica: o.metrica, valor_objectiu: o.valor_objectiu, estat: "actiu",
+      }))
+    );
+    if (!error) created.objectius = nousObjectius.length;
+  }
+  omesos += (entitats.objectius ?? []).length - nousObjectius.length;
+
+  revalidatePath("/dashboard/bruixola");
+  revalidatePath("/dashboard/bruixola/empreses");
+  revalidatePath("/dashboard/bruixola/actors");
+  revalidatePath("/dashboard/bruixola/projectes");
+  revalidatePath("/dashboard/bruixola/objectius");
+
+  return { ...created, omesos };
 }
 
 // ─── Objectiu SMART ───────────────────────────────────────────────────────────

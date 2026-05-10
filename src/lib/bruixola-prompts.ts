@@ -382,3 +382,78 @@ Detecta alertes reals. Retorna JSON:
 
 Màxim 5 alertes. Prioritza les crítiques. Tota la resposta en català.`;
 }
+
+// ─── Extracció d'Entitats per Poblar Brúixola ────────────────────────────────
+
+export interface EntitatsExtretes {
+  empreses: Array<{
+    nom: string; tipus: string | null; sector: string | null; descripcio: string | null;
+  }>;
+  actors: Array<{
+    nom: string; rol_formal: string | null; rol_real: string | null; area: string | null;
+    poder_decisio: number | null; capacitat_execucio: number | null; carrega_actual: number | null;
+    extern: boolean; notes: string | null;
+  }>;
+  productes: Array<{
+    nom: string; tipus: string | null; descripcio: string | null;
+    estat: "actiu" | "congelat" | "experimental" | "discontinuat";
+    recurrent: boolean; esforc: number | null; potencial: number | null; seguent_accio: string | null;
+  }>;
+  projectes: Array<{
+    nom: string; descripcio: string | null;
+    estat: "actiu" | "congelat" | "completat" | "cancelat" | "pendent";
+    prioritat: number | null; impacte: number | null; urgencia: number | null; esforc: number | null;
+    seguent_accio: string | null; decisio_pendent: string | null;
+  }>;
+  objectius: Array<{
+    titol: string; descripcio: string | null;
+    tipus: "anual" | "trimestral" | "mensual";
+    any: number; trimestre: number | null;
+    prioritat: number | null; impacte: number | null;
+    metrica: string | null; valor_objectiu: number | null;
+  }>;
+}
+
+export function buildExtraccioEntitatsPrompt(
+  anamnesiText: string,
+  diagnostic: RichDiagnosticResult | null
+): string {
+  const diagText = diagnostic ? `
+DIAGNÒSTIC ESTRATÈGIC GENERAT:
+Estat global: ${diagnostic.estat_global}
+Problema central: ${diagnostic.problema_central}
+Projectes a potenciar: ${diagnostic.projectes_potenciar?.join(", ") ?? "cap"}
+Projectes a congelar: ${diagnostic.projectes_congelar?.join(", ") ?? "cap"}
+Objectius 90 dies: ${diagnostic.objectius_90_dies?.map(o => `${o.titol} (${o.responsable})`).join(", ") ?? "cap"}
+Objectius 12 mesos: ${diagnostic.objectius_12_mesos?.map(o => o.titol).join(", ") ?? "cap"}
+Decisions urgents: ${diagnostic.decisions_urgents?.join(", ") ?? "cap"}
+` : "";
+
+  const any = new Date().getFullYear();
+  const trimestre = Math.ceil((new Date().getMonth() + 1) / 3);
+
+  return `Ets un extractor d'entitats empresarials. La teva funció és llegir l'anamnesi estratègica i el diagnòstic d'una empresa i extreure les entitats estructurades per poblar el sistema de govern empresarial.
+
+ANAMNESI ESTRATÈGICA:
+${anamnesiText || "(sense anamnesi)"}
+${diagText}
+
+Extreu totes les entitats mencionades i genera el JSON per poblar el sistema. Regles:
+- empreses: totes les empreses, marques o entitats legals mencionades
+- actors: totes les persones o rols mencionats (CEO, director, delegats, etc.)
+- productes: tots els productes, serveis, línies de negoci mencionats
+- projectes: tots els projectes en marxa, aturats o pendents. Els projectes del diagnòstic "a potenciar" → estat "actiu", "a congelar" → estat "congelat"
+- objectius: crea objectius des dels objectius 90 dies (tipus "trimestral", any=${any}, trimestre=${trimestre + 1 > 4 ? 1 : trimestre + 1}) i 12 mesos (tipus "anual", any=${any})
+
+Valoracions numèriques 1-5: 1=molt baix, 5=molt alt. Sigues conservador si no tens dades suficients (posa null).
+Tota la resposta en català.
+
+Respon ÚNICAMENT en JSON vàlid:
+{
+  "empreses": [{"nom":"...","tipus":"consultoria|empresa|marca|holding|altre","sector":"...","descripcio":"..."}],
+  "actors": [{"nom":"...","rol_formal":"...","rol_real":"...","area":"...","poder_decisio":4,"capacitat_execucio":3,"carrega_actual":5,"extern":false,"notes":"..."}],
+  "productes": [{"nom":"...","tipus":"producte|servei|subscripcio|event|formacio|plataforma|altre","descripcio":"...","estat":"actiu","recurrent":false,"esforc":3,"potencial":4,"seguent_accio":"..."}],
+  "projectes": [{"nom":"...","descripcio":"...","estat":"actiu","prioritat":4,"impacte":5,"urgencia":3,"esforc":4,"seguent_accio":"...","decisio_pendent":"..."}],
+  "objectius": [{"titol":"...","descripcio":"...","tipus":"trimestral","any":${any},"trimestre":${trimestre + 1 > 4 ? 1 : trimestre + 1},"prioritat":5,"impacte":5,"metrica":"...","valor_objectiu":null}]
+}`;
+}
