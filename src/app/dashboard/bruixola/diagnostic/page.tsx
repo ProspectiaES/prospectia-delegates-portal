@@ -7,10 +7,12 @@ import {
   generateDiagnostic,
   getDiagnosticHistory,
   getDiagnosticById,
-  poblarBruixola,
+  previewPoblarBruixola,
+  confirmPoblarBruixola,
+  type PoblarPreview,
   type PoblarResultat,
 } from "@/app/actions/bruixola";
-import type { RichDiagnosticResult } from "@/lib/bruixola-prompts";
+import type { RichDiagnosticResult, EntitatsExtretes } from "@/lib/bruixola-prompts";
 
 const CARD    = "#FFFFFF";
 const SURFACE = "#F9FAFB";
@@ -124,7 +126,9 @@ export default function DiagnosticPage() {
   const [error, setError] = useState("");
   const [isGenerating, startGenerateTransition] = useTransition();
   const [isDownloading, startDownloadTransition] = useTransition();
-  const [isPobrant, startPobrarTransition] = useTransition();
+  const [isPreviewing, startPreviewTransition] = useTransition();
+  const [isConfirming, startConfirmTransition] = useTransition();
+  const [poblarPreview, setPoblarPreview] = useState<PoblarPreview | null>(null);
   const [pobrarResultat, setPobrarResultat] = useState<PoblarResultat | null>(null);
 
   async function reload() {
@@ -268,22 +272,21 @@ export default function DiagnosticPage() {
               {isDownloading ? "Generant…" : "Descarregar PDF"}
             </button>
           )}
-          {d && (
+          {d && !poblarPreview && !pobrarResultat && (
             <button
               onClick={() => {
-                setPobrarResultat(null);
                 setError("");
-                startPobrarTransition(async () => {
-                  const res = await poblarBruixola();
+                startPreviewTransition(async () => {
+                  const res = await previewPoblarBruixola();
                   if ("error" in res) { setError(res.error ?? "Error desconegut"); }
-                  else { setPobrarResultat(res); }
+                  else { setPoblarPreview(res); }
                 });
               }}
-              disabled={isPobrant}
+              disabled={isPreviewing}
               className="px-3 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
               style={{ backgroundColor: `${GREEN}10`, color: GREEN, border: `1px solid ${GREEN}40` }}
             >
-              {isPobrant ? <span className="flex items-center gap-1.5"><span className="animate-spin inline-block">◌</span> Pobrant…</span> : "Poblar Brúixola ✦"}
+              {isPreviewing ? <span className="flex items-center gap-1.5"><span className="animate-spin inline-block">◌</span> Analitzant…</span> : "Poblar Brúixola ✦"}
             </button>
           )}
           <button
@@ -307,10 +310,86 @@ export default function DiagnosticPage() {
         </div>
       )}
 
+      {/* Preview panel — confirm before writing */}
+      {poblarPreview && !pobrarResultat && (
+        <div className="rounded-2xl overflow-hidden mb-6" style={{ border: `1px solid ${GREEN}35`, backgroundColor: CARD }}>
+          <div className="px-5 py-3.5 flex items-center justify-between"
+            style={{ backgroundColor: `${GREEN}06`, borderBottom: `1px solid ${GREEN}20` }}>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>
+                Poblar Brúixola — Revisió prèvia
+              </p>
+              <p className="text-[9px] mt-0.5" style={{ color: DIM }}>
+                L&apos;IA ha extret les entitats següents. Revisa-les i confirma per guardar.
+              </p>
+            </div>
+            <button onClick={() => setPoblarPreview(null)} className="text-[11px] hover:opacity-60" style={{ color: LABEL }}>✕</button>
+          </div>
+          <div className="p-5 space-y-4">
+            {(["empreses", "actors", "productes", "projectes", "objectius"] as const).map(cat => {
+              const nous = poblarPreview.nous[cat];
+              const existents = poblarPreview.existents[cat];
+              const label: Record<string, string> = { empreses: "Empreses", actors: "Actors", productes: "Productes", projectes: "Projectes", objectius: "Objectius" };
+              if (nous.length === 0 && existents.length === 0) return null;
+              return (
+                <div key={cat}>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.15em] mb-2" style={{ color: LABEL }}>{label[cat]}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {nous.map(nom => (
+                      <span key={nom} className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                        style={{ backgroundColor: `${GREEN}12`, color: GREEN, border: `1px solid ${GREEN}25` }}>
+                        + {nom}
+                      </span>
+                    ))}
+                    {existents.map(nom => (
+                      <span key={nom} className="text-[10px] px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${LABEL}10`, color: LABEL, border: `1px solid ${LABEL}20`, textDecoration: "line-through" }}>
+                        {nom}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {Object.values(poblarPreview.nous).every(arr => arr.length === 0) && (
+              <p className="text-[11px] text-center py-4" style={{ color: DIM }}>
+                Totes les entitats detectades ja existeixen a Brúixola. No hi ha res nou a afegir.
+              </p>
+            )}
+
+            {Object.values(poblarPreview.nous).some(arr => arr.length > 0) && (
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setPoblarPreview(null)}
+                  className="px-4 py-2 rounded-xl text-[10px] font-semibold"
+                  style={{ backgroundColor: SURFACE, color: DIM, border: `1px solid ${BORDER2}` }}>
+                  Cancel·lar
+                </button>
+                <button
+                  onClick={() => {
+                    const entitats = poblarPreview.entitats;
+                    setPoblarPreview(null);
+                    startConfirmTransition(async () => {
+                      const res = await confirmPoblarBruixola(entitats as EntitatsExtretes);
+                      if ("error" in res) { setError(res.error ?? "Error desconegut"); }
+                      else { setPobrarResultat(res); }
+                    });
+                  }}
+                  disabled={isConfirming}
+                  className="px-5 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80 disabled:opacity-50"
+                  style={{ backgroundColor: GREEN, color: "#FFFFFF" }}>
+                  {isConfirming ? "Guardant…" : "Confirmar i guardar"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {pobrarResultat && (
         <div className="rounded-xl p-4 mb-6 flex items-start justify-between gap-4" style={{ backgroundColor: `${GREEN}08`, border: `1px solid ${GREEN}30` }}>
           <div>
-            <p className="text-[11px] font-bold mb-1" style={{ color: GREEN }}>Brúixola poblada amb les dades del diagnòstic ✓</p>
+            <p className="text-[11px] font-bold mb-1" style={{ color: GREEN }}>Brúixola poblada correctament ✓</p>
             <p className="text-[10px]" style={{ color: DIM }}>
               {[
                 pobrarResultat.empreses > 0 && `${pobrarResultat.empreses} empreses`,
@@ -321,6 +400,11 @@ export default function DiagnosticPage() {
               ].filter(Boolean).join(" · ")}
               {pobrarResultat.omesos > 0 && ` · ${pobrarResultat.omesos} ja existien (omesos)`}
             </p>
+            <div className="flex gap-3 mt-2">
+              <Link href="/dashboard/bruixola/empreses" className="text-[9px] font-bold hover:underline" style={{ color: GREEN }}>Veure empreses →</Link>
+              <Link href="/dashboard/bruixola/projectes" className="text-[9px] font-bold hover:underline" style={{ color: GREEN }}>Veure projectes →</Link>
+              <Link href="/dashboard/bruixola/objectius" className="text-[9px] font-bold hover:underline" style={{ color: GREEN }}>Veure objectius →</Link>
+            </div>
           </div>
           <button onClick={() => setPobrarResultat(null)} className="text-[10px] hover:opacity-60" style={{ color: LABEL }}>✕</button>
         </div>

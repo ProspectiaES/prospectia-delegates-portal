@@ -854,12 +854,38 @@ export async function getDiagnosticById(id: string): Promise<RichDiagnosticResul
 
 // ─── Poblar Brúixola des de Anamnesi + Diagnòstic ────────────────────────────
 
-export interface PoblarResultat {
-  empreses: number; actors: number; productes: number; projectes: number; objectius: number;
-  omesos: number; error?: string;
+export interface PoblarPreview {
+  entitats: EntitatsExtretes;
+  nous: { empreses: string[]; actors: string[]; productes: string[]; projectes: string[]; objectius: string[] };
+  existents: { empreses: string[]; actors: string[]; productes: string[]; projectes: string[]; objectius: string[] };
 }
 
-export async function poblarBruixola(): Promise<PoblarResultat | { error: string }> {
+export interface PoblarResultat {
+  empreses: number; actors: number; productes: number; projectes: number; objectius: number;
+  omesos: number;
+}
+
+const norm = (s: string) => s.toLowerCase().trim();
+
+async function fetchExistingNames(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const [{ data: exEmpreses }, { data: exActors }, { data: exProductes }, { data: exProjectes }, { data: exObjectius }] = await Promise.all([
+    supabase.from("bruixola_empreses").select("nom").eq("user_id", userId),
+    supabase.from("bruixola_actors").select("nom").eq("user_id", userId),
+    supabase.from("bruixola_productes").select("nom").eq("user_id", userId),
+    supabase.from("bruixola_projectes").select("nom").eq("user_id", userId),
+    supabase.from("bruixola_objectius").select("titol").eq("user_id", userId),
+  ]);
+  return {
+    empreses: new Set((exEmpreses ?? []).map(e => norm(e.nom))),
+    actors:   new Set((exActors ?? []).map(a => norm(a.nom))),
+    productes: new Set((exProductes ?? []).map(p => norm(p.nom))),
+    projectes: new Set((exProjectes ?? []).map(p => norm(p.nom))),
+    objectius: new Set((exObjectius ?? []).map(o => norm(o.titol))),
+  };
+}
+
+// Step 1 — extract entities and return preview (nothing written to DB yet)
+export async function previewPoblarBruixola(): Promise<PoblarPreview | { error: string }> {
   const profile = await requireOwner();
   const supabase = await createClient();
 
@@ -873,38 +899,53 @@ export async function poblarBruixola(): Promise<PoblarResultat | { error: string
     .map(r => `[Fase ${r.fase}] ${r.pregunta}\n→ ${r.resposta}`)
     .join("\n\n");
 
+  if (!anamnesiText) return { error: "No hi ha respostes d'anamnesi per analitzar. Completa primer l'anamnesi estratègica." };
+
   const diagnostic = (diagData?.[0]?.full_data as RichDiagnosticResult) ?? null;
   const prompt = buildExtraccioEntitatsPrompt(anamnesiText, diagnostic);
 
   let raw: string;
   try { raw = await callOpenAI(prompt, 3000, "gpt-4o"); }
-  catch (e) { return { error: e instanceof Error ? e.message : "Error API" }; }
+  catch (e) { return { error: e instanceof Error ? e.message : "Error cridant l'API d'IA" }; }
 
   let entitats: EntitatsExtretes;
   try { entitats = JSON.parse(raw); }
-  catch { return { error: `Error parsejant entitats. Resposta: ${raw.slice(0, 200)}` }; }
+  catch { return { error: `Error parsejant entitats. Resposta rebuda: ${raw.slice(0, 200)}` }; }
 
-  // Fetch existing names to avoid duplicates
-  const [{ data: exEmpreses }, { data: exActors }, { data: exProductes }, { data: exProjectes }, { data: exObjectius }] = await Promise.all([
-    supabase.from("bruixola_empreses").select("nom").eq("user_id", profile.id),
-    supabase.from("bruixola_actors").select("nom").eq("user_id", profile.id),
-    supabase.from("bruixola_productes").select("nom").eq("user_id", profile.id),
-    supabase.from("bruixola_projectes").select("nom").eq("user_id", profile.id),
-    supabase.from("bruixola_objectius").select("titol").eq("user_id", profile.id),
-  ]);
+  const existing = await fetchExistingNames(supabase, profile.id);
 
-  const norm = (s: string) => s.toLowerCase().trim();
-  const existsEmpreses = new Set((exEmpreses ?? []).map(e => norm(e.nom)));
-  const existsActors   = new Set((exActors ?? []).map(a => norm(a.nom)));
-  const existsProductes = new Set((exProductes ?? []).map(p => norm(p.nom)));
-  const existsProjectes = new Set((exProjectes ?? []).map(p => norm(p.nom)));
-  const existsObjectius = new Set((exObjectius ?? []).map(o => norm(o.titol)));
+  const preview: PoblarPreview = {
+    entitats,
+    nous: {
+      empreses:  (entitats.empreses  ?? []).filter(e => !existing.empreses.has(norm(e.nom))).map(e => e.nom),
+      actors:    (entitats.actors    ?? []).filter(a => !existing.actors.has(norm(a.nom))).map(a => a.nom),
+      productes: (entitats.productes ?? []).filter(p => !existing.productes.has(norm(p.nom))).map(p => p.nom),
+      projectes: (entitats.projectes ?? []).filter(p => !existing.projectes.has(norm(p.nom))).map(p => p.nom),
+      objectius: (entitats.objectius ?? []).filter(o => !existing.objectius.has(norm(o.titol))).map(o => o.titol),
+    },
+    existents: {
+      empreses:  (entitats.empreses  ?? []).filter(e =>  existing.empreses.has(norm(e.nom))).map(e => e.nom),
+      actors:    (entitats.actors    ?? []).filter(a =>  existing.actors.has(norm(a.nom))).map(a => a.nom),
+      productes: (entitats.productes ?? []).filter(p =>  existing.productes.has(norm(p.nom))).map(p => p.nom),
+      projectes: (entitats.projectes ?? []).filter(p =>  existing.projectes.has(norm(p.nom))).map(p => p.nom),
+      objectius: (entitats.objectius ?? []).filter(o =>  existing.objectius.has(norm(o.titol))).map(o => o.titol),
+    },
+  };
 
+  return preview;
+}
+
+// Step 2 — user confirmed; write entities to DB
+export async function confirmPoblarBruixola(entitats: EntitatsExtretes): Promise<PoblarResultat | { error: string }> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  const existing = await fetchExistingNames(supabase, profile.id);
   let created = { empreses: 0, actors: 0, productes: 0, projectes: 0, objectius: 0 };
   let omesos = 0;
 
   // Insert empreses
-  const novesEmpreses = (entitats.empreses ?? []).filter(e => !existsEmpreses.has(norm(e.nom)));
+  const novesEmpreses = (entitats.empreses ?? []).filter(e => !existing.empreses.has(norm(e.nom)));
   if (novesEmpreses.length > 0) {
     const { error } = await supabase.from("bruixola_empreses").insert(
       novesEmpreses.map(e => ({ user_id: profile.id, nom: e.nom, tipus: e.tipus, sector: e.sector, descripcio: e.descripcio }))
@@ -913,13 +954,11 @@ export async function poblarBruixola(): Promise<PoblarResultat | { error: string
   }
   omesos += (entitats.empreses ?? []).length - novesEmpreses.length;
 
-  // Fetch empresa IDs for foreign keys
   const { data: empresesRows } = await supabase.from("bruixola_empreses").select("id,nom").eq("user_id", profile.id);
-  const empresaIdByNom = new Map((empresesRows ?? []).map(e => [norm(e.nom), e.id]));
   const firstEmpresaId = empresesRows?.[0]?.id ?? null;
 
   // Insert actors
-  const nousActors = (entitats.actors ?? []).filter(a => !existsActors.has(norm(a.nom)));
+  const nousActors = (entitats.actors ?? []).filter(a => !existing.actors.has(norm(a.nom)));
   if (nousActors.length > 0) {
     const { error } = await supabase.from("bruixola_actors").insert(
       nousActors.map(a => ({
@@ -934,7 +973,7 @@ export async function poblarBruixola(): Promise<PoblarResultat | { error: string
   omesos += (entitats.actors ?? []).length - nousActors.length;
 
   // Insert productes
-  const nousProductes = (entitats.productes ?? []).filter(p => !existsProductes.has(norm(p.nom)));
+  const nousProductes = (entitats.productes ?? []).filter(p => !existing.productes.has(norm(p.nom)));
   if (nousProductes.length > 0) {
     const { error } = await supabase.from("bruixola_productes").insert(
       nousProductes.map(p => ({
@@ -948,7 +987,7 @@ export async function poblarBruixola(): Promise<PoblarResultat | { error: string
   omesos += (entitats.productes ?? []).length - nousProductes.length;
 
   // Insert projectes
-  const nousProjectes = (entitats.projectes ?? []).filter(p => !existsProjectes.has(norm(p.nom)));
+  const nousProjectes = (entitats.projectes ?? []).filter(p => !existing.projectes.has(norm(p.nom)));
   if (nousProjectes.length > 0) {
     const { error } = await supabase.from("bruixola_projectes").insert(
       nousProjectes.map(p => ({
@@ -963,7 +1002,7 @@ export async function poblarBruixola(): Promise<PoblarResultat | { error: string
   omesos += (entitats.projectes ?? []).length - nousProjectes.length;
 
   // Insert objectius
-  const nousObjectius = (entitats.objectius ?? []).filter(o => !existsObjectius.has(norm(o.titol)));
+  const nousObjectius = (entitats.objectius ?? []).filter(o => !existing.objectius.has(norm(o.titol)));
   if (nousObjectius.length > 0) {
     const { error } = await supabase.from("bruixola_objectius").insert(
       nousObjectius.map(o => ({
