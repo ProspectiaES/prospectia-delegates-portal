@@ -473,32 +473,21 @@ export async function analyzeActor(actorId: string): Promise<void> {
   });
 
   // Fetch document contents from storage for enriched analysis
-  const docs: Array<{ mediaType: string; base64: string; nom: string; notes: string | null; pregunta_ia: string | null }> = [];
+  const docs: Array<{ mediaType: string; base64: string; nom: string; notes: string | null }> = [];
   for (const doc of (docsData ?? [])) {
     try {
       const { data: fileData } = await supabase.storage.from("actor-documents").download(doc.storage_path);
       if (fileData) {
         const buf = await fileData.arrayBuffer();
         const base64 = Buffer.from(buf).toString("base64");
-        docs.push({ mediaType: doc.tipus_fitxer ?? "application/pdf", base64, nom: doc.nom_fitxer, notes: doc.notes, pregunta_ia: doc.pregunta_ia ?? null });
+        docs.push({ mediaType: doc.tipus_fitxer ?? "application/pdf", base64, nom: doc.nom_fitxer, notes: doc.notes });
       }
     } catch { /* skip unreadable doc */ }
   }
 
-  let finalPrompt = prompt;
-  if (docs.length > 0) {
-    const docQuestions = docs
-      .filter(d => d.pregunta_ia)
-      .map(d => `- Document "${d.nom}": ${d.pregunta_ia}`)
-      .join("\n");
-    if (docQuestions) {
-      finalPrompt = `PREGUNTES ESPECÍFIQUES SOBRE ELS DOCUMENTS:\n${docQuestions}\n\nRespon aquestes preguntes dins de la secció ai_analisi_complet de la resposta JSON.\n\n${prompt}`;
-    }
-  }
-
   const raw = docs.length > 0
-    ? await callClaudeWithDocs(finalPrompt, docs, 3000)
-    : await callClaude(finalPrompt, 2000);
+    ? await callClaudeWithDocs(prompt, docs, 3000)
+    : await callClaude(prompt, 2000);
 
   let result: ActorAnalysisResult;
   try {
@@ -542,6 +531,7 @@ export interface ActorDocument {
   storage_path: string;
   notes: string | null;
   pregunta_ia: string | null;
+  resultat_ia: string | null;
   analitzat: boolean;
   created_at: string;
 }
@@ -557,7 +547,7 @@ export async function getActorDocuments(actorId: string): Promise<ActorDocument[
   return (data ?? []) as ActorDocument[];
 }
 
-export async function uploadActorDocument(formData: FormData): Promise<void> {
+export async function uploadActorDocument(formData: FormData): Promise<{ id: string }> {
   const profile = await requireOwner();
   const supabase = await createClient();
 
@@ -577,7 +567,7 @@ export async function uploadActorDocument(formData: FormData): Promise<void> {
   });
   if (error) throw new Error(error.message);
 
-  await supabase.from("strategic_actor_documents").insert({
+  const { data: docRecord } = await supabase.from("strategic_actor_documents").insert({
     actor_id: actorId,
     user_id: profile.id,
     nom_fitxer: file.name,
@@ -586,9 +576,49 @@ export async function uploadActorDocument(formData: FormData): Promise<void> {
     storage_path: path,
     notes,
     pregunta_ia: preguntaIa,
-  });
+  }).select("id").single();
 
   revalidatePath(`/dashboard/bruixola/actors/${actorId}`);
+  return { id: docRecord?.id ?? "" };
+}
+
+export async function analyzeDocument(documentId: string): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  const { data: doc } = await supabase
+    .from("strategic_actor_documents")
+    .select("*")
+    .eq("id", documentId)
+    .eq("user_id", profile.id)
+    .single();
+
+  if (!doc || !doc.pregunta_ia) return;
+
+  const { data: fileData } = await supabase.storage.from("actor-documents").download(doc.storage_path);
+  if (!fileData) return;
+
+  const buf = await fileData.arrayBuffer();
+  const base64 = Buffer.from(buf).toString("base64");
+
+  const prompt = `Ets un analista estratègic. Analitza el document adjunt i respon la pregunta de manera clara i concisa en català.
+
+Pregunta: ${doc.pregunta_ia}
+
+Respon directament la pregunta. Sigues específic i basa't únicament en el contingut del document. Utilitza llistes o paràgrafs curts. Màxim 400 paraules.`;
+
+  const resultat = await callClaudeWithDocs(
+    prompt,
+    [{ mediaType: doc.tipus_fitxer ?? "application/pdf", base64, nom: doc.nom_fitxer, notes: doc.notes }],
+    1200,
+  );
+
+  await supabase.from("strategic_actor_documents")
+    .update({ resultat_ia: resultat, analitzat: true })
+    .eq("id", documentId)
+    .eq("user_id", profile.id);
+
+  revalidatePath(`/dashboard/bruixola/actors/${doc.actor_id}`);
 }
 
 export async function deleteActorDocument(id: string, actorId: string): Promise<void> {

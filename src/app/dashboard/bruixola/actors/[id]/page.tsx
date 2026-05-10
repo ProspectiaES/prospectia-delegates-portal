@@ -7,7 +7,7 @@ import {
   getActor, saveActor, deleteActor, analyzeActor,
   getInteractions, saveInteraction, deleteInteraction,
   getLinks, saveLink, deleteLink, exportPDI,
-  getActorDocuments, uploadActorDocument, deleteActorDocument, getDocumentSignedUrl,
+  getActorDocuments, uploadActorDocument, deleteActorDocument, getDocumentSignedUrl, analyzeDocument,
 } from "@/app/actions/strategic-actors";
 import type { StrategicActor, ActorInteraction, ActorLink, ActorAlert, ActorDocument } from "@/app/actions/strategic-actors";
 
@@ -729,13 +729,12 @@ function TabDocuments({ actorId, onSaved }: { actorId: string; onSaved: () => vo
     setError(null);
     setPhase("uploading");
     try {
-      await uploadActorDocument(fd);
+      const { id: docId } = await uploadActorDocument(fd);
       setShowForm(false); setFileRef(null); setNotes(""); setPregunta("");
       await reload();
       setPhase("analyzing");
-      await analyzeActor(actorId);
+      await analyzeDocument(docId);
       await reload();
-      onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en la pujada o anàlisi");
     } finally {
@@ -839,43 +838,58 @@ function TabDocuments({ actorId, onSaved }: { actorId: string; onSaved: () => vo
       )}
 
       {/* Document list */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         {docs.map(doc => (
-          <div key={doc.id} className="rounded-xl px-4 py-3 flex items-start gap-3"
+          <div key={doc.id} className="rounded-xl overflow-hidden"
             style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-            <DocIcon tipus={doc.tipus_fitxer} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <button type="button" onClick={() => handleOpen(doc.storage_path)}
-                  className="text-[12px] font-semibold hover:opacity-60 transition-opacity text-left"
-                  style={{ color: BLUE }}>
-                  {doc.nom_fitxer}
-                </button>
-                {doc.analitzat && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
-                    style={{ backgroundColor: `${GREEN}12`, color: GREEN, border: `1px solid ${GREEN}25` }}>
-                    Analitzat IA ✓
+            {/* Header row */}
+            <div className="px-4 py-3 flex items-start gap-3">
+              <DocIcon tipus={doc.tipus_fitxer} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button type="button" onClick={() => handleOpen(doc.storage_path)}
+                    className="text-[12px] font-semibold hover:opacity-60 transition-opacity text-left"
+                    style={{ color: BLUE }}>
+                    {doc.nom_fitxer}
+                  </button>
+                  {doc.analitzat && (
+                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
+                      style={{ backgroundColor: `${GREEN}12`, color: GREEN, border: `1px solid ${GREEN}25` }}>
+                      Analitzat ✓
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-0.5">
+                  {doc.mida_bytes && <span className="text-[9px]" style={{ color: LABEL }}>{fmtBytes(doc.mida_bytes)}</span>}
+                  <span className="text-[9px]" style={{ color: LABEL }}>
+                    {new Date(doc.created_at).toLocaleDateString("ca-ES", { day: "numeric", month: "short", year: "numeric" })}
                   </span>
+                  {doc.notes && <span className="text-[9px]" style={{ color: LABEL }}>{doc.notes}</span>}
+                </div>
+              </div>
+              <button type="button" disabled={isDeleting}
+                onClick={() => startDelete(async () => { await deleteActorDocument(doc.id, actorId); reload(); })}
+                className="text-[10px] hover:opacity-70 shrink-0 disabled:opacity-30" style={{ color: LABEL }}>
+                ×
+              </button>
+            </div>
+            {/* Question + Answer block */}
+            {doc.pregunta_ia && (
+              <div className="px-4 pb-4 space-y-2" style={{ borderTop: `1px solid ${BORDER}` }}>
+                <p className="text-[9px] font-bold uppercase tracking-wider pt-3" style={{ color: LABEL }}>Pregunta</p>
+                <p className="text-[11px] italic" style={{ color: DIM }}>{doc.pregunta_ia}</p>
+                {doc.resultat_ia ? (
+                  <>
+                    <p className="text-[9px] font-bold uppercase tracking-wider pt-1" style={{ color: GREEN }}>Resposta IA</p>
+                    <div className="rounded-lg p-3" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+                      <p className="text-[11px] leading-relaxed whitespace-pre-line" style={{ color: TEXT }}>{doc.resultat_ia}</p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[10px]" style={{ color: LABEL }}>Pendent d&apos;anàlisi</p>
                 )}
               </div>
-              <div className="flex items-center gap-3 mt-0.5">
-                {doc.mida_bytes && <span className="text-[9px]" style={{ color: LABEL }}>{fmtBytes(doc.mida_bytes)}</span>}
-                <span className="text-[9px]" style={{ color: LABEL }}>
-                  {new Date(doc.created_at).toLocaleDateString("ca-ES", { day: "numeric", month: "short", year: "numeric" })}
-                </span>
-              </div>
-              {doc.pregunta_ia && (
-                <p className="text-[9px] mt-1 italic" style={{ color: BLUE }}>
-                  &ldquo;{doc.pregunta_ia}&rdquo;
-                </p>
-              )}
-              {doc.notes && <p className="text-[10px] mt-0.5" style={{ color: DIM }}>{doc.notes}</p>}
-            </div>
-            <button type="button" disabled={isDeleting}
-              onClick={() => startDelete(async () => { await deleteActorDocument(doc.id, actorId); reload(); })}
-              className="text-[10px] hover:opacity-70 shrink-0 disabled:opacity-30" style={{ color: LABEL }}>
-              ×
-            </button>
+            )}
           </div>
         ))}
       </div>
