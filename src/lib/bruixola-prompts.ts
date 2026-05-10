@@ -37,65 +37,82 @@ export interface ObjectiuSMART {
   seguent_accio: string;
 }
 
-// ─── Anamnesi Adaptativa ──────────────────────────────────────────────────────
+// ─── Preguntes Fixes d'Anamnesi (3 core + 2 opcionals per fase) ──────────────
 
-const FASE_CONTEXT: Record<number, string> = {
-  1: "Mapa empresarial: estructura, empreses, marques, línies de negoci",
-  2: "Actors i rols: qui decideix, qui executa, qui bloqueja, qui depèn de qui",
-  3: "Productes i projectes: estat actual, caixa, esforç, viabilitat",
-  4: "Realitat empresarial: problemes reals, pèrdues d'energia, colls d'ampolla, decisions evitades",
-  5: "Construcció d'objectius: convertir el caos en direcció executable",
+export interface AnamnesiPregunta {
+  fase: number;
+  ordre: number;   // 1-based global (1-25)
+  ordreFase: number; // 1-5 dins la fase
+  core: boolean;   // false = opcional (aprofundir)
+  text: string;
+  subtitol?: string;
+}
+
+export const ANAMNESI_PREGUNTES: AnamnesiPregunta[] = [
+  // ── F1 · Mapa Empresarial ──────────────────────────────────────────────────
+  { fase:1, ordre:1,  ordreFase:1, core:true,  text:"Quines empreses o marques formes part del grup? Descriu com es relacionen i quina és l'estructura legal i operativa.", subtitol:"Pot ser 1 sola empresa o un grup complex" },
+  { fase:1, ordre:2,  ordreFase:2, core:true,  text:"Quin és el model de negoci principal? Com genereu ingressos avui i quina és la distribució aproximada (per canal, producte o mercat)?", subtitol:"Ex: 70% delegats, 20% directe, 10% online" },
+  { fase:1, ordre:3,  ordreFase:3, core:true,  text:"Quin és el volum actual: equip (persones), facturació aproximada i nombre de clients actius?", subtitol:"Aproximat és suficient" },
+  { fase:1, ordre:4,  ordreFase:4, core:false, text:"Hi ha línies de negoci que estàs considerant tancar, reduir o obrir en els pròxims 12 mesos? Per quin motiu?" },
+  { fase:1, ordre:5,  ordreFase:5, core:false, text:"Com és la distribució geogràfica actual? On operes avui i on voldries operar? Quins mercats tens prioritzats?" },
+
+  // ── F2 · Actors i Rols ─────────────────────────────────────────────────────
+  { fase:2, ordre:6,  ordreFase:1, core:true,  text:"Qui pren les decisions estratègiques a l'empresa? Descriu el paper formal i el paper real de cada persona clau.", subtitol:"Sovint el rol formal i el real no coincideixen" },
+  { fase:2, ordre:7,  ordreFase:2, core:true,  text:"Qui executa el dia a dia? Hi ha persones que concentren massa responsabilitat o que fan de coll d'ampolla sense solució?", subtitol:"Sigues honest sobre les dependències crítiques" },
+  { fase:2, ordre:8,  ordreFase:3, core:true,  text:"Hi ha persones que bloquegen o alenteixen decisions importants, conscientment o no? Com es manifesta concretament?" },
+  { fase:2, ordre:9,  ordreFase:4, core:false, text:"Com és la relació entre els actors clau? Hi ha tensions, aliances o dinàmiques tàcites que afecten les decisions?" },
+  { fase:2, ordre:10, ordreFase:5, core:false, text:"Quines posicions clau falten a l'equip? Quina seria la contractació o el canvi de rol més impactant que podries fer ara?" },
+
+  // ── F3 · Productes i Projectes ─────────────────────────────────────────────
+  { fase:3, ordre:11, ordreFase:1, core:true,  text:"Quins productes o serveis teniu actius ara? Per a cada un, digues si esteu creixent, estancats o decreixent, i per quin motiu." },
+  { fase:3, ordre:12, ordreFase:2, core:true,  text:"Quins projectes estan en marxa? Per a cada un: qui el porta, quin és l'estat real i quin és el resultat esperat.", subtitol:"Inclou projectes que 'haurien d'avançar' però no avancen" },
+  { fase:3, ordre:13, ordreFase:3, core:true,  text:"Si haguessis de triar 2-3 coses on concentrar el 80% de l'energia, quines serien? Justifica el motiu per cadascuna.", subtitol:"La resposta revela les prioritats reals vs. les declarades" },
+  { fase:3, ordre:14, ordreFase:4, core:false, text:"Quins projectes haurien d'estar actius però no ho estan? Quin és el fre real: falta de temps, recursos, decisió o prioritat?" },
+  { fase:3, ordre:15, ordreFase:5, core:false, text:"Hi ha productes o serveis que mantens per inèrcia però que haurien de tancar-se o transformar-se radicalment?" },
+
+  // ── F4 · Realitat Empresarial ──────────────────────────────────────────────
+  { fase:4, ordre:16, ordreFase:1, core:true,  text:"Quin és el problema real més important que l'empresa no ha resolt? Per quins motius concrets no s'ha resolt fins ara?", subtitol:"No el problema 'presentable', el real" },
+  { fase:4, ordre:17, ordreFase:2, core:true,  text:"Quines decisions importants s'han estat evitant o posposant? Per a cada una, digues el motiu real, no l'oficial." },
+  { fase:4, ordre:18, ordreFase:3, core:true,  text:"Quin és el coll d'ampolla principal que frena el creixement? Sigues específic: és una persona, un procés, un recurs o una decisió no presa?" },
+  { fase:4, ordre:19, ordreFase:4, core:false, text:"Quina és la cosa que tothom a l'empresa sap però ningú diu en veu alta? Quins temes s'eviten sistemàticament?" },
+  { fase:4, ordre:20, ordreFase:5, core:false, text:"Quins errors del passat recent han tingut més impacte negatiu? Què s'ha après i s'ha canviat efectivament?" },
+
+  // ── F5 · Construcció Objectius ─────────────────────────────────────────────
+  { fase:5, ordre:21, ordreFase:1, core:true,  text:"On vols estar en 12 mesos? Descriu 3-5 resultats concrets i mesurables que dirien inequívocament 'hem tingut un any excel·lent'." },
+  { fase:5, ordre:22, ordreFase:2, core:true,  text:"Quins 3 projectes o accions principals et portarien a aquells resultats? Ordena'ls per prioritat i digues qui hauria de portar cadascun." },
+  { fase:5, ordre:23, ordreFase:3, core:true,  text:"Quines condicions, recursos o decisions calen que avui no tens o no has pres? Quins obstacles preveies?", subtitol:"Sigues honest sobre les restriccions reals" },
+  { fase:5, ordre:24, ordreFase:4, core:false, text:"Si haguessis de triar UN sol objectiu per als pròxims 90 dies, quin seria? Quin impacte tindria en tot el resta?" },
+  { fase:5, ordre:25, ordreFase:5, core:false, text:"Quines decisions hauràs de prendre en els pròxims 30 dies per que tot això sigui possible? Qui ha de prendre-les?" },
+];
+
+export const FASE_INFO_PROMPTS: Record<number, { label: string; desc: string }> = {
+  1: { label: "Mapa Empresarial",      desc: "Estructura, empreses, marques, model de negoci" },
+  2: { label: "Actors i Rols",         desc: "Qui decideix, qui executa, qui bloqueja" },
+  3: { label: "Productes i Projectes", desc: "Estat, prioritats, dispersió" },
+  4: { label: "Realitat Empresarial",  desc: "Problemes reals, decisions evitades, colls d'ampolla" },
+  5: { label: "Construcció Objectius", desc: "Resultats esperats, prioritats, condicions" },
 };
 
+export function getFasePreguntesCore(fase: number): AnamnesiPregunta[] {
+  return ANAMNESI_PREGUNTES.filter(p => p.fase === fase && p.core);
+}
+
+export function getFasePreguntes(fase: number): AnamnesiPregunta[] {
+  return ANAMNESI_PREGUNTES.filter(p => p.fase === fase);
+}
+
+export function getPreguntaByOrdre(ordre: number): AnamnesiPregunta | undefined {
+  return ANAMNESI_PREGUNTES.find(p => p.ordre === ordre);
+}
+
+// Keep buildAnamnesiPrompt for backwards compatibility (used in diagnostic)
 export function buildAnamnesiPrompt(
-  fase: number,
+  _fase: number,
   historial: AnamnesiTorn[],
-  novaResposta: string
+  _novaResposta: string
 ): string {
-  const historialText = historial.length > 0
-    ? historial.map(t =>
-        `[Fase ${t.fase}] P: ${t.pregunta}\nR: ${t.resposta ?? "(sense resposta)"}`
-      ).join("\n\n")
-    : "(primera interacció)";
-
-  const isFaseNova = historial.filter(t => t.fase === fase).length === 0;
-
-  return `Ets el Sistema d'Anamnesi Estratègica Empresarial. La teva funció és entendre l'empresa de manera profunda i construir un mapa estratègic real a través d'una conversa intel·ligent i adaptativa.
-
-El teu to és: executiu, directe, professional, no invasiu. NO ets un consultor que jutja. NO ets un chatbot motivacional. Ets un sistema que ajuda a construir direcció real.
-
-CONTEXT DE L'ANAMNESI:
-Estàs en la Fase ${fase}: ${FASE_CONTEXT[fase]}
-
-HISTORIAL DE LA CONVERSA:
-${historialText}
-
-${novaResposta ? `ÚLTIMA RESPOSTA DE L'USUARI: "${novaResposta}"` : ""}
-
-INSTRUCCIONS:
-${isFaseNova
-    ? `Comença la Fase ${fase}. Presenta breument (1 línia) de què tracta aquesta fase i fes la primera pregunta d'aquesta fase.`
-    : `Basant-te en la resposta anterior i el context acumulat, fes la SEGÜENT pregunta més rellevant d'aquesta fase. Adapta-la a allò que ja saps.`
-}
-
-REGLES:
-- Fes UNA sola pregunta per torn. Mai dos en un sol missatge.
-- La pregunta ha de ser específica, directa i executiva.
-- Si la resposta anterior revela alguna cosa crítica (dispersió, manca de responsable, bloqueig important), pots fer una pregunta de seguiment sobre aquell punt específic ABANS de continuar.
-- Si la resposta és massa vaga, pots demanar concreció: "Pots donar-me un exemple concret?"
-- No repeteixis preguntes ja fetes.
-- Quan consideres que la fase actual té prou informació (3-5 preguntes), indica: "FASE_COMPLETA" al final de la teva resposta (com a marca interna, no visible).
-
-FORMAT DE RESPOSTA:
-Retorna NOMÉS JSON vàlid sense text addicional:
-{
-  "pregunta": "La teva pregunta directa i executiva",
-  "observacio": "Observació breu (opcional) sobre la resposta anterior si és rellevant. Màxim 1 frase. Null si no cal.",
-  "fase_completa": false
-}
-
-Si la fase ja té suficient informació, posa "fase_completa": true.
-Tota la resposta en català, to executiu i sobri.`;
+  // Simplified - no longer used for question generation, only context in diagnostic
+  return historial.map(t => `[Fase ${t.fase}] ${t.pregunta}\n→ ${t.resposta ?? ""}`).join("\n\n");
 }
 
 // ─── Diagnòstic Empresarial ───────────────────────────────────────────────────

@@ -689,61 +689,36 @@ export async function getAnamnesi(): Promise<AnamnesiTorn[]> {
   }));
 }
 
-export async function nextAnamnesiQuestion(fase: number, resposta: string, preguntaActual: string): Promise<{
-  pregunta: string;
-  observacio: string | null;
-  fase_completa: boolean;
-  fase_seguent: number | null;
-}> {
+// Returns answered responses keyed by ordre (1-25)
+export async function getAnamnesiRespostes(): Promise<Record<number, string>> {
   const profile = await requireOwner();
   const supabase = await createClient();
-
-  const { data: historialData } = await supabase
-    .from("bruixola_anamnesi").select("*").eq("user_id", profile.id).order("ordre");
-  const historial: AnamnesiTorn[] = (historialData ?? []).map(r => ({
-    fase: r.fase, pregunta: r.pregunta, resposta: r.resposta ?? undefined,
-  }));
-
-  if (preguntaActual && resposta) {
-    const ordre = historial.length + 1;
-    await supabase.from("bruixola_anamnesi").upsert({
-      user_id: profile.id, fase, pregunta: preguntaActual, resposta, completada: true, ordre,
-    }, { onConflict: "user_id,ordre" });
+  const { data } = await supabase
+    .from("bruixola_anamnesi").select("ordre, resposta")
+    .eq("user_id", profile.id).not("resposta", "is", null);
+  const result: Record<number, string> = {};
+  for (const row of data ?? []) {
+    if (row.ordre && row.resposta) result[row.ordre] = row.resposta;
   }
+  return result;
+}
 
-  const updatedHistorial = [...historial, { fase, pregunta: preguntaActual, resposta }];
-  const prompt = buildAnamnesiPrompt(fase, updatedHistorial, resposta);
-  const raw = await callClaude(prompt, 600, "claude-haiku-4-5-20251001");
-
-  let result = { pregunta: "", observacio: null as string | null, fase_completa: false };
-  try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    result = JSON.parse(jsonMatch?.[0] ?? raw);
-  } catch {
-    result.pregunta = raw.trim();
-  }
-
-  if (result.fase_completa && fase < 5) {
-    const ordre2 = updatedHistorial.length + 1;
-    const nextFasePrompt = buildAnamnesiPrompt(fase + 1, updatedHistorial, "");
-    const raw2 = await callClaude(nextFasePrompt, 500, "claude-haiku-4-5-20251001");
-    let nextResult = { pregunta: "", observacio: null as string | null, fase_completa: false };
-    try {
-      const jm = raw2.match(/\{[\s\S]*\}/);
-      nextResult = JSON.parse(jm?.[0] ?? raw2);
-    } catch { nextResult.pregunta = raw2.trim(); }
-    await supabase.from("bruixola_anamnesi").insert({
-      user_id: profile.id, fase: fase + 1, pregunta: nextResult.pregunta, resposta: null, completada: false, ordre: ordre2,
-    });
-    return { ...nextResult, fase_seguent: fase + 1 };
-  }
-
-  const ordre3 = updatedHistorial.length + 1;
-  await supabase.from("bruixola_anamnesi").insert({
-    user_id: profile.id, fase, pregunta: result.pregunta, resposta: null, completada: false, ordre: ordre3,
-  });
-
-  return { ...result, fase_seguent: result.fase_completa ? null : null };
+// Save a single answer for a fixed question (ordre 1-25)
+export async function saveAnamnesiAnswer(ordre: number, resposta: string): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const { ANAMNESI_PREGUNTES } = await import("@/lib/bruixola-prompts");
+  const q = ANAMNESI_PREGUNTES.find(p => p.ordre === ordre);
+  if (!q) return;
+  await supabase.from("bruixola_anamnesi").upsert({
+    user_id: profile.id,
+    ordre,
+    fase: q.fase,
+    pregunta: q.text,
+    resposta: resposta.trim(),
+    completada: true,
+  }, { onConflict: "user_id,ordre" });
+  revalidatePath("/dashboard/bruixola/anamnesi");
 }
 
 export async function resetAnamnesi(): Promise<void> {
