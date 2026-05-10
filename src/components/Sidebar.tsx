@@ -481,13 +481,15 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Estratègia",
       items: [
-        { href: "/dashboard/bruixola",            label: "Brúixola",    Icon: IconBruixola, exact: true },
-        { href: "/dashboard/bruixola/objectius",  label: "Objectius",   Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/projectes",  label: "Projectes",   Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/kpis",       label: "KPIs",        Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/empreses",   label: "Empreses",    Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic",  Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/anamnesi",   label: "Anamnesi IA", Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola",            label: "Brúixola",       Icon: IconBruixola, exact: true },
+        { href: "/dashboard/bruixola/objectius",  label: "Objectius",      Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/projectes",  label: "Projectes",      Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/kpis",       label: "KPIs",           Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/empreses",   label: "Empreses",       Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/actors",     label: "Actors",         Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/pdi",        label: "PDI",            Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/diagnostic", label: "Diagnòstic",     Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/anamnesi",   label: "Anamnesi IA",    Icon: IconBruixola, exact: false },
       ],
     }] : []),
     ...(isOwner ? [{
