@@ -468,7 +468,6 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
-        ...(isOwner ? [{ href: "/dashboard/diario", label: "Diari Alt Rendiment", Icon: IconDiari, exact: false }] : []),
       ],
     },
     ...(isOwner ? [{
