@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveAnamnesiAnswer, generateDiagnostic, resetAnamnesi } from "@/app/actions/bruixola";
+import { saveAnamnesiAnswer, skipFaseOptionals, generateDiagnostic, resetAnamnesi } from "@/app/actions/bruixola";
 import { ANAMNESI_PREGUNTES, FASE_INFO_PROMPTS } from "@/lib/bruixola-prompts";
 
 const CARD    = "#FFFFFF";
@@ -32,40 +32,50 @@ export function AnamnesiClient({ respostesInicials }: Props) {
 
   const [respostes, setRespostes] = useState<Record<number, string>>(respostesInicials);
   const [resposta, setResposta] = useState("");
-  const [showAprofundir, setShowAprofundir] = useState(false);
+  // deepeningFase: fase on l'usuari ha triat "Aprofundir" (efímer, es perd al recarregar — OK)
+  const [deepeningFase, setDeepeningFase] = useState<number | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
   const [isSaving, startSave] = useTransition();
+  const [isSkipping, startSkip] = useTransition();
   const [isGenerating, startGenerate] = useTransition();
   const [isResetting, startReset] = useTransition();
 
-  // Current question: first unanswered (respecting showAprofundir state)
+  // Fase on totes les core estan contestades però cap opcional ha estat tocada
+  // (ni contestada ni saltada) → mostrar panell de decisió
+  const pendingDecisionFase: number | null = (() => {
+    for (let f = 1; f <= 5; f++) {
+      if (deepeningFase === f) continue; // l'usuari ja va triar aprofundir aquesta fase
+      const core = ANAMNESI_PREGUNTES.filter(q => q.fase === f && q.core);
+      const opts = ANAMNESI_PREGUNTES.filter(q => q.fase === f && !q.core);
+      const allCoreAnswered = core.every(q => !!respostes[q.ordre]);
+      const anyOptTouched   = opts.some(q => !!respostes[q.ordre]); // contestada o __skip__
+      if (allCoreAnswered && !anyOptTouched) return f;
+    }
+    return null;
+  })();
+
+  // Pregunta actual: primera no contestada, saltant opcionals de fases no aprofundides
   const currentPregunta = (() => {
+    if (pendingDecisionFase !== null) return null; // esperar decisió primer
+    const skipFases = new Set<number>();
     for (const q of ANAMNESI_PREGUNTES) {
-      if (respostes[q.ordre]) continue;
-      if (!q.core && !showAprofundir) {
-        // Skip optional unless user opted in
-        const nextFaseQ = ANAMNESI_PREGUNTES.find(p => p.fase === q.fase + 1);
-        if (nextFaseQ) return nextFaseQ;
-        return null; // All phases done
+      if (respostes[q.ordre]) continue; // ja contestada o __skip__
+      if (!q.core) {
+        if (deepeningFase !== q.fase) {
+          skipFases.add(q.fase); // saltar opcionals d'aquesta fase
+          continue;
+        }
       }
+      if (skipFases.has(q.fase) && !q.core) continue;
       return q;
     }
     return null;
   })();
 
-  // Is the current position at the "end of core questions" decision point?
-  const atDecisionPoint = (() => {
-    if (!currentPregunta || currentPregunta.core) return false;
-    // We're at an optional question but haven't opted in yet
-    const phase = currentPregunta.fase;
-    const coreForPhase = ANAMNESI_PREGUNTES.filter(p => p.fase === phase && p.core);
-    const allCoreAnswered = coreForPhase.every(p => respostes[p.ordre]);
-    return allCoreAnswered && !showAprofundir;
-  })();
-
-  const isComplete = currentPregunta === null;
-  const totalAnswered = Object.keys(respostes).length;
+  const isComplete = pendingDecisionFase === null && currentPregunta === null;
+  // Comptem respostes reals (excloem __skip__)
+  const totalAnswered = Object.values(respostes).filter(v => v && v !== "__skip__").length;
   const totalCore = ANAMNESI_PREGUNTES.filter(p => p.core).length; // 15
 
   // Progress per phase
@@ -107,17 +117,9 @@ export function AnamnesiClient({ respostesInicials }: Props) {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     setResposta("");
     setRespostes(prev => ({ ...prev, [ordre]: text }));
-    // Reset aprofundir when moving to next phase
-    const isLastOptional = !currentPregunta.core && currentPregunta.ordreFase === 5;
-    const isLastCore = currentPregunta.core && currentPregunta.ordreFase === 3;
-    if (isLastOptional || (isLastCore && !showAprofundir)) setShowAprofundir(false);
+    // Si acabem les opcionals d'una fase, sortim del mode aprofundir
+    if (!currentPregunta.core && currentPregunta.ordreFase === 5) setDeepeningFase(null);
     startSave(async () => { await saveAnamnesiAnswer(ordre, text); });
-  }
-
-  function handleSkipOptionals() {
-    setShowAprofundir(false);
-    // Mark decision point passed by not entering aprofundir mode
-    // The currentPregunta will naturally skip to next phase
   }
 
   function handleReset() {
@@ -127,7 +129,7 @@ export function AnamnesiClient({ respostesInicials }: Props) {
       await resetAnamnesi();
       setRespostes({});
       setResposta("");
-      setShowAprofundir(false);
+      setDeepeningFase(null);
     });
   }
 
@@ -139,11 +141,8 @@ export function AnamnesiClient({ respostesInicials }: Props) {
     navigator.clipboard.writeText(lines).then(() => { setCopyOk(true); setTimeout(() => setCopyOk(false), 2000); });
   }
 
-  const faseActual = currentPregunta?.fase ?? (isComplete ? 6 : 1);
+  const faseActual = currentPregunta?.fase ?? pendingDecisionFase ?? (isComplete ? 6 : 1);
   const faseColor = FASE_COLORS[faseActual] ?? GOLD;
-
-  // Decision point: all core questions of a phase answered, ask if want to deepen
-  const decisionFase = atDecisionPoint ? currentPregunta!.fase : null;
 
   return (
     <div className="max-w-3xl mx-auto px-5 md:px-8 py-10">
@@ -257,31 +256,40 @@ export function AnamnesiClient({ respostesInicials }: Props) {
       )}
 
       {/* Decision point: offer deepen or advance */}
-      {decisionFase && !showAprofundir && (
-        <div className="rounded-2xl p-6 mb-6" style={{ border: `1px solid ${FASE_COLORS[decisionFase]}30`, backgroundColor: `${FASE_COLORS[decisionFase]}05` }}>
+      {pendingDecisionFase && (
+        <div className="rounded-2xl p-6 mb-6"
+          style={{ border: `1px solid ${FASE_COLORS[pendingDecisionFase]}30`, backgroundColor: `${FASE_COLORS[pendingDecisionFase]}05` }}>
           <p className="text-[13px] font-bold mb-1" style={{ color: TEXT }}>
-            F{decisionFase} · {FASE_INFO_PROMPTS[decisionFase]?.label} — nucli completat
+            F{pendingDecisionFase} · {FASE_INFO_PROMPTS[pendingDecisionFase]?.label} — nucli completat ✓
           </p>
           <p className="text-[11px] mb-5" style={{ color: DIM }}>
-            Has respost les 3 preguntes essencials d&apos;aquesta fase. Pots continuar o aprofundir amb 2 preguntes addicionals.
+            Has respost les 3 preguntes essencials. Pots continuar a la fase següent o aprofundir amb 2 preguntes addicionals.
           </p>
           <div className="flex gap-3 flex-wrap">
-            <button onClick={() => { setShowAprofundir(false); setRespostes(prev => ({ ...prev, ...Object.fromEntries(ANAMNESI_PREGUNTES.filter(q => q.fase === decisionFase && !q.core).map(q => [q.ordre, "__skip__"])) })); }}
-              className="px-5 py-2.5 rounded-xl text-[11px] font-bold hover:opacity-80 transition-all"
-              style={{ backgroundColor: FASE_COLORS[decisionFase < 5 ? decisionFase + 1 : 5] ?? GOLD, color: "#FFFFFF" }}>
-              Continuar a F{decisionFase + 1} →
+            <button
+              disabled={isSkipping}
+              onClick={() => {
+                const skipEntries = Object.fromEntries(
+                  ANAMNESI_PREGUNTES.filter(q => q.fase === pendingDecisionFase && !q.core).map(q => [q.ordre, "__skip__"])
+                );
+                setRespostes(prev => ({ ...prev, ...skipEntries }));
+                startSkip(async () => { await skipFaseOptionals(pendingDecisionFase); });
+              }}
+              className="px-5 py-2.5 rounded-xl text-[11px] font-bold hover:opacity-80 transition-all disabled:opacity-40"
+              style={{ backgroundColor: FASE_COLORS[Math.min(pendingDecisionFase + 1, 5)] ?? GOLD, color: "#FFFFFF" }}>
+              {isSkipping ? "Guardant…" : pendingDecisionFase < 5 ? `Continuar a F${pendingDecisionFase + 1} →` : "Completar anamnesi →"}
             </button>
-            <button onClick={() => setShowAprofundir(true)}
+            <button onClick={() => setDeepeningFase(pendingDecisionFase)}
               className="px-5 py-2.5 rounded-xl text-[11px] font-semibold hover:opacity-80 transition-all"
-              style={{ border: `1px solid ${FASE_COLORS[decisionFase]}50`, color: FASE_COLORS[decisionFase], backgroundColor: CARD }}>
-              Aprofundir F{decisionFase} (2 preguntes més)
+              style={{ border: `1px solid ${FASE_COLORS[pendingDecisionFase]}50`, color: FASE_COLORS[pendingDecisionFase], backgroundColor: CARD }}>
+              Aprofundir F{pendingDecisionFase} (2 preguntes més)
             </button>
           </div>
         </div>
       )}
 
       {/* Active question */}
-      {currentPregunta && !decisionFase && (
+      {currentPregunta && !pendingDecisionFase && (
         <div className="rounded-2xl overflow-hidden mb-4"
           style={{ border: `1px solid ${faseColor}30`, backgroundColor: CARD }}>
           {/* Phase header */}

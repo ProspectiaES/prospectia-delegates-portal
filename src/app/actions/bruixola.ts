@@ -703,6 +703,25 @@ export async function getAnamnesiRespostes(): Promise<Record<number, string>> {
   return result;
 }
 
+// Skip optional questions of a phase (saves "__skip__" so refresh works)
+export async function skipFaseOptionals(fase: number): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const { ANAMNESI_PREGUNTES } = await import("@/lib/bruixola-prompts");
+  const opts = ANAMNESI_PREGUNTES.filter(p => p.fase === fase && !p.core);
+  for (const q of opts) {
+    await supabase.from("bruixola_anamnesi").upsert({
+      user_id: profile.id,
+      ordre: q.ordre,
+      fase: q.fase,
+      pregunta: q.text,
+      resposta: "__skip__",
+      completada: false,
+    }, { onConflict: "user_id,ordre" });
+  }
+  revalidatePath("/dashboard/bruixola/anamnesi");
+}
+
 // Save a single answer for a fixed question (ordre 1-25)
 export async function saveAnamnesiAnswer(ordre: number, resposta: string): Promise<void> {
   const profile = await requireOwner();
