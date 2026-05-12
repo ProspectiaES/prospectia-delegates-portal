@@ -30,6 +30,7 @@ interface Props {
   dateUnix: number;
   notes: string;
   initialLines: OrderLine[];
+  initialRecargo: boolean;
   products: Product[];
 }
 
@@ -38,7 +39,7 @@ const fmtEuro = (n: number) =>
 
 const inputCls = "w-full h-9 rounded-lg border border-[#E5E7EB] px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10";
 
-export function EditOrderForm({ orderId, contactId, contactName, dateUnix, notes: initialNotes, initialLines, products }: Props) {
+export function EditOrderForm({ orderId, contactId, contactName, dateUnix, notes: initialNotes, initialLines, initialRecargo, products }: Props) {
   const [state, action, pending] = useActionState<OrderFormState | null, FormData>(updateOrderAction, null);
 
   const seedLines = initialLines.length > 0
@@ -46,6 +47,7 @@ export function EditOrderForm({ orderId, contactId, contactName, dateUnix, notes
     : [{ key: 0, productId: "", name: "", units: 1, price: 0, discount: 0, taxes: [] }];
 
   const [lines, setLines] = useState<OrderLine[]>(seedLines);
+  const [recargo, setRecargo] = useState(initialRecargo);
 
   function addLine() {
     setLines(prev => [...prev, { key: Date.now(), productId: "", name: "", units: 1, price: 0, discount: 0, taxes: [] }]);
@@ -106,7 +108,7 @@ export function EditOrderForm({ orderId, contactId, contactName, dateUnix, notes
       <input type="hidden" name="contact_id"           value={contactId} />
       <input type="hidden" name="contact_name"         value={contactName} />
       <input type="hidden" name="date_unix"            value={dateUnix} />
-      <input type="hidden" name="recargo_equivalencia" value="false" />
+      <input type="hidden" name="recargo_equivalencia" value={recargo ? "true" : "false"} />
 
       {state?.error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-[#8E0E1A]">
@@ -216,6 +218,31 @@ export function EditOrderForm({ orderId, contactId, contactName, dateUnix, notes
         <div className="px-5 py-3 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center justify-between">
           <span className="text-xs font-medium text-[#6B7280]">Base imponible total (s/ IVA)</span>
           <span className="text-base font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(orderTotal)}</span>
+        </div>
+      </section>
+
+      {/* ── Recargo de equivalencia ─────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-[#374151]">Recargo de equivalencia</p>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">Aplica recargo sobre IVA en cada línea de producto</p>
+          </div>
+          <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden shrink-0">
+            {([true, false] as const).map(v => (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => setRecargo(v)}
+                className={[
+                  "h-8 px-4 text-xs font-semibold transition-colors",
+                  recargo === v ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]",
+                ].join(" ")}
+              >
+                {v ? "Sí" : "No"}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 

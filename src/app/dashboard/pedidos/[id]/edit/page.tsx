@@ -64,6 +64,9 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     return { key: i, productId, name, units, price, discount, taxes };
   }).filter(l => l.productId);
 
+  const RECARGO_CODES = new Set(["s_rec_52", "s_rec_14", "s_rec_05"]);
+  const initialRecargo = initialLines.some(l => l.taxes.some(t => RECARGO_CODES.has(t)));
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
       <div>
@@ -87,6 +90,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
         dateUnix={dateUnix}
         notes={notes}
         initialLines={initialLines}
+        initialRecargo={initialRecargo}
         products={products}
       />
     </div>
