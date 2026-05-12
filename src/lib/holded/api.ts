@@ -250,12 +250,20 @@ export interface HoldedSalesOrderPayload {
   products: HoldedOrderLine[];
 }
 
+// Holded salesorder API uses "items" (not "products") and "subtotal" (not "price")
+// for the unit price field. This function maps our internal format to what Holded expects.
+function toHoldedBody(payload: Partial<HoldedSalesOrderPayload>): string {
+  const { products, ...rest } = payload;
+  const items = products?.map(({ price, ...line }) => ({ ...line, subtotal: price }));
+  return JSON.stringify({ ...rest, ...(items ? { items } : {}) });
+}
+
 export async function createSalesOrder(
   payload: HoldedSalesOrderPayload
 ): Promise<{ id: string; status: number }> {
   return holdedFetch<{ id: string; status: number }>(
     "/invoicing/v1/documents/salesorder",
-    { method: "POST", body: JSON.stringify(payload) }
+    { method: "POST", body: toHoldedBody(payload) }
   );
 }
 
@@ -265,7 +273,7 @@ export async function updateSalesOrder(
 ): Promise<void> {
   await holdedFetch<unknown>(`/invoicing/v1/documents/salesorder/${id}`, {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: toHoldedBody(payload),
   });
 }
 
