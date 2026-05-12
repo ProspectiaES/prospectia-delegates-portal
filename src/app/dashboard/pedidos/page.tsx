@@ -5,9 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { orderStatus } from "@/lib/holded/api";
-import { OrderStatusSelect } from "./OrderStatusSelect";
 
-// Holded shippingStatus → Etapa label
 const ETAPA: Record<number, string> = {
   0: "—",
   1: "Recepcionado",
@@ -47,7 +45,6 @@ export default async function PedidosPage() {
     contactIds = (links ?? []).map(r => r.contact_id as string);
   }
 
-  // Show orders until shipping_status = 5 (Recibido). NULL shipping_status is still open.
   let query = supabase
     .from("holded_salesorders")
     .select("id, doc_number, contact_id, contact_name, date, total, status, shipping_status, tracking_company_name, tracking_number, tracking_pickup_date, tracking_delivery_date", { count: "exact" })
@@ -86,10 +83,7 @@ export default async function PedidosPage() {
             {count != null && count > 0 ? `${count} pedido${count !== 1 ? "s" : ""} abiertos` : "Sin pedidos en curso"}
           </p>
         </div>
-        <Link
-          href="/dashboard/pedidos/nuevo"
-          className="h-9 px-4 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] transition-colors shadow-sm flex items-center"
-        >
+        <Link href="/dashboard/pedidos/nuevo" className="h-9 px-4 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] transition-colors shadow-sm flex items-center">
           + Nuevo pedido
         </Link>
       </div>
@@ -109,15 +103,17 @@ export default async function PedidosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["Pedido", "Cliente", "Fecha", "Importe", "Estado", "Etapa", "Seguimiento"].map(h => (
+                  {["Pedido", "Cliente", "Fecha", "Importe", "Estado", "Etapa", "Seguimiento", ""].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {orders.map(o => {
+                  const st = orderStatus(o.status);
                   const etapa = o.shipping_status ?? 0;
                   const hasTracking = !!(o.tracking_number || o.tracking_company_name);
+                  const canEdit = o.status === 0; // Borrador → editable
                   return (
                     <tr key={o.id} className="hover:bg-[#F9FAFB] transition-colors">
                       <td className="px-4 py-3 font-mono font-semibold text-[#0A0A0A] whitespace-nowrap">
@@ -127,11 +123,9 @@ export default async function PedidosPage() {
                       <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">{fmtDate(o.date)}</td>
                       <td className="px-4 py-3 tabular-nums font-semibold text-[#0A0A0A] whitespace-nowrap">{fmtEuro(o.total)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {o.status !== 3 ? (
-                          <OrderStatusSelect orderId={o.id} currentStatus={o.status} />
-                        ) : (
-                          <Badge variant="success">Facturado</Badge>
-                        )}
+                        <Badge variant={st.variant === "success" ? "success" : st.variant === "warning" ? "warning" : "neutral"}>
+                          {st.label}
+                        </Badge>
                       </td>
                       <td className={`px-4 py-3 whitespace-nowrap text-xs font-medium ${ETAPA_STYLE[etapa] ?? "text-[#6B7280]"}`}>
                         {ETAPA[etapa] ?? "—"}
@@ -140,9 +134,7 @@ export default async function PedidosPage() {
                         {hasTracking ? (
                           <div className="space-y-0.5">
                             {o.tracking_company_name && (
-                              <p className="text-xs font-semibold text-[#374151] uppercase tracking-wide">
-                                {o.tracking_company_name}
-                              </p>
+                              <p className="text-xs font-semibold text-[#374151] uppercase tracking-wide">{o.tracking_company_name}</p>
                             )}
                             {o.tracking_number && (
                               <p className="text-xs font-mono text-[#6B7280]">{o.tracking_number}</p>
@@ -155,6 +147,16 @@ export default async function PedidosPage() {
                           </div>
                         ) : (
                           <span className="text-xs text-[#D1D5DB]">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {canEdit && (
+                          <Link
+                            href={`/dashboard/pedidos/${o.id}/edit`}
+                            className="text-xs font-medium text-[#8E0E1A] hover:underline"
+                          >
+                            Editar
+                          </Link>
                         )}
                       </td>
                     </tr>

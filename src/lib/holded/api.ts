@@ -259,12 +259,13 @@ export async function createSalesOrder(
   );
 }
 
-// Holded salesorder status codes (billing, not shipping):
-//   0 = Cancelado  1 = Pendiente  2 = Aceptado  3 = Facturado (set by Holded on conversion)
-export async function updateSalesOrderStatus(id: string, status: number): Promise<void> {
+export async function updateSalesOrder(
+  id: string,
+  payload: Partial<HoldedSalesOrderPayload>
+): Promise<void> {
   await holdedFetch<unknown>(`/invoicing/v1/documents/salesorder/${id}`, {
     method: "PUT",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(payload),
   });
 }
 

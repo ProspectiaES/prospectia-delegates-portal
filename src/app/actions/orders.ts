@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createContact, createSalesOrder, getDocument, getHoldedTaxes, updateSalesOrderStatus } from "@/lib/holded/api";
+import { createContact, createSalesOrder, updateSalesOrder, getDocument, getHoldedTaxes } from "@/lib/holded/api";
 
 export interface OrderFormState {
   error?: string;
@@ -206,53 +206,88 @@ export async function submitOrder(
   }
 }
 
-// ── Change salesorder status (Pendiente ↔ Aceptado / Cancelado) ──────────────
-// Status: 0=Cancelado  1=Pendiente  2=Aceptado  3=Facturado (read-only)
-export async function changeOrderStatus(
-  orderId: string,
-  newStatus: number
-): Promise<{ error?: string }> {
+// ── Update salesorder contents (products + notes) — only for Borrador orders ──
+export async function updateOrderAction(
+  _prev: OrderFormState | null,
+  formData: FormData
+): Promise<OrderFormState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado" };
 
   const admin = createAdminClient();
+  const orderId     = formData.get("order_id")     as string;
+  const contactId   = formData.get("contact_id")   as string;
+  const contactName = formData.get("contact_name") as string;
+  const dateUnix    = Number(formData.get("date_unix"));
+  const recargo     = formData.get("recargo_equivalencia") === "true";
+  const notes       = (formData.get("notes") as string)?.trim() || undefined;
 
-  // Only OWNER or the delegate assigned to this order can change status
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+  if (!orderId || !contactId) return { error: "Datos del pedido incompletos" };
 
+  // Permission: OWNER or delegate linked to the contact
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "OWNER") {
-    // Verify delegate is linked to this order's contact
-    const { data: order } = await admin
-      .from("holded_salesorders")
-      .select("contact_id")
-      .eq("id", orderId)
+    const { data: link } = await admin
+      .from("contact_delegates")
+      .select("delegate_id")
+      .eq("contact_id", contactId)
+      .eq("delegate_id", user.id)
       .maybeSingle();
-    if (order?.contact_id) {
-      const { data: link } = await admin
-        .from("contact_delegates")
-        .select("delegate_id")
-        .eq("contact_id", order.contact_id)
-        .eq("delegate_id", user.id)
-        .maybeSingle();
-      if (!link) return { error: "Sin permiso para modificar este pedido" };
-    }
+    if (!link) return { error: "Sin permiso para modificar este pedido" };
   }
 
+  const productIds    = formData.getAll("product_id[]")    as string[];
+  const productNames  = formData.getAll("product_name[]")  as string[];
+  const productPrices = formData.getAll("product_price[]") as string[];
+  const productTaxes  = formData.getAll("product_taxes[]") as string[];
+  const units         = formData.getAll("units[]")         as string[];
+  const discounts     = formData.getAll("discount[]")      as string[];
+
+  const lines = productIds
+    .map((pid, i) => {
+      const baseTaxes = productTaxes[i] ? productTaxes[i].split(",").filter(Boolean) : [];
+      const taxes = recargo ? addRecargoTaxes(baseTaxes) : baseTaxes;
+      return { productId: pid || undefined, name: productNames[i] ?? "", units: Number(units[i]) || 1, price: Number(productPrices[i]) || 0, discount: Number(discounts[i]) || 0, taxes };
+    })
+    .filter(l => l.productId);
+
+  if (lines.length === 0) return { error: "Añade al menos un producto" };
+
   try {
-    await updateSalesOrderStatus(orderId, newStatus);
-    await admin
-      .from("holded_salesorders")
-      .update({ status: newStatus, last_synced_at: new Date().toISOString() })
-      .eq("id", orderId);
+    await updateSalesOrder(orderId, {
+      contactId,
+      contactName,
+      date: dateUnix || Math.floor(Date.now() / 1000),
+      currency: "eur",
+      language: "es",
+      notes,
+      products: lines,
+    });
+
+    let docNumber: string | null = null;
+    try {
+      const full = await getDocument("salesorder", orderId);
+      docNumber = full.docNumber ?? null;
+      const fullRaw = full as Record<string, unknown>;
+      await admin.from("holded_salesorders").upsert({
+        id:              orderId,
+        doc_number:      docNumber,
+        contact_id:      contactId,
+        contact_name:    contactName,
+        date:            full.date ? new Date(full.date * 1000).toISOString() : new Date().toISOString(),
+        total:           full.total ?? lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0),
+        status:          typeof full.status === "number" ? full.status : 0,
+        shipping_status: typeof fullRaw.shippingStatus === "number" ? fullRaw.shippingStatus : null,
+        raw:             full,
+        last_synced_at:  new Date().toISOString(),
+      }, { onConflict: "id" });
+    } catch { /* fallback: update only totals */ }
+
     revalidatePath("/dashboard/pedidos");
-    return {};
+    return { success: true, orderId, docNumber: docNumber ?? "" };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Error al actualizar el estado" };
+    return { error: e instanceof Error ? e.message : "Error al actualizar el pedido en Holded" };
   }
 }
 
