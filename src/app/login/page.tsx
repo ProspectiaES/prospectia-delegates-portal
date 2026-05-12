@@ -25,9 +25,7 @@ export default function LoginPage() {
 
         {/* Brand */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="w-12 h-12 rounded-xl bg-[#8E0E1A] flex items-center justify-center mb-4 shadow-sm">
-            <span className="text-white font-bold text-xl leading-none select-none">P</span>
-          </div>
+          <img src="/Logo-OWL_1.ico" alt="Prospectia" className="w-12 h-12 rounded-xl object-contain mb-4 shadow-sm" />
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Prospectia</h1>
           <p className="mt-1 text-sm text-[#6B7280]">Delegates Portal</p>
         </div>

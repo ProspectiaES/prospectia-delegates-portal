@@ -97,6 +97,13 @@ export async function getDocuments(
   return [];
 }
 
+export async function getDocument(
+  docType: DocType,
+  id: string
+): Promise<HoldedDocument> {
+  return holdedFetch<HoldedDocument>(`/invoicing/v1/documents/${docType}/${id}`);
+}
+
 /** Fetches every page until Holded returns an empty or partial batch. */
 export async function getAllDocuments(
   docType: DocType
@@ -172,6 +179,20 @@ export async function getPaymentMethods(): Promise<HoldedPaymentMethod[]> {
 
 // ─── Contact create ───────────────────────────────────────────────────────────
 
+export interface HoldedTax {
+  id: string;
+  name: string;
+  tax?: number;
+  [key: string]: unknown;
+}
+
+export async function getHoldedTaxes(): Promise<HoldedTax[]> {
+  const data = await holdedFetch<HoldedTax[] | { taxes: HoldedTax[] }>("/invoicing/v1/taxes");
+  if (Array.isArray(data)) return data;
+  if (data && "taxes" in data) return data.taxes;
+  return [];
+}
+
 export interface HoldedContactCreatePayload {
   name: string;
   code?: string;       // NIF / CIF
@@ -182,7 +203,6 @@ export interface HoldedContactCreatePayload {
   /** 'client' | 'provider' | etc. */
   type?: string;
   iban?: string;
-  customFields?: { field: string; value: string }[];
   billAddress?: {
     address?: string;
     city?: string;
@@ -193,6 +213,7 @@ export interface HoldedContactCreatePayload {
   };
   defaults?: {
     paymentMethod?: string;
+    salesTax?: string;
     language?: string;
     currency?: string;
     discount?: number;
@@ -236,6 +257,15 @@ export async function createSalesOrder(
     "/invoicing/v1/documents/salesorder",
     { method: "POST", body: JSON.stringify(payload) }
   );
+}
+
+// Holded salesorder status codes (billing, not shipping):
+//   0 = Cancelado  1 = Pendiente  2 = Aceptado  3 = Facturado (set by Holded on conversion)
+export async function updateSalesOrderStatus(id: string, status: number): Promise<void> {
+  await holdedFetch<unknown>(`/invoicing/v1/documents/salesorder/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
 }
 
 // ─── Contact mutations ───────────────────────────────────────────────────────
@@ -295,9 +325,11 @@ export function orderStatus(status: number): {
   variant: "success" | "warning" | "danger" | "neutral";
 } {
   switch (status) {
-    case 3:  return { label: "Facturado",  variant: "success" };
-    case 2:  return { label: "Aprobado",   variant: "success" };
-    case 1:  return { label: "Pendiente",  variant: "warning" };
-    default: return { label: "Borrador",   variant: "neutral" };
+    case 3:   return { label: "Facturado",  variant: "success" };
+    case 2:   return { label: "Aceptado",   variant: "success" };
+    case 1:   return { label: "Pendiente",  variant: "warning" };
+    case 0:   return { label: "Borrador",   variant: "neutral" };
+    case -1:  return { label: "Cancelado",  variant: "neutral" };
+    default:  return { label: "—",          variant: "neutral" };
   }
 }

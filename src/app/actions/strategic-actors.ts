@@ -269,77 +269,38 @@ export async function saveActor(formData: FormData): Promise<{ id: string }> {
   const supabase = await createClient();
   const id = safeText(formData.get("id"));
 
-  const payload = {
-    user_id: profile.id,
-    nom: formData.get("nom") as string,
-    empresa: safeText(formData.get("empresa")),
-    carrec: safeText(formData.get("carrec")),
-    pais: safeText(formData.get("pais")),
-    idioma: safeText(formData.get("idioma")),
-    email: safeText(formData.get("email")),
-    telefon: safeText(formData.get("telefon")),
-    canal_principal: safeText(formData.get("canal_principal")),
-    origen_contacte: safeText(formData.get("origen_contacte")),
-    data_primer_contacte: safeDate(formData.get("data_primer_contacte")),
-    data_ultim_contacte: safeDate(formData.get("data_ultim_contacte")),
-    font_informacio: safeText(formData.get("font_informacio")),
-    rol_tipus: safeArr(formData.get("rol_tipus")),
-    rol_formal: safeText(formData.get("rol_formal")),
-    rol_real: safeText(formData.get("rol_real")),
-    poder_decisio: safeInt(formData.get("poder_decisio")),
-    capacitat_execucio: safeInt(formData.get("capacitat_execucio")),
-    capacitat_influencia: safeInt(formData.get("capacitat_influencia")),
-    acces_que_aporta: safeText(formData.get("acces_que_aporta")),
-    mercat_que_pot_obrir: safeText(formData.get("mercat_que_pot_obrir")),
-    impacte_potencial: safeInt(formData.get("impacte_potencial")),
-    impacte_actual: safeInt(formData.get("impacte_actual")),
-    valor_estrategic: safeInt(formData.get("valor_estrategic")),
-    urgencia: safeInt(formData.get("urgencia")),
-    prioritat: safeInt(formData.get("prioritat")),
-    alineacio_objectius: safeInt(formData.get("alineacio_objectius")),
-    capacitat_caixa: safeInt(formData.get("capacitat_caixa")),
-    capacitat_portes: safeInt(formData.get("capacitat_portes")),
-    capacitat_bloqueig: safeInt(formData.get("capacitat_bloqueig")),
-    capacitat_accelerar: safeInt(formData.get("capacitat_accelerar")),
-    classificacio_relevancia: safeText(formData.get("classificacio_relevancia")),
-    estil_comunicacio: safeText(formData.get("estil_comunicacio")),
-    estil_decisio: safeText(formData.get("estil_decisio")),
-    velocitat_resposta: safeText(formData.get("velocitat_resposta")),
-    tolerancia_risc: safeText(formData.get("tolerancia_risc")),
-    fiabilitat_percebuda: safeInt(formData.get("fiabilitat_percebuda")),
-    consistencia: safeInt(formData.get("consistencia")),
-    orientacio_resultat: safeInt(formData.get("orientacio_resultat")),
-    orientacio_relacio: safeInt(formData.get("orientacio_relacio")),
-    capacitat_negociacio: safeInt(formData.get("capacitat_negociacio")),
-    trets_conductuals: safeArr(formData.get("trets_conductuals")),
-    notes_conductuals: safeText(formData.get("notes_conductuals")),
-    classificacio_potencial: safeText(formData.get("classificacio_potencial")),
-    justificacio_potencial: safeText(formData.get("justificacio_potencial")),
-    risc_comercial: safeInt(formData.get("risc_comercial")) ?? 0,
-    risc_reputacional: safeInt(formData.get("risc_reputacional")) ?? 0,
-    risc_legal: safeInt(formData.get("risc_legal")) ?? 0,
-    risc_financer: safeInt(formData.get("risc_financer")) ?? 0,
-    risc_dependencia: safeInt(formData.get("risc_dependencia")) ?? 0,
-    risc_incompliment: safeInt(formData.get("risc_incompliment")) ?? 0,
-    risc_bloqueig: safeInt(formData.get("risc_bloqueig")) ?? 0,
-    risc_conflicte: safeInt(formData.get("risc_conflicte")) ?? 0,
-    classificacio_risc: safeText(formData.get("classificacio_risc")),
-    notes_risc: safeText(formData.get("notes_risc")),
-    is_pdi: formData.get("is_pdi") === "true",
-    motiu_pdi: safeText(formData.get("motiu_pdi")),
-    tipus_influencia_pdi: safeText(formData.get("tipus_influencia_pdi")),
-    pdi_notes: safeText(formData.get("pdi_notes")),
-    notes: safeText(formData.get("notes")),
-    notes_confidencials: safeText(formData.get("notes_confidencials")),
-    updated_at: new Date().toISOString(),
-  };
+  // Build sparse payload — only include fields explicitly present in the FormData.
+  // This allows tab-specific saves (Conducta, Risc, etc.) without clobbering other fields.
+  const p: Record<string, unknown> = { user_id: profile.id, updated_at: new Date().toISOString() };
+  const has = (k: string) => formData.has(k);
+
+  const textFields = ["nom","empresa","carrec","pais","idioma","email","telefon","canal_principal",
+    "origen_contacte","font_informacio","rol_formal","rol_real","acces_que_aporta","mercat_que_pot_obrir",
+    "classificacio_relevancia","estil_comunicacio","estil_decisio","velocitat_resposta","tolerancia_risc",
+    "notes_conductuals","classificacio_potencial","justificacio_potencial","classificacio_risc","notes_risc",
+    "motiu_pdi","tipus_influencia_pdi","pdi_notes","notes","notes_confidencials"];
+  const dateFields = ["data_primer_contacte","data_ultim_contacte"];
+  const intFields  = ["poder_decisio","capacitat_execucio","capacitat_influencia","impacte_potencial",
+    "impacte_actual","valor_estrategic","urgencia","prioritat","alineacio_objectius","capacitat_caixa",
+    "capacitat_portes","capacitat_bloqueig","capacitat_accelerar","fiabilitat_percebuda","consistencia",
+    "orientacio_resultat","orientacio_relacio","capacitat_negociacio"];
+  const riscFields = ["risc_comercial","risc_reputacional","risc_legal","risc_financer",
+    "risc_dependencia","risc_incompliment","risc_bloqueig","risc_conflicte"];
+  const arrFields  = ["rol_tipus","trets_conductuals"];
+
+  for (const k of textFields) if (has(k)) p[k] = safeText(formData.get(k));
+  for (const k of dateFields) if (has(k)) p[k] = safeDate(formData.get(k));
+  for (const k of intFields)  if (has(k)) p[k] = safeInt(formData.get(k));
+  for (const k of riscFields) if (has(k)) p[k] = safeInt(formData.get(k)) ?? 0;
+  for (const k of arrFields)  if (has(k)) p[k] = safeArr(formData.get(k));
+  if (has("is_pdi")) p.is_pdi = formData.get("is_pdi") === "true";
 
   if (id) {
-    const { data } = await supabase.from("strategic_actors").update(payload).eq("id", id).eq("user_id", profile.id).select("id").single();
+    const { data } = await supabase.from("strategic_actors").update(p).eq("id", id).eq("user_id", profile.id).select("id").single();
     revalidatePath("/dashboard/bruixola/actors");
     return { id: data?.id ?? id };
   } else {
-    const { data } = await supabase.from("strategic_actors").insert(payload).select("id").single();
+    const { data } = await supabase.from("strategic_actors").insert(p).select("id").single();
     revalidatePath("/dashboard/bruixola/actors");
     return { id: data?.id ?? "" };
   }
@@ -422,6 +383,20 @@ export async function saveLink(formData: FormData): Promise<void> {
     tipus_vincle: safeText(formData.get("tipus_vincle")),
     descripcio: safeText(formData.get("descripcio")),
   });
+  revalidatePath(`/dashboard/bruixola/actors/${formData.get("actor_id")}`);
+}
+
+export async function updateLink(formData: FormData): Promise<void> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+  const id = formData.get("id") as string;
+  await supabase.from("strategic_actor_links").update({
+    entitat_tipus: formData.get("entitat_tipus") as string,
+    entitat_id: safeText(formData.get("entitat_id")),
+    entitat_nom: formData.get("entitat_nom") as string,
+    tipus_vincle: safeText(formData.get("tipus_vincle")),
+    descripcio: safeText(formData.get("descripcio")),
+  }).eq("id", id).eq("user_id", profile.id);
   revalidatePath(`/dashboard/bruixola/actors/${formData.get("actor_id")}`);
 }
 
@@ -745,4 +720,53 @@ export async function getPDIExports(actorId: string): Promise<PDIExport[]> {
     .eq("user_id", profile.id)
     .order("data_export", { ascending: false });
   return (data ?? []) as PDIExport[];
+}
+
+// ─── Vincle entity options ─────────────────────────────────────────────────────
+
+export interface VincleOption { id: string; label: string; sub?: string }
+
+export async function getVincleOptions(tipus: string): Promise<VincleOption[]> {
+  const profile = await requireOwner();
+  const supabase = await createClient();
+
+  if (tipus === "actor") {
+    const { data } = await supabase.from("strategic_actors")
+      .select("id, nom, empresa, carrec")
+      .eq("user_id", profile.id).eq("actiu", true)
+      .order("nom");
+    return (data ?? []).map(r => ({
+      id: r.id,
+      label: r.nom,
+      sub: [r.carrec, r.empresa].filter(Boolean).join(" · "),
+    }));
+  }
+  if (tipus === "projecte") {
+    const { data } = await supabase.from("projectes")
+      .select("id, nom, tipus, estat")
+      .eq("actiu", true)
+      .order("nom");
+    return (data ?? []).map(r => ({ id: r.id, label: r.nom, sub: r.tipus ?? "" }));
+  }
+  if (tipus === "objectiu") {
+    const { data } = await supabase.from("objectius")
+      .select("id, titol, tipus, estat")
+      .order("titol");
+    return (data ?? []).map(r => ({ id: r.id, label: r.titol, sub: r.tipus ?? "" }));
+  }
+  if (tipus === "producte") {
+    const { data } = await supabase.from("productes")
+      .select("id, nom, tipus, estat")
+      .eq("actiu", true)
+      .order("nom");
+    return (data ?? []).map(r => ({ id: r.id, label: r.nom, sub: r.tipus ?? "" }));
+  }
+  if (tipus === "client") {
+    const { data } = await supabase.from("holded_contacts")
+      .select("id, name, city")
+      .order("name").limit(300);
+    return (data ?? []).map(r => ({ id: r.id, label: r.name, sub: r.city ?? "" }));
+  }
+  // mercat, institucio, proveidor — no dedicated table, free text
+  return [];
 }

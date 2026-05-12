@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createContact, createSalesOrder } from "@/lib/holded/api";
+import { createContact, createSalesOrder, getDocument, getHoldedTaxes, updateSalesOrderStatus } from "@/lib/holded/api";
 
 export interface OrderFormState {
   error?: string;
@@ -20,10 +20,20 @@ export async function submitOrder(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado" };
 
+  const admin = createAdminClient();
+
+  // Fetch profile to know the role (needed for contact_delegates)
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isDelegate = profile?.role === "DELEGATE";
+
   // ── Client ────────────────────────────────────────────────────────────────
-  const mode         = formData.get("client_mode") as "existing" | "new";
-  const recargoStr   = formData.get("recargo_equivalencia") as string;
-  const recargo      = recargoStr === "true";
+  const mode       = formData.get("client_mode") as "existing" | "new";
+  const recargoStr = formData.get("recargo_equivalencia") as string;
+  const recargo    = recargoStr === "true";
 
   let contactId: string;
   let contactName: string;
@@ -41,8 +51,25 @@ export async function submitOrder(
     const tipoContacto    = (formData.get("tipo_contacto") as string) ?? "company";
     const paymentMethodId = formData.get("payment_method_id") as string;
     const iban            = (formData.get("new_iban")    as string)?.trim() || undefined;
+    const newAddress      = (formData.get("new_address")     as string)?.trim() || undefined;
+    const newCity         = (formData.get("new_city")        as string)?.trim() || undefined;
+    const newPostalCode   = (formData.get("new_postal_code") as string)?.trim() || undefined;
+    const newProvince     = (formData.get("new_province")    as string)?.trim() || undefined;
+    const newCountry      = (formData.get("new_country")     as string)?.trim() || undefined;
 
     if (!name) return { error: "El nombre del cliente es obligatorio" };
+
+    // Resolve recargo de equivalencia tax ID (REC 1,4%)
+    let recTaxId: string | undefined;
+    if (recargo) {
+      try {
+        const taxes = await getHoldedTaxes();
+        const recTax = taxes.find(t =>
+          /rec.*1[,.]4/i.test(t.name) || /1[,.]4.*rec/i.test(t.name)
+        );
+        recTaxId = recTax?.id;
+      } catch { /* non-fatal */ }
+    }
 
     try {
       const result = await createContact({
@@ -53,11 +80,12 @@ export async function submitOrder(
         phone,
         type: "client",
         iban: iban || undefined,
-        customFields: recargo
-          ? [{ field: "Recargo Equivalencia", value: "Sí" }]
-          : [{ field: "Recargo Equivalencia", value: "No" }],
+        billAddress: (newAddress || newCity || newPostalCode || newProvince || newCountry)
+          ? { address: newAddress, city: newCity, postalCode: newPostalCode, province: newProvince, country: newCountry }
+          : undefined,
         defaults: {
           paymentMethod: paymentMethodId || undefined,
+          salesTax:      recTaxId,
           language: "es",
           currency: "eur",
         },
@@ -69,20 +97,31 @@ export async function submitOrder(
 
       const recommenderId = (formData.get("recommender_id") as string)?.trim() || null;
 
-      // Mirror the new contact into Supabase so it appears immediately
-      const admin = createAdminClient();
       await admin.from("holded_contacts").upsert({
         id:             contactId,
         name:           contactName,
         email:          email ?? null,
         phone:          phone ?? null,
+        address:        newAddress    ?? null,
+        city:           newCity       ?? null,
+        postal_code:    newPostalCode ?? null,
+        province:       newProvince   ?? null,
+        country:        newCountry    ?? null,
         recommender_id: recommenderId,
-        raw:            { id: contactId, name: contactName, email, phone },
+        raw:            { id: contactId, name: contactName, email, phone,
+                          billAddress: { address: newAddress, city: newCity, postalCode: newPostalCode, province: newProvince, country: newCountry } },
         last_synced_at: new Date().toISOString(),
       }, { onConflict: "id" });
     } catch (e) {
       return { error: e instanceof Error ? e.message : "Error al crear el cliente en Holded" };
     }
+  }
+
+  // ── Link delegate to contact ───────────────────────────────────────────────
+  if (isDelegate) {
+    await admin.from("contact_delegates")
+      .upsert({ contact_id: contactId, delegate_id: user.id }, { onConflict: "contact_id,delegate_id" })
+      .then(() => {}); // non-fatal
   }
 
   // ── Products ──────────────────────────────────────────────────────────────
@@ -99,10 +138,10 @@ export async function submitOrder(
       const taxes = recargo ? addRecargoTaxes(baseTaxes) : baseTaxes;
       return {
         productId: pid || undefined,
-        name:     productNames[i]  ?? "",
-        units:    Number(units[i]) || 1,
-        price:    Number(productPrices[i]) || 0,
-        discount: Number(discounts[i])    || 0,
+        name:      productNames[i]  ?? "",
+        units:     Number(units[i]) || 1,
+        price:     Number(productPrices[i]) || 0,
+        discount:  Number(discounts[i])     || 0,
         taxes,
       };
     })
@@ -114,7 +153,7 @@ export async function submitOrder(
   const notes = (formData.get("notes") as string)?.trim() || undefined;
 
   try {
-    const result = await createSalesOrder({
+    const created = await createSalesOrder({
       contactId,
       contactName,
       date: Math.floor(Date.now() / 1000),
@@ -124,26 +163,96 @@ export async function submitOrder(
       products: lines,
     });
 
-    if (!result?.id) return { error: "Holded no devolvió ID de pedido" };
+    if (!created?.id) return { error: "Holded no devolvió ID de pedido" };
 
-    // Mirror to Supabase immediately so the pedidos list reflects the new order
-    const admin = createAdminClient();
-    await admin.from("holded_salesorders").upsert({
-      id:           result.id,
-      contact_id:   contactId,
-      contact_name: contactName,
-      date:         new Date().toISOString(),
-      total:        lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0),
-      status:       0,
-      raw:          { id: result.id, contactId, products: lines },
-      last_synced_at: new Date().toISOString(),
-    }, { onConflict: "id" });
+    // Fetch the complete order from Holded to get doc_number and all fields
+    let docNumber: string | null = null;
+    try {
+      const full = await getDocument("salesorder", created.id);
+      docNumber = full.docNumber ?? null;
+
+      const fullRaw = full as Record<string, unknown>;
+      await admin.from("holded_salesorders").upsert({
+        id:              created.id,
+        doc_number:      docNumber,
+        contact_id:      contactId,
+        contact_name:    contactName,
+        date:            full.date ? new Date(full.date * 1000).toISOString() : new Date().toISOString(),
+        total:           full.total ?? lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0),
+        status:          typeof full.status === "number" ? full.status : 0,
+        shipping_status: typeof fullRaw.shippingStatus === "number" ? fullRaw.shippingStatus : null,
+        raw:             full,
+        last_synced_at:  new Date().toISOString(),
+      }, { onConflict: "id" });
+    } catch {
+      // Fallback: mirror with partial data if Holded fetch fails
+      await admin.from("holded_salesorders").upsert({
+        id:             created.id,
+        contact_id:     contactId,
+        contact_name:   contactName,
+        date:           new Date().toISOString(),
+        total:          lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0),
+        status:         0,
+        raw:            { id: created.id, contactId, products: lines },
+        last_synced_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+    }
 
     revalidatePath("/dashboard/pedidos");
     revalidatePath(`/dashboard/clientes/${contactId}`);
-    return { success: true, orderId: result.id, docNumber: String(result.status ?? "") };
+    return { success: true, orderId: created.id, docNumber: docNumber ?? "" };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Error al crear el pedido en Holded" };
+  }
+}
+
+// ── Change salesorder status (Pendiente ↔ Aceptado / Cancelado) ──────────────
+// Status: 0=Cancelado  1=Pendiente  2=Aceptado  3=Facturado (read-only)
+export async function changeOrderStatus(
+  orderId: string,
+  newStatus: number
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const admin = createAdminClient();
+
+  // Only OWNER or the delegate assigned to this order can change status
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role !== "OWNER") {
+    // Verify delegate is linked to this order's contact
+    const { data: order } = await admin
+      .from("holded_salesorders")
+      .select("contact_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (order?.contact_id) {
+      const { data: link } = await admin
+        .from("contact_delegates")
+        .select("delegate_id")
+        .eq("contact_id", order.contact_id)
+        .eq("delegate_id", user.id)
+        .maybeSingle();
+      if (!link) return { error: "Sin permiso para modificar este pedido" };
+    }
+  }
+
+  try {
+    await updateSalesOrderStatus(orderId, newStatus);
+    await admin
+      .from("holded_salesorders")
+      .update({ status: newStatus, last_synced_at: new Date().toISOString() })
+      .eq("id", orderId);
+    revalidatePath("/dashboard/pedidos");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Error al actualizar el estado" };
   }
 }
 

@@ -140,8 +140,8 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       admin.from("profiles").select("id, full_name").eq("role", "DELEGATE").order("full_name"),
       admin.from("contact_delegates").select("delegate_id").eq("contact_id", id),
       admin.from("bixgrow_affiliates").select("id, email, first_name, last_name, referral_code").order("email"),
-      admin.from("profiles").select("id, full_name, delegate_name").eq("role", "KOL").order("full_name"),
-      admin.from("profiles").select("id, full_name, delegate_name").eq("role", "COORDINATOR").order("full_name"),
+      admin.from("profiles").select("id, full_name, delegate_name").or("is_kol.eq.true,role.eq.KOL").order("full_name"),
+      admin.from("profiles").select("id, full_name, delegate_name").or("is_coordinator.eq.true,role.eq.COORDINATOR").order("full_name"),
       admin.from("profiles").select("id, full_name, delegate_name").eq("role", "COM6").order("full_name"),
     ]);
     allDelegates  = (delegatesRes.data  ?? []) as typeof allDelegates;

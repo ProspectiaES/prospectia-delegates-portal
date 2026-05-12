@@ -20,22 +20,12 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
 
   const userRole = (profileData as { id?: string; role?: string } | null)?.role ?? "DELEGATE";
 
-  // Delegates only see their own contacts
-  let contactsData: { id: string; name: string }[] = [];
-  if (userRole === "DELEGATE" && user) {
-    const { data: links } = await admin
-      .from("contact_delegates")
-      .select("contact_id")
-      .eq("delegate_id", user.id);
-    const ids = (links ?? []).map(r => r.contact_id as string);
-    if (ids.length > 0) {
-      const { data } = await admin.from("holded_contacts").select("id, name").in("id", ids).order("name");
-      contactsData = (data ?? []) as { id: string; name: string }[];
-    }
-  } else {
-    const { data } = await admin.from("holded_contacts").select("id, name").order("name");
-    contactsData = (data ?? []) as { id: string; name: string }[];
-  }
+  // All contacts visible on this page — delegates get auto-assigned on order creation
+  const { data: contactsRaw } = await admin
+    .from("holded_contacts")
+    .select("id, name")
+    .order("name");
+  const contactsData = (contactsRaw ?? []) as { id: string; name: string }[];
 
   const contacts = contactsData;
   const products = (productsData ?? []) as {

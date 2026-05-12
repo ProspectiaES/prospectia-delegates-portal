@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useTransition, useEffect, useCallback } from "react";
+import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   getActor, saveActor, deleteActor, analyzeActor,
   getInteractions, saveInteraction, deleteInteraction,
-  getLinks, saveLink, deleteLink, exportPDI,
+  getLinks, saveLink, updateLink, deleteLink, exportPDI,
   getActorDocuments, uploadActorDocument, deleteActorDocument, getDocumentSignedUrl, analyzeDocument,
+  getVincleOptions,
 } from "@/app/actions/strategic-actors";
-import type { StrategicActor, ActorInteraction, ActorLink, ActorAlert, ActorDocument } from "@/app/actions/strategic-actors";
+import type { StrategicActor, ActorInteraction, ActorLink, ActorAlert, ActorDocument, VincleOption } from "@/app/actions/strategic-actors";
 
 const CARD    = "#FFFFFF";
 const SURFACE = "#F8FAFC";
@@ -155,20 +156,46 @@ function TabVisiogeneral({ actor, onSaved }: { actor: StrategicActor; onSaved: (
   const [capAccelerar, setCapAccelerar] = useState<number|null>(actor.capacitat_accelerar);
   const [notes, setNotes] = useState(actor.notes ?? "");
 
+  const vgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vgMountedRef = useRef(false);
+
   function toggleRol(r: string) { setRolTipus(prev => prev.includes(r) ? prev.filter(x=>x!==r) : [...prev,r]); }
 
-  function handleSave(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+  function buildVgFd() {
+    const fd = new FormData();
     fd.set("id", actor.id);
-    fd.set("rol_tipus", JSON.stringify(rolTipus));
+    fd.set("nom", nom); fd.set("empresa", empresa); fd.set("carrec", carrec);
+    fd.set("pais", pais); fd.set("email", email); fd.set("telefon", telefon);
+    fd.set("canal_principal", canal); fd.set("origen_contacte", origen);
+    fd.set("data_primer_contacte", dataPrimer); fd.set("data_ultim_contacte", dataUltim);
+    fd.set("font_informacio", font); fd.set("rol_tipus", JSON.stringify(rolTipus));
+    fd.set("rol_formal", rolFormal); fd.set("rol_real", rolReal);
+    fd.set("acces_que_aporta", accesAporta); fd.set("mercat_que_pot_obrir", mercat);
+    fd.set("classificacio_relevancia", classificacio); fd.set("notes", notes);
     [["poder_decisio",poderDecisio],["capacitat_execucio",capacitatExec],["capacitat_influencia",capacitatInfl],
      ["impacte_potencial",impactePot],["impacte_actual",impacteAct],["valor_estrategic",valor],
      ["urgencia",urgencia],["prioritat",prioritat],["alineacio_objectius",alineacio],
      ["capacitat_caixa",capCaixa],["capacitat_portes",capPortes],["capacitat_bloqueig",capBloqueig],
      ["capacitat_accelerar",capAccelerar]
     ].forEach(([k,v]) => { if (v!=null) fd.set(k as string, String(v)); });
-    startTransition(async () => { await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    return fd;
+  }
+
+  useEffect(() => {
+    if (!vgMountedRef.current) { vgMountedRef.current = true; return; }
+    if (!nom) return;
+    if (vgTimerRef.current) clearTimeout(vgTimerRef.current);
+    const fd = buildVgFd();
+    vgTimerRef.current = setTimeout(() => {
+      startTransition(async () => { await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    }, 1000);
+    return () => { if (vgTimerRef.current) clearTimeout(vgTimerRef.current); };
+  }, [nom,empresa,carrec,pais,email,telefon,canal,origen,dataPrimer,dataUltim,font,rolTipus,rolFormal,rolReal,poderDecisio,capacitatExec,capacitatInfl,accesAporta,mercat,classificacio,impactePot,impacteAct,valor,urgencia,prioritat,alineacio,capCaixa,capPortes,capBloqueig,capAccelerar,notes]); // eslint-disable-line
+
+  function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (vgTimerRef.current) clearTimeout(vgTimerRef.current);
+    startTransition(async () => { await saveActor(buildVgFd()); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
   }
 
   return (
@@ -276,13 +303,10 @@ function TabVisiogeneral({ actor, onSaved }: { actor: StrategicActor; onSaved: (
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-1">
-        <span className="text-[10px] font-semibold" style={{color:GREEN,opacity:saved?1:0}}>✓ Guardat</span>
-        <button type="submit" disabled={!nom||isPending}
-          className="px-6 py-2.5 rounded-xl text-[11px] font-bold disabled:opacity-40 hover:opacity-80 transition-all"
-          style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-          {isPending?"Guardant…":"Guardar canvis"}
-        </button>
+      <div className="flex items-center justify-end pt-1 gap-3">
+        <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+          {isPending?"Guardant…":"✓ Guardat"}
+        </span>
       </div>
     </form>
   );
@@ -304,18 +328,38 @@ function TabConducta({ actor, onSaved }: { actor: StrategicActor; onSaved: () =>
   const [capNeg, setCapNeg] = useState<number|null>(actor.capacitat_negociacio);
   const [trets, setTrets] = useState<string[]>(actor.trets_conductuals ?? []);
   const [notesCond, setNotesCond] = useState(actor.notes_conductuals ?? "");
+  const cdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cdMountedRef = useRef(false);
 
   function toggleTret(t: string) { setTrets(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]); }
 
-  function handleSave(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+  function buildCdFd() {
+    const fd = new FormData();
     fd.set("id", actor.id);
+    fd.set("estil_comunicacio", estilCom); fd.set("estil_decisio", estilDec);
+    fd.set("velocitat_resposta", velRes); fd.set("tolerancia_risc", tolRisc);
     fd.set("trets_conductuals", JSON.stringify(trets));
+    fd.set("notes_conductuals", notesCond);
     [["fiabilitat_percebuda",fiabilitat],["consistencia",consistencia],["orientacio_resultat",oriRes],
      ["orientacio_relacio",oriRel],["capacitat_negociacio",capNeg]
     ].forEach(([k,v])=>{ if(v!=null) fd.set(k as string,String(v)); });
-    startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    return fd;
+  }
+
+  useEffect(() => {
+    if (!cdMountedRef.current) { cdMountedRef.current = true; return; }
+    if (cdTimerRef.current) clearTimeout(cdTimerRef.current);
+    const fd = buildCdFd();
+    cdTimerRef.current = setTimeout(() => {
+      startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    }, 1000);
+    return () => { if (cdTimerRef.current) clearTimeout(cdTimerRef.current); };
+  }, [estilCom,estilDec,velRes,tolRisc,fiabilitat,consistencia,oriRes,oriRel,capNeg,trets,notesCond]); // eslint-disable-line
+
+  function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (cdTimerRef.current) clearTimeout(cdTimerRef.current);
+    startTransition(async()=>{ await saveActor(buildCdFd()); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
   }
 
   return (
@@ -368,13 +412,10 @@ function TabConducta({ actor, onSaved }: { actor: StrategicActor; onSaved: () =>
           </Field>
         </div>
       </div>
-      <div className="flex items-center justify-between pt-1">
-        <span className="text-[10px] font-semibold" style={{color:GREEN,opacity:saved?1:0}}>✓ Guardat</span>
-        <button type="submit" disabled={isPending}
-          className="px-6 py-2.5 rounded-xl text-[11px] font-bold disabled:opacity-40 hover:opacity-80 transition-all"
-          style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-          {isPending?"Guardant…":"Guardar canvis"}
-        </button>
+      <div className="flex items-center justify-end pt-1">
+        <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+          {isPending?"Guardant…":"✓ Guardat"}
+        </span>
       </div>
     </form>
   );
@@ -387,11 +428,27 @@ function TabPotencialitat({ actor, onSaved }: { actor: StrategicActor; onSaved: 
   const [saved, setSaved] = useState(false);
   const [classif, setClassif] = useState(actor.classificacio_potencial ?? "");
   const [justif, setJustif] = useState(actor.justificacio_potencial ?? "");
+  const ptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ptMountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!ptMountedRef.current) { ptMountedRef.current = true; return; }
+    if (ptTimerRef.current) clearTimeout(ptTimerRef.current);
+    const fd = new FormData();
+    fd.set("id", actor.id);
+    fd.set("classificacio_potencial", classif);
+    fd.set("justificacio_potencial", justif);
+    ptTimerRef.current = setTimeout(() => {
+      startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    }, 1000);
+    return () => { if (ptTimerRef.current) clearTimeout(ptTimerRef.current); };
+  }, [classif, justif]); // eslint-disable-line
 
   function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    fd.set("id", actor.id);
+    if (ptTimerRef.current) clearTimeout(ptTimerRef.current);
+    const fd = new FormData(); fd.set("id", actor.id);
+    fd.set("classificacio_potencial", classif); fd.set("justificacio_potencial", justif);
     startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
   }
 
@@ -437,13 +494,10 @@ function TabPotencialitat({ actor, onSaved }: { actor: StrategicActor; onSaved: 
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-1">
-        <span className="text-[10px] font-semibold" style={{color:GREEN,opacity:saved?1:0}}>✓ Guardat</span>
-        <button type="submit" disabled={isPending}
-          className="px-6 py-2.5 rounded-xl text-[11px] font-bold disabled:opacity-40 hover:opacity-80 transition-all"
-          style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-          {isPending?"Guardant…":"Guardar"}
-        </button>
+      <div className="flex items-center justify-end pt-1">
+        <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+          {isPending?"Guardant…":"✓ Guardat"}
+        </span>
       </div>
     </form>
   );
@@ -464,22 +518,36 @@ function TabRisc({ actor, onSaved }: { actor: StrategicActor; onSaved: () => voi
   const [riscCon, setRiscCon] = useState(actor.risc_conflicte ?? 0);
   const [classifRisc, setClassifRisc] = useState(actor.classificacio_risc ?? "");
   const [notesRisc, setNotesRisc] = useState(actor.notes_risc ?? "");
+  const rcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rcMountedRef = useRef(false);
 
   const RISC_OPT = ["baix","mitja","alt","critic","desconegut"];
 
+  function buildRcFd() {
+    const fd = new FormData();
+    fd.set("id", actor.id);
+    fd.set("risc_comercial", String(riscCom)); fd.set("risc_reputacional", String(riscRep));
+    fd.set("risc_legal", String(riscLeg)); fd.set("risc_financer", String(riscFin));
+    fd.set("risc_dependencia", String(riscDep)); fd.set("risc_incompliment", String(riscInc));
+    fd.set("risc_bloqueig", String(riscBlo)); fd.set("risc_conflicte", String(riscCon));
+    fd.set("classificacio_risc", classifRisc); fd.set("notes_risc", notesRisc);
+    return fd;
+  }
+
+  useEffect(() => {
+    if (!rcMountedRef.current) { rcMountedRef.current = true; return; }
+    if (rcTimerRef.current) clearTimeout(rcTimerRef.current);
+    const fd = buildRcFd();
+    rcTimerRef.current = setTimeout(() => {
+      startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    }, 1000);
+    return () => { if (rcTimerRef.current) clearTimeout(rcTimerRef.current); };
+  }, [riscCom,riscRep,riscLeg,riscFin,riscDep,riscInc,riscBlo,riscCon,classifRisc,notesRisc]); // eslint-disable-line
+
   function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    fd.set("id", actor.id);
-    fd.set("risc_comercial", String(riscCom));
-    fd.set("risc_reputacional", String(riscRep));
-    fd.set("risc_legal", String(riscLeg));
-    fd.set("risc_financer", String(riscFin));
-    fd.set("risc_dependencia", String(riscDep));
-    fd.set("risc_incompliment", String(riscInc));
-    fd.set("risc_bloqueig", String(riscBlo));
-    fd.set("risc_conflicte", String(riscCon));
-    startTransition(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    if (rcTimerRef.current) clearTimeout(rcTimerRef.current);
+    startTransition(async()=>{ await saveActor(buildRcFd()); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
   }
 
   const maxRisc = Math.max(riscCom,riscRep,riscLeg,riscFin,riscDep,riscInc,riscBlo,riscCon);
@@ -536,15 +604,210 @@ function TabRisc({ actor, onSaved }: { actor: StrategicActor; onSaved: () => voi
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-1">
-        <span className="text-[10px] font-semibold" style={{color:GREEN,opacity:saved?1:0}}>✓ Guardat</span>
-        <button type="submit" disabled={isPending}
-          className="px-6 py-2.5 rounded-xl text-[11px] font-bold disabled:opacity-40 hover:opacity-80 transition-all"
-          style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-          {isPending?"Guardant…":"Guardar"}
-        </button>
+      <div className="flex items-center justify-end pt-1">
+        <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+          {isPending?"Guardant…":"✓ Guardat"}
+        </span>
       </div>
     </form>
+  );
+}
+
+// ─── Searchable entity combobox ───────────────────────────────────────────────
+
+const FREE_TEXT_TYPES = new Set(["mercat","institucio","proveidor"]);
+const ENT_ICONS: Record<string,string> = { actor:"👤", projecte:"📋", objectiu:"🎯", producte:"📦", mercat:"🌍", institucio:"🏛", client:"🤝", proveidor:"⚙️" };
+const ENT_TYPES = ["actor","projecte","objectiu","producte","mercat","institucio","client","proveidor"];
+
+function EntityCombobox({
+  tipus, value, onChange,
+}: {
+  tipus: string;
+  value: string;
+  onChange: (nom: string) => void;
+}) {
+  const [options, setOptions]   = useState<VincleOption[]>([]);
+  const [query,   setQuery]     = useState(value);
+  const [open,    setOpen]      = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const containerRef            = useRef<HTMLDivElement>(null);
+
+  // Reload options when tipus changes
+  useEffect(() => {
+    setQuery(""); onChange("");
+    if (FREE_TEXT_TYPES.has(tipus)) { setOptions([]); return; }
+    setLoading(true);
+    getVincleOptions(tipus).then(opts => { setOptions(opts); setLoading(false); });
+  }, [tipus]); // eslint-disable-line
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = query.length === 0
+    ? options.slice(0, 40)
+    : options.filter(o =>
+        o.label.toLowerCase().includes(query.toLowerCase()) ||
+        (o.sub ?? "").toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 40);
+
+  if (FREE_TEXT_TYPES.has(tipus)) {
+    return (
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder="Nom…"
+        className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
+        style={{backgroundColor:CARD, border:`1px solid ${BORDER2}`, color:TEXT}} />
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder={loading ? "Carregant…" : "Escriu per buscar…"}
+        className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
+        style={{backgroundColor:CARD, border:`1px solid ${open ? TEXT : BORDER2}`, color:TEXT}}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl overflow-hidden shadow-lg"
+          style={{backgroundColor:CARD, border:`1px solid ${BORDER2}`, maxHeight:220, overflowY:"auto"}}>
+          {filtered.map(opt => (
+            <button key={opt.id} type="button"
+              onMouseDown={e => { e.preventDefault(); setQuery(opt.label); onChange(opt.label); setOpen(false); }}
+              className="w-full text-left px-3 py-2.5 flex flex-col gap-0.5 hover:bg-gray-50 transition-colors"
+              style={{borderBottom:`1px solid ${BORDER}`}}>
+              <span className="text-[12px] font-medium" style={{color:TEXT}}>{opt.label}</span>
+              {opt.sub && <span className="text-[9px]" style={{color:LABEL}}>{opt.sub}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && !loading && filtered.length === 0 && query.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl px-3 py-2.5 text-[11px]"
+          style={{backgroundColor:CARD, border:`1px solid ${BORDER2}`, color:LABEL}}>
+          Sense resultats · es guardarà el text escrit
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Vincle row (with inline edit) ───────────────────────────────────────────
+
+function VincleRow({ link, actorId, VINCLE_COLORS, onSaved }: {
+  link: ActorLink;
+  actorId: string;
+  VINCLE_COLORS: Record<string,string>;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing]       = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [eTipus, setETipus]         = useState(link.entitat_tipus);
+  const [eNom,   setENom]           = useState(link.entitat_nom);
+  const [vincle, setVincle]         = useState(link.tipus_vincle ?? "fort");
+  const [desc,   setDesc]           = useState(link.descripcio ?? "");
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!eNom.trim()) return;
+    const fd = new FormData();
+    fd.set("id", link.id);
+    fd.set("actor_id", actorId);
+    fd.set("entitat_tipus", eTipus);
+    fd.set("entitat_nom", eNom.trim());
+    fd.set("tipus_vincle", vincle);
+    fd.set("descripcio", desc);
+    startTransition(async () => { await updateLink(fd); setEditing(false); onSaved(); });
+  }
+
+  function handleDelete() {
+    startTransition(async () => { await deleteLink(link.id, actorId); onSaved(); });
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave} className="p-4 space-y-3 rounded-xl"
+        style={{backgroundColor:SURFACE,border:`1px solid ${BORDER2}`}}>
+        <Field label="Tipus entitat">
+          <div className="flex flex-wrap gap-1.5">
+            {ENT_TYPES.map(t => (
+              <button key={t} type="button" onClick={() => { setETipus(t); if (t !== eTipus) setENom(""); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all"
+                style={{backgroundColor:eTipus===t?TEXT:CARD,border:`1px solid ${eTipus===t?TEXT:BORDER2}`,color:eTipus===t?"#FFFFFF":DIM}}>
+                <span>{ENT_ICONS[t]}</span><span>{t.charAt(0).toUpperCase()+t.slice(1)}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Nom / entitat *">
+          <EntityCombobox tipus={eTipus} value={eNom} onChange={setENom} />
+        </Field>
+        <Field label="Tipus de vincle">
+          <div className="flex flex-wrap gap-1.5">
+            {["fort","feble","incert","conflictiu","influencia","dependencia","confianca"].map(v=>(
+              <button key={v} type="button" onClick={()=>setVincle(v)}
+                className="px-2.5 py-1 rounded-lg text-[9px] font-medium transition-all"
+                style={{backgroundColor:vincle===v?(VINCLE_COLORS[v]??"#000"):CARD,border:`1px solid ${vincle===v?(VINCLE_COLORS[v]??BORDER):BORDER2}`,color:vincle===v?"#FFFFFF":DIM}}>
+                {v}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Descripció">
+          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Descripció del vincle…"
+            className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
+            style={{backgroundColor:CARD,border:`1px solid ${BORDER2}`,color:TEXT}} />
+        </Field>
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={handleDelete} disabled={isPending}
+            className="text-[10px] hover:opacity-70 disabled:opacity-40" style={{color:RED}}>
+            Eliminar vincle
+          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={()=>setEditing(false)} className="px-3 py-1.5 text-[10px] rounded-lg" style={{color:LABEL}}>Cancel·lar</button>
+            <button type="submit" disabled={!eNom.trim()||isPending}
+              className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
+              style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
+              {isPending?"Guardant…":"Guardar canvis"}
+            </button>
+          </div>
+        </div>
+      </form>
+    );
+  }
+
+  const vc = VINCLE_COLORS[link.tipus_vincle ?? ""] ?? LABEL;
+  return (
+    <div className="rounded-xl px-4 py-3 flex items-start gap-3 group"
+      style={{backgroundColor:CARD,border:`1px solid ${BORDER}`}}>
+      <span className="text-lg shrink-0">{ENT_ICONS[link.entitat_tipus]??""}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-[12px] font-semibold" style={{color:TEXT}}>{link.entitat_nom}</p>
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
+            style={{backgroundColor:`${vc}12`,color:vc,border:`1px solid ${vc}25`}}>
+            {link.tipus_vincle}
+          </span>
+          <span className="text-[9px]" style={{color:LABEL}}>{link.entitat_tipus}</span>
+        </div>
+        {link.descripcio && <p className="text-[10px] mt-0.5" style={{color:DIM}}>{link.descripcio}</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button type="button" onClick={()=>setEditing(true)}
+          className="text-[10px] hover:opacity-70 px-2 py-0.5 rounded"
+          style={{color:DIM,border:`1px solid ${BORDER}`}}>
+          Editar
+        </button>
+        <button type="button" onClick={handleDelete}
+          className="text-[10px] hover:opacity-70" style={{color:LABEL}}>×</button>
+      </div>
+    </div>
   );
 }
 
@@ -554,7 +817,7 @@ function TabVincles({ actorId }: { actorId: string }) {
   const [links, setLinks] = useState<ActorLink[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [entTipus, setEntTipus] = useState("projecte");
+  const [entTipus, setEntTipus] = useState("actor");
   const [entNom, setEntNom] = useState("");
   const [tipusVincle, setTipusVincle] = useState("fort");
   const [desc, setDesc] = useState("");
@@ -568,10 +831,11 @@ function TabVincles({ actorId }: { actorId: string }) {
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    if (!entNom.trim()) return;
     const fd = new FormData();
     fd.set("actor_id", actorId);
     fd.set("entitat_tipus", entTipus);
-    fd.set("entitat_nom", entNom);
+    fd.set("entitat_nom", entNom.trim());
     fd.set("tipus_vincle", tipusVincle);
     fd.set("descripcio", desc);
     startTransition(async () => {
@@ -582,12 +846,11 @@ function TabVincles({ actorId }: { actorId: string }) {
   }
 
   const VINCLE_COLORS: Record<string,string> = { fort:BLUE, feble:DIM, incert:LABEL, conflictiu:RED, influencia:AMBER, dependencia:RED, confianca:GREEN };
-  const ENT_ICONS: Record<string,string> = { actor:"👤", projecte:"📋", objectiu:"🎯", producte:"📦", mercat:"🌍", institucio:"🏛", client:"🤝", proveidor:"⚙️" };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={()=>setShowForm(!showForm)}
+        <button onClick={()=>{ setShowForm(!showForm); setEntNom(""); setDesc(""); }}
           className="px-4 py-2 rounded-xl text-[10px] font-bold transition-all hover:opacity-80"
           style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
           + Nou vincle
@@ -595,22 +858,30 @@ function TabVincles({ actorId }: { actorId: string }) {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAdd} className="p-4 space-y-3 rounded-xl" style={{backgroundColor:SURFACE,border:`1px solid ${BORDER2}`}}>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipus entitat">
-              <select value={entTipus} onChange={e=>setEntTipus(e.target.value)}
-                className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
-                style={{backgroundColor:CARD,border:`1px solid ${BORDER2}`,color:TEXT}}>
-                {["actor","projecte","objectiu","producte","mercat","institucio","client","proveidor"].map(t=>
-                  <option key={t} value={t}>{ENT_ICONS[t]} {t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
-              </select>
-            </Field>
-            <Field label="Nom / entitat *">
-              <input value={entNom} onChange={e=>setEntNom(e.target.value)} placeholder="Nom…"
-                className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
-                style={{backgroundColor:CARD,border:`1px solid ${BORDER2}`,color:TEXT}} />
-            </Field>
-          </div>
+        <form onSubmit={handleAdd} className="p-4 space-y-4 rounded-xl" style={{backgroundColor:SURFACE,border:`1px solid ${BORDER2}`}}>
+          {/* Tipus entitat */}
+          <Field label="Tipus entitat">
+            <div className="flex flex-wrap gap-1.5">
+              {ENT_TYPES.map(t => (
+                <button key={t} type="button" onClick={() => setEntTipus(t)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all"
+                  style={{
+                    backgroundColor: entTipus===t ? TEXT : CARD,
+                    border: `1px solid ${entTipus===t ? TEXT : BORDER2}`,
+                    color: entTipus===t ? "#FFFFFF" : DIM,
+                  }}>
+                  <span>{ENT_ICONS[t]}</span>
+                  <span>{t.charAt(0).toUpperCase()+t.slice(1)}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          {/* Searchable entity name */}
+          <Field label="Nom / entitat *">
+            <EntityCombobox tipus={entTipus} value={entNom} onChange={setEntNom} />
+          </Field>
+
           <Field label="Tipus de vincle">
             <div className="flex flex-wrap gap-1.5">
               {["fort","feble","incert","conflictiu","influencia","dependencia","confianca"].map(v=>(
@@ -622,14 +893,16 @@ function TabVincles({ actorId }: { actorId: string }) {
               ))}
             </div>
           </Field>
+
           <Field label="Descripció">
             <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Descripció del vincle…"
               className="w-full outline-none text-[12px] rounded-lg px-3 py-2"
               style={{backgroundColor:CARD,border:`1px solid ${BORDER2}`,color:TEXT}} />
           </Field>
+
           <div className="flex justify-end gap-2">
             <button type="button" onClick={()=>setShowForm(false)} className="px-3 py-1.5 text-[10px] rounded-lg" style={{color:LABEL}}>Cancel·lar</button>
-            <button type="submit" disabled={!entNom||isPending}
+            <button type="submit" disabled={!entNom.trim()||isPending}
               className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
               style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
               Afegir vincle
@@ -646,28 +919,12 @@ function TabVincles({ actorId }: { actorId: string }) {
       )}
 
       <div className="space-y-2">
-        {links.map(link=>{
-          const vc = VINCLE_COLORS[link.tipus_vincle ?? ""] ?? LABEL;
-          return (
-            <div key={link.id} className="rounded-xl px-4 py-3 flex items-start gap-3"
-              style={{backgroundColor:CARD,border:`1px solid ${BORDER}`}}>
-              <span className="text-lg shrink-0">{ENT_ICONS[link.entitat_tipus]??""}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-[12px] font-semibold" style={{color:TEXT}}>{link.entitat_nom}</p>
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase"
-                    style={{backgroundColor:`${vc}12`,color:vc,border:`1px solid ${vc}25`}}>
-                    {link.tipus_vincle}
-                  </span>
-                  <span className="text-[9px]" style={{color:LABEL}}>{link.entitat_tipus}</span>
-                </div>
-                {link.descripcio && <p className="text-[10px] mt-0.5" style={{color:DIM}}>{link.descripcio}</p>}
-              </div>
-              <button type="button" onClick={()=>startTransition(async()=>{ await deleteLink(link.id,actorId); reload(); })}
-                className="text-[10px] hover:opacity-70 shrink-0" style={{color:LABEL}}>×</button>
-            </div>
-          );
-        })}
+        {links.map(link => (
+          <VincleRow key={link.id} link={link} actorId={actorId}
+            VINCLE_COLORS={VINCLE_COLORS}
+            onSaved={() => { startTransition(async()=>{ reload(); }); }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -1106,6 +1363,24 @@ function TabIA({ actor, onSaved }: { actor: StrategicActor; onSaved: () => void 
   const [motiuPDI, setMotiuPDI] = useState(actor.motiu_pdi ?? "");
   const [tipusInfluencia, setTipusInfluencia] = useState(actor.tipus_influencia_pdi ?? "");
   const [pdiNotes, setPdiNotes] = useState(actor.pdi_notes ?? "");
+  const iaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iaMountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!iaMountedRef.current) { iaMountedRef.current = true; return; }
+    if (iaTimerRef.current) clearTimeout(iaTimerRef.current);
+    const fd = new FormData();
+    fd.set("id", actor.id);
+    fd.set("estrategia_ia", estrategia);
+    fd.set("is_pdi", String(isPDI));
+    fd.set("motiu_pdi", motiuPDI);
+    fd.set("tipus_influencia_pdi", tipusInfluencia);
+    fd.set("pdi_notes", pdiNotes);
+    iaTimerRef.current = setTimeout(() => {
+      startPending(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
+    }, 1000);
+    return () => { if (iaTimerRef.current) clearTimeout(iaTimerRef.current); };
+  }, [estrategia, isPDI, motiuPDI, tipusInfluencia, pdiNotes]); // eslint-disable-line
 
   const alertes: ActorAlert[] = Array.isArray(actor.alertes_ia) ? actor.alertes_ia as ActorAlert[] : [];
   const SEV_COLOR: Record<string,string> = { baixa:GREEN, mitja:AMBER, alta:RED, critica:"#7F1D1D" };
@@ -1216,15 +1491,9 @@ function TabIA({ actor, onSaved }: { actor: StrategicActor; onSaved: () => void 
             className="w-full outline-none resize-none text-[12px] leading-relaxed rounded-lg px-3 py-2"
             style={{backgroundColor:SURFACE,border:`1px solid ${BORDER2}`,color:TEXT}} />
           <div className="flex justify-end mt-2">
-            <button type="button" onClick={()=>{
-              const fd = new FormData();
-              fd.set("id", actor.id);
-              fd.set("estrategia_ia", estrategia);
-              startPending(async()=>{ await saveActor(fd); setSaved(true); setTimeout(()=>setSaved(false),2000); onSaved(); });
-            }} disabled={isPending} className="px-4 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
-              style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-              Guardar estratègia
-            </button>
+            <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+              {isPending?"Guardant…":"✓ Guardat"}
+            </span>
           </div>
         </div>
       </div>
@@ -1261,17 +1530,14 @@ function TabIA({ actor, onSaved }: { actor: StrategicActor; onSaved: () => void 
                 placeholder="Informació rellevant per exportar (evitar dades sensibles)…" rows={2} />
             </Field>
             <div className="flex items-center gap-3 pt-1">
-              <button type="submit" disabled={isPending}
-                className="px-4 py-2 rounded-xl text-[10px] font-bold disabled:opacity-40"
-                style={{backgroundColor:TEXT,color:"#FFFFFF"}}>
-                Guardar PDI
-              </button>
               <button type="button" onClick={handleExport} disabled={isExporting}
                 className="px-4 py-2 rounded-xl text-[10px] font-bold disabled:opacity-40 hover:opacity-80 transition-all"
                 style={{backgroundColor:"#6B21A8",color:"#FFFFFF"}}>
                 {isExporting?"Exportant…":"Exportar al Diari →"}
               </button>
-              {saved && <span className="text-[10px]" style={{color:GREEN}}>✓ Guardat</span>}
+              <span className="text-[10px]" style={{color:isPending?LABEL:saved?GREEN:"transparent",transition:"color 200ms"}}>
+                {isPending?"Guardant…":"✓ Guardat"}
+              </span>
             </div>
             {exportPreview && (
               <div className="rounded-lg p-3 mt-2" style={{backgroundColor:`#6B21A808`,border:`1px solid #6B21A825`}}>

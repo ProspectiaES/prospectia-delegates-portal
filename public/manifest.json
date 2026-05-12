@@ -1,5 +1,5 @@
 {
-  "name": "Prospectia Delegates Portal",
+  "name": "Prospectia Dashboard",
   "short_name": "Prospectia",
   "description": "Portal de delegados Prospectia",
   "start_url": "/dashboard",
@@ -11,7 +11,9 @@
   "lang": "es",
   "categories": ["business", "productivity"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

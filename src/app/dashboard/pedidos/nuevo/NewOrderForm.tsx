@@ -111,12 +111,6 @@ function effectiveBasePrice(p: Product, tarifa: Tarifa): number {
   return p.price ?? 0;
 }
 
-function priceWithTax(p: Product, tarifa: Tarifa): number {
-  const base = effectiveBasePrice(p, tarifa);
-  if (!p.price || p.price === 0) return base;
-  const multiplier = (p.total ?? p.price) / p.price;
-  return base * multiplier;
-}
 
 // ─── Radio group helper ────────────────────────────────────────────────────────
 
@@ -219,7 +213,7 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
   const orderTotal = lines.reduce((sum, l) => {
     const p = products.find(p => p.id === l.productId);
     if (!p) return sum;
-    return sum + priceWithTax(p, tarifa) * l.units * (1 - l.discount / 100);
+    return sum + effectiveBasePrice(p, tarifa) * l.units * (1 - l.discount / 100);
   }, 0);
 
   const TARIFA_OPTIONS: { value: Tarifa; label: string; desc: string }[] = [
@@ -368,6 +362,28 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
                   <input name="new_phone" type="tel" className={inputCls} />
                 </div>
 
+                {/* Dirección */}
+                <div className="col-span-2">
+                  <label className={labelCls}>Dirección</label>
+                  <input name="new_address" type="text" placeholder="Calle, número, piso…" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Población</label>
+                  <input name="new_city" type="text" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Código postal</label>
+                  <input name="new_postal_code" type="text" placeholder="08001" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Provincia</label>
+                  <input name="new_province" type="text" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>País</label>
+                  <input name="new_country" type="text" defaultValue="España" className={inputCls} />
+                </div>
+
                 {/* Recomendador */}
                 <RecommenderField contacts={contacts} />
 
@@ -475,9 +491,9 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
 
         <div className="divide-y divide-[#F3F4F6]">
           {lines.map((line, idx) => {
-            const product  = products.find(p => p.id === line.productId);
-            const pvtax    = product ? priceWithTax(product, tarifa) : 0;
-            const lineTotal = pvtax * line.units * (1 - line.discount / 100);
+            const product   = products.find(p => p.id === line.productId);
+            const basePrice = product ? effectiveBasePrice(product, tarifa) : 0;
+            const lineTotal = basePrice * line.units * (1 - line.discount / 100);
 
             return (
               <div key={line.key} className="px-5 py-4 space-y-3">
@@ -509,6 +525,13 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
                 <input type="hidden" name="product_name[]"  value={product?.name ?? ""} />
                 <input type="hidden" name="product_price[]" value={product ? effectiveBasePrice(product, tarifa) : 0} />
                 <input type="hidden" name="product_taxes[]" value={(product?.taxes ?? []).join(",")} />
+                {/* Always emit units/discount so array indices align with product_id[] */}
+                {!line.productId && (
+                  <>
+                    <input type="hidden" name="units[]"    value="1" />
+                    <input type="hidden" name="discount[]" value="0" />
+                  </>
+                )}
 
                 {line.productId && (
                   <div className="flex items-center gap-3 pl-7">
@@ -539,8 +562,8 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
                     </div>
                     <div className="ml-auto text-right">
                       <p className="text-[10px] text-[#9CA3AF]">
-                        {fmtEuro(pvtax)} / ud · IVA incl.
-                        {product && effectiveBasePrice(product, tarifa) !== (product.price ?? 0) && (
+                        {fmtEuro(basePrice)} / ud · s/ IVA
+                        {product && basePrice !== (product.price ?? 0) && (
                           <span className="ml-1 text-[#8E0E1A] font-semibold">{tarifa.toUpperCase()}</span>
                         )}
                       </p>
@@ -554,7 +577,7 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
         </div>
 
         <div className="px-5 py-3 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center justify-between">
-          <span className="text-xs font-medium text-[#6B7280]">Total pedido (IVA incl.)</span>
+          <span className="text-xs font-medium text-[#6B7280]">Base imponible total (s/ IVA)</span>
           <span className="text-base font-bold text-[#0A0A0A] tabular-nums">{fmtEuro(orderTotal)}</span>
         </div>
       </section>

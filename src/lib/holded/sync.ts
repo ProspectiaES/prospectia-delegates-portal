@@ -182,23 +182,30 @@ async function upsertBatched<T extends Record<string, unknown>>(
 }
 
 function toSalesOrderRow(d: HoldedDocument) {
+  const raw = d as Record<string, unknown>;
+  const shippingStatus = typeof raw.shippingStatus === "number" ? raw.shippingStatus : null;
+  const pickupTs   = typeof raw.pickupdate   === "number" && (raw.pickupdate   as number) > 0
+    ? new Date((raw.pickupdate   as number) * 1000).toISOString() : null;
+  const deliveryTs = typeof raw.deliverydate === "number" && (raw.deliverydate as number) > 0
+    ? new Date((raw.deliverydate as number) * 1000).toISOString() : null;
   return {
-    id:             d.id,
-    doc_number:     d.docNumber        ?? null,
-    contact_id:     d.contact          ?? null,
-    contact_name:   d.contactName      ?? null,
-    date:           d.date ? new Date(d.date * 1000).toISOString() : null,
-    due_date:       d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
-    total:          docAmount(d),
-    // Holded salesorder status: 0=draft 1=pending 2=approved 3=invoiced
-    // raw.shippingStatus or raw.invoicedStatus may also indicate full invoicing;
-    // we rely on Holded updating status to 3 when the order is fully invoiced.
-    status:         typeof (d as Record<string,unknown>).status === "number"
-                      ? (d as Record<string,unknown>).status as number
-                      : 0,
-    description:    (d as Record<string,unknown>).desc as string ?? null,
-    raw:            d,
-    last_synced_at: new Date().toISOString(),
+    id:                    d.id,
+    doc_number:            d.docNumber        ?? null,
+    contact_id:            d.contact          ?? null,
+    contact_name:          d.contactName      ?? null,
+    date:                  d.date ? new Date(d.date * 1000).toISOString() : null,
+    due_date:              d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
+    total:                 docAmount(d),
+    status:                typeof raw.status === "number" ? raw.status as number : 0,
+    shipping_status:       shippingStatus,
+    description:           raw.desc as string ?? null,
+    tracking_company_key:  typeof raw.trackingkey  === "string" && raw.trackingkey  ? raw.trackingkey  : null,
+    tracking_company_name: typeof raw.trackingname === "string" && raw.trackingname ? raw.trackingname : null,
+    tracking_number:       typeof raw.trackingnum  === "string" && raw.trackingnum  ? raw.trackingnum  : null,
+    tracking_pickup_date:  pickupTs,
+    tracking_delivery_date: deliveryTs,
+    raw:                   d,
+    last_synced_at:        new Date().toISOString(),
   };
 }
 
