@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContact, createSalesOrder, updateSalesOrder, getDocument, getHoldedTaxes } from "@/lib/holded/api";
 import { sendMail, buildOrderEmail } from "@/lib/email";
+import { sendTelegram, buildOrderTelegram } from "@/lib/telegram";
 
 export interface OrderFormState {
   error?: string;
@@ -208,19 +209,17 @@ export async function submitOrder(
       ?? (profile as Record<string, unknown> | null)?.full_name as string
       ?? "Portal";
     const orderTotal = lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0);
+    const orderUrl = `${process.env.APP_URL ?? "https://dashboard.prospectia.es"}/dashboard/pedidos/${created.id}`;
+
     sendMail({
       to: notifyTo,
       subject: `Nuevo pedido ${docNumber ?? created.id} de ${delegateName}`,
-      html: buildOrderEmail({
-        docNumber,
-        contactName,
-        delegateName,
-        lines,
-        notes,
-        total: orderTotal,
-        orderUrl: `${process.env.APP_URL ?? "https://dashboard.prospectia.es"}/dashboard/pedidos/${created.id}`,
-      }),
+      html: buildOrderEmail({ docNumber, contactName, delegateName, lines, notes, total: orderTotal, orderUrl }),
     }).catch(() => { /* best-effort */ });
+
+    sendTelegram(
+      buildOrderTelegram({ docNumber, contactName, delegateName, lines, notes, total: orderTotal, orderUrl })
+    ).catch(() => { /* best-effort */ });
 
     return { success: true, orderId: created.id, docNumber: docNumber ?? "" };
   } catch (e) {
