@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContact, createSalesOrder, updateSalesOrder, getDocument, getHoldedTaxes } from "@/lib/holded/api";
+import { sendMail, buildOrderEmail } from "@/lib/email";
 
 export interface OrderFormState {
   error?: string;
@@ -25,7 +26,7 @@ export async function submitOrder(
   // Fetch profile to know the role (needed for contact_delegates)
   const { data: profile } = await admin
     .from("profiles")
-    .select("id, role")
+    .select("id, role, full_name, delegate_name")
     .eq("id", user.id)
     .maybeSingle();
   const isDelegate = profile?.role === "DELEGATE";
@@ -200,6 +201,27 @@ export async function submitOrder(
 
     revalidatePath("/dashboard/pedidos");
     revalidatePath(`/dashboard/clientes/${contactId}`);
+
+    // Email notification — non-blocking, never fails the action
+    const notifyTo = process.env.NOTIFY_EMAIL ?? "lvila@prospectia.es";
+    const delegateName = (profile as Record<string, unknown> | null)?.delegate_name as string
+      ?? (profile as Record<string, unknown> | null)?.full_name as string
+      ?? "Portal";
+    const orderTotal = lines.reduce((s, l) => s + l.units * l.price * (1 - (l.discount ?? 0) / 100), 0);
+    sendMail({
+      to: notifyTo,
+      subject: `Nuevo pedido ${docNumber ?? created.id} de ${delegateName}`,
+      html: buildOrderEmail({
+        docNumber,
+        contactName,
+        delegateName,
+        lines,
+        notes,
+        total: orderTotal,
+        orderUrl: `${process.env.APP_URL ?? "https://dashboard.prospectia.es"}/dashboard/pedidos/${created.id}`,
+      }),
+    }).catch(() => { /* best-effort */ });
+
     return { success: true, orderId: created.id, docNumber: docNumber ?? "" };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Error al crear el pedido en Holded" };
