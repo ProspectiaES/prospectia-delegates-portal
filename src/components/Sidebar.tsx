@@ -424,6 +424,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
   const isDelegate      = role === "DELEGATE";
   const isOwner         = role === "OWNER";
   const isConsigliere   = role === "CONSIGLIERE";
+  const isAnyDelegate   = isDelegate || isKol || isCoordinator || role === "KOL" || role === "COORDINATOR";
   const canSeeTeam      = !isDelegate || isKol || isCoordinator;
   return [
     {
@@ -436,6 +437,14 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
           exact: !(isDelegate && !isKol && !isCoordinator),
           startsWith: (isDelegate && !isKol && !isCoordinator) ? `/dashboard/delegados/${userId}` : undefined,
         },
+        // KOL / COORDINATOR also need a direct link to their own delegate page
+        ...(isAnyDelegate && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
+          href:  `/dashboard/delegados/${userId}`,
+          label: "Mi cartera",
+          Icon:  IconClientes,
+          exact: false,
+          startsWith: `/dashboard/delegados/${userId}`,
+        }] : []),
       ],
     },
     {
@@ -450,6 +459,12 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       label: "Ventas",
       items: [
         { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
+        ...(isAnyDelegate ? [{
+          href:  `/dashboard/delegados/${userId}/riesgo`,
+          label: "Informe de riesgo",
+          Icon:  IconFacturas,
+          exact: false,
+        }] : []),
       ],
     },
     ...(canSeeTeam ? [{

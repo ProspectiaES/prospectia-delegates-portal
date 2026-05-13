@@ -99,8 +99,9 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     .eq("id", id)
     .maybeSingle();
 
-  // Allow DELEGATE role or OWNER profiles flagged as delegate (PROSPECTIA CASA)
-  if (!delegateData || (delegateData.role !== "DELEGATE" && !delegateData.show_in_delegate_list)) notFound();
+  // Allow DELEGATE, KOL, COORDINATOR roles or OWNER profiles flagged as delegate (PROSPECTIA CASA)
+  const DELEGATE_ROLES = ["DELEGATE", "KOL", "COORDINATOR"];
+  if (!delegateData || (!DELEGATE_ROLES.includes(delegateData.role) && !delegateData.show_in_delegate_list)) notFound();
 
   const delegate = delegateData as DelegateProfile;
   const isOwner  = profile?.role === "OWNER";

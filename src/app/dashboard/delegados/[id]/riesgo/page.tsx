@@ -3,6 +3,10 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
 import { PrintButton } from "./PrintButton";
+import { SyncButton } from "./SyncButton";
+
+const fmtDateTime = (s: string | null) =>
+  s ? new Date(s).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
 const fmtEuro = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
@@ -44,21 +48,28 @@ export default async function RiesgoInformePage({
 
   const admin = createAdminClient();
 
-  const [delegateRes, cdRes] = await Promise.all([
+  const [delegateRes, cdRes, lastSyncRes] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, delegate_name, email")
       .eq("id", id)
       .maybeSingle(),
     admin.from("contact_delegates").select("contact_id").eq("delegate_id", id),
+    admin.from("holded_sync_log")
+      .select("finished_at")
+      .eq("status", "completed")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const delegate = delegateRes.data;
   if (!delegate) notFound();
 
-  // Only OWNER or the delegate themselves
+  // OWNER sees anyone's report; each actor sees only their own
   if (profile.role !== "OWNER" && profile.id !== id) redirect("/dashboard");
 
   const contactIds = (cdRes.data ?? []).map(r => r.contact_id);
+  const lastSyncAt = (lastSyncRes.data as { finished_at: string | null } | null)?.finished_at ?? null;
 
   const invoicesRes = contactIds.length > 0
     ? await admin.from("holded_invoices")
@@ -124,12 +135,22 @@ export default async function RiesgoInformePage({
           <Link href={`/dashboard/delegados/${id}`} className="text-xs text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors">
             ← {delegateName}
           </Link>
-          <PrintButton />
+          <div className="flex items-center gap-2">
+            <SyncButton />
+            <PrintButton />
+          </div>
         </div>
 
         {/* Report header */}
         <div className="border-b-2 border-[#0A0A0A] pb-4">
-          <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-1">Informe de riesgo · {fmtNow()}</p>
+          <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest mb-1">
+            Informe de riesgo · {fmtNow()}
+            {lastSyncAt && (
+              <span className="ml-3 normal-case font-normal text-[#9CA3AF]">
+                · Última sync Holded: {fmtDateTime(lastSyncAt)}
+              </span>
+            )}
+          </p>
           <h1 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">{delegateName}</h1>
           {delegate.email && <p className="text-sm text-[#6B7280] mt-0.5">{delegate.email}</p>}
         </div>
