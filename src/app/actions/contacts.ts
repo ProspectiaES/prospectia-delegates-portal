@@ -30,6 +30,9 @@ export async function updateContactAction(
   const typeStr = formData.get("type") as string;
   const type = typeStr !== "" ? parseInt(typeStr, 10) : undefined;
 
+  const recargo = formData.get("recargo") === "on";
+  const recargoCode = recargo ? "s_rec_14" : "";
+
   const payload = {
     name,
     code:   (formData.get("code")   as string) || undefined,
@@ -45,6 +48,7 @@ export async function updateContactAction(
       province:   (formData.get("province")    as string) || undefined,
       country:    (formData.get("country")     as string) || undefined,
     },
+    defaults: { salesTax: recargoCode },
   };
 
   try {
@@ -53,8 +57,27 @@ export async function updateContactAction(
     return { error: err instanceof Error ? err.message : "Error al actualizar en Holded" };
   }
 
+  // Check ownership for payment field updates
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isOwner = profileData?.role === "OWNER";
+
   const admin = createAdminClient();
-  const { error: dbErr } = await admin.from("holded_contacts").update({
+
+  // Merge salesTax into existing raw so recargo is readable immediately
+  const { data: currentContact } = await admin
+    .from("holded_contacts")
+    .select("raw")
+    .eq("id", id)
+    .maybeSingle();
+  const currentRaw = (currentContact?.raw ?? {}) as Record<string, unknown>;
+  const currentDefaults = (currentRaw.defaults as Record<string, unknown>) ?? {};
+  const updatedRaw = { ...currentRaw, defaults: { ...currentDefaults, salesTax: recargoCode } };
+
+  const dbUpdate: Record<string, unknown> = {
     name:        payload.name,
     code:        payload.code        ?? null,
     email:       payload.email       ?? null,
@@ -67,8 +90,20 @@ export async function updateContactAction(
     postal_code: payload.billAddress?.postalCode ?? null,
     province:    payload.billAddress?.province   ?? null,
     country:     payload.billAddress?.country    ?? null,
+    raw:         updatedRaw,
     last_synced_at: new Date().toISOString(),
-  }).eq("id", id);
+  };
+
+  if (isOwner) {
+    const paymentMethod = (formData.get("payment_method") as string) || null;
+    const iban = (formData.get("iban") as string)?.trim().replace(/\s+/g, "") || null;
+    const bic  = (formData.get("bic")  as string)?.trim().toUpperCase() || null;
+    dbUpdate.payment_method = paymentMethod;
+    dbUpdate.iban = iban;
+    dbUpdate.bic  = bic;
+  }
+
+  const { error: dbErr } = await admin.from("holded_contacts").update(dbUpdate).eq("id", id);
 
   if (dbErr) {
     return { error: `Holded actualizado, pero error al sincronizar BD: ${dbErr.message}` };

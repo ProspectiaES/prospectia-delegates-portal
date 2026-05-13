@@ -295,6 +295,9 @@ export interface HoldedContactUpdatePayload {
     country?: string;
     countryCode?: string;
   };
+  defaults?: {
+    salesTax?: string;
+  };
 }
 
 export async function updateContact(
