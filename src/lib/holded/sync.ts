@@ -92,7 +92,8 @@ function extractDatePaid(d: HoldedDocument): string | null {
 //   0 = emitida (not yet paid — pending or overdue based on dueDate)
 //   1 = cobrada (fully paid)
 //   3 = anulada (cancelled/void)
-// NOTE: paymentsPending can have floating-point errors (~1e-14) instead of exact 0.
+// NOTE: the list API often lags: a payment is registered immediately in paymentsPending
+// but status stays 0 for seconds/minutes. We use paymentsPending as the primary signal.
 function computeInvoiceStatus(d: HoldedDocument): number {
   const raw = d as Record<string, unknown>;
 
@@ -100,12 +101,15 @@ function computeInvoiceStatus(d: HoldedDocument): number {
 
   const holdedStatus = typeof raw.status === "number" ? raw.status : null;
 
-  if (holdedStatus === 1) return 3; // cobrada
+  if (holdedStatus === 1) return 3; // cobrada — explicit signal
   if (holdedStatus === 3) return 0; // anulada — treat as void/draft
 
-  // holdedStatus === 0: emitida — differentiate pending vs overdue.
-  // Use dueDate when available; fall back to invoice date (Spanish norm: due on issuance
-  // unless an explicit payment term is set, so unpaid past-date = overdue).
+  // paymentsPending is the authoritative outstanding amount.
+  // Float errors from Holded can be ~1e-14 on a fully-paid invoice, so threshold at 0.02.
+  const paymentsPending = typeof raw.paymentsPending === "number" ? raw.paymentsPending : null;
+  if (paymentsPending !== null && paymentsPending < 0.02) return 3; // fully paid despite status=0
+
+  // holdedStatus === 0 with outstanding amount → pending vs overdue by date.
   const nowSec = Math.floor(Date.now() / 1000);
   const effectiveDue = d.dueDate ?? d.date;
   if (effectiveDue && effectiveDue < nowSec) return 2; // vencida
