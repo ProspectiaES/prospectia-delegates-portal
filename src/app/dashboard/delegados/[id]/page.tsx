@@ -138,7 +138,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     contactIds.length > 0
       ? admin
           .from("holded_invoices")
-          .select("id, doc_number, contact_id, contact_name, date, due_date, date_paid, total, status")
+          .select("id, doc_number, contact_id, contact_name, date, due_date, date_paid, total, status, raw")
           .in("contact_id", contactIds)
           .eq("is_credit_note", false)
           .order("date", { ascending: false })
@@ -170,6 +170,15 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
 
   // ── Extra data for risk / activity / commissions ────────────────────────────
 
+  // Extract the actually-outstanding amount. Holded stores paymentsPending in raw.
+  // Float errors (~1e-14) from Holded mean "fully paid" — treat < 0.02 as zero.
+  function extractPendingAmount(inv: DelegateInvoice): number {
+    const raw = (inv.raw ?? {}) as Record<string, unknown>;
+    const pp = raw.paymentsPending;
+    if (typeof pp === "number" && pp > 0.02) return pp;
+    return inv.total;
+  }
+
   // Riesgo data
   const vencidas = invoices
     .filter((inv) => inv.status === 2 && inv.due_date)
@@ -178,7 +187,8 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
       docNumber: inv.doc_number ?? inv.id.slice(0, 8),
       contactId: inv.contact_id,
       contactName: inv.contact_name ?? "—",
-      total: inv.total,
+      total: extractPendingAmount(inv),
+      invoiceTotal: inv.total,
       dueDate: inv.due_date!,
       daysOverdue: Math.floor((now.getTime() - new Date(inv.due_date!).getTime()) / 86_400_000),
     }))
@@ -191,7 +201,8 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
       docNumber: inv.doc_number ?? inv.id.slice(0, 8),
       contactId: inv.contact_id,
       contactName: inv.contact_name ?? "—",
-      total: inv.total,
+      total: extractPendingAmount(inv),
+      invoiceTotal: inv.total,
       dueDate: inv.due_date ?? null,
       daysUntilDue: inv.due_date
         ? Math.floor((new Date(inv.due_date).getTime() - now.getTime()) / 86_400_000)

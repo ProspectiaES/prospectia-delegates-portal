@@ -22,7 +22,9 @@ export interface VencidaRow {
   docNumber: string;
   contactId: string | null;
   contactName: string;
+  /** Outstanding amount (may be less than invoiceTotal if partial payment) */
   total: number;
+  invoiceTotal?: number;
   dueDate: string;
   daysOverdue: number;
 }
@@ -32,7 +34,9 @@ export interface PendienteRow {
   docNumber: string;
   contactId: string | null;
   contactName: string;
+  /** Outstanding amount (may be less than invoiceTotal if partial payment) */
   total: number;
+  invoiceTotal?: number;
   dueDate: string | null;
   daysUntilDue: number | null;
 }
@@ -124,7 +128,12 @@ export function RiesgoClientesCard({ delegateId, vencidas, pendientes }: Props) 
                       <td className="px-4 py-2.5 text-[#374151] max-w-[160px] truncate">
                         {r.contactId ? <Link href={`/dashboard/clientes/${r.contactId}`} className="hover:text-[#8E0E1A]">{r.contactName}</Link> : r.contactName}
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums font-semibold text-[#0A0A0A] whitespace-nowrap">{fmtEuro(r.total)}</td>
+                      <td className="px-4 py-2.5 tabular-nums whitespace-nowrap">
+                        <span className="font-semibold text-[#0A0A0A]">{fmtEuro(r.total)}</span>
+                        {r.invoiceTotal && r.invoiceTotal > r.total + 0.02 && (
+                          <p className="text-[9px] text-[#9CA3AF]">de {fmtEuro(r.invoiceTotal)}</p>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-[#6B7280] whitespace-nowrap">{fmtDate(r.dueDate)}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${daysOverdueCls(r.daysOverdue)}`}>
@@ -163,7 +172,12 @@ export function RiesgoClientesCard({ delegateId, vencidas, pendientes }: Props) 
                       <td className="px-4 py-2.5 text-[#374151] max-w-[160px] truncate">
                         {r.contactId ? <Link href={`/dashboard/clientes/${r.contactId}`} className="hover:text-[#8E0E1A]">{r.contactName}</Link> : r.contactName}
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums font-semibold text-[#0A0A0A] whitespace-nowrap">{fmtEuro(r.total)}</td>
+                      <td className="px-4 py-2.5 tabular-nums whitespace-nowrap">
+                        <span className="font-semibold text-[#0A0A0A]">{fmtEuro(r.total)}</span>
+                        {r.invoiceTotal && r.invoiceTotal > r.total + 0.02 && (
+                          <p className="text-[9px] text-[#9CA3AF]">de {fmtEuro(r.invoiceTotal)}</p>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-[#6B7280] whitespace-nowrap">
                         {r.dueDate ? fmtDate(r.dueDate) : <span className="text-[#D1D5DB]">—</span>}
                       </td>

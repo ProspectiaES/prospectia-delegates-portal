@@ -14,6 +14,7 @@ export interface DelegateInvoice {
   date_paid: string | null;
   total: number;
   status: number;
+  raw?: Record<string, unknown> | null;
 }
 
 interface Props {

@@ -73,18 +73,28 @@ export default async function RiesgoInformePage({
 
   const invoicesRes = contactIds.length > 0
     ? await admin.from("holded_invoices")
-        .select("id, doc_number, contact_id, contact_name, date, due_date, total, status")
+        .select("id, doc_number, contact_id, contact_name, date, due_date, total, status, raw")
         .in("contact_id", contactIds)
         .eq("is_credit_note", false)
         .in("status", [1, 2])
         .order("due_date", { ascending: true })
     : { data: [] };
 
-  const invoices = (invoicesRes.data ?? []) as {
+  type InvRow = {
     id: string; doc_number: string | null; contact_id: string | null;
     contact_name: string | null; date: string | null; due_date: string | null;
-    total: number; status: number;
-  }[];
+    total: number; status: number; raw?: Record<string, unknown> | null;
+  };
+
+  // Outstanding amount: paymentsPending from Holded raw (partial payments).
+  // Float errors < 0.02 mean fully paid — treat as full total.
+  function pendingAmount(inv: InvRow): number {
+    const pp = (inv.raw ?? {} as Record<string, unknown>).paymentsPending;
+    if (typeof pp === "number" && pp > 0.02) return pp;
+    return inv.total;
+  }
+
+  const invoices = (invoicesRes.data ?? []) as InvRow[];
 
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -93,6 +103,7 @@ export default async function RiesgoInformePage({
     .filter(i => i.status === 2)
     .map(i => ({
       ...i,
+      outstanding: pendingAmount(i),
       daysOverdue: i.due_date
         ? Math.floor((now.getTime() - new Date(i.due_date).getTime()) / 86_400_000)
         : null,
@@ -103,6 +114,7 @@ export default async function RiesgoInformePage({
     .filter(i => i.status === 1)
     .map(i => ({
       ...i,
+      outstanding: pendingAmount(i),
       daysUntilDue: i.due_date
         ? Math.floor((new Date(i.due_date).getTime() - now.getTime()) / 86_400_000)
         : null,
@@ -113,8 +125,8 @@ export default async function RiesgoInformePage({
       return a.daysUntilDue - b.daysUntilDue;
     });
 
-  const totalVencido   = vencidas.reduce((s, i) => s + i.total, 0);
-  const totalPendiente = pendientes.reduce((s, i) => s + i.total, 0);
+  const totalVencido   = vencidas.reduce((s, i) => s + i.outstanding, 0);
+  const totalPendiente = pendientes.reduce((s, i) => s + i.outstanding, 0);
   const risk = riskLevel(totalVencido, totalPendiente, vencidas.length);
   const delegateName = delegate.delegate_name ?? delegate.full_name;
 
@@ -226,7 +238,7 @@ export default async function RiesgoInformePage({
                 </tbody>
                 <tfoot>
                   <tr className="bg-red-50 border-t border-red-200">
-                    <td colSpan={4} className="px-4 py-2 text-xs font-semibold text-[#8E0E1A]">{vencidas.length} factura{vencidas.length !== 1 ? "s" : ""} vencida{vencidas.length !== 1 ? "s" : ""}</td>
+                    <td colSpan={4} className="px-4 py-2 text-xs font-semibold text-[#8E0E1A]">{vencidas.length} factura{vencidas.length !== 1 ? "s" : ""} vencida{vencidas.length !== 1 ? "s" : ""} — pendent real</td>
                     <td className="px-4 py-2 font-bold text-[#8E0E1A] text-xs tabular-nums">{fmtEuro(totalVencido)}</td>
                     <td />
                   </tr>
@@ -272,7 +284,12 @@ export default async function RiesgoInformePage({
                         </td>
                         <td className="px-4 py-3 text-[#6B7280] text-xs whitespace-nowrap tabular-nums">{fmtDate(inv.date)}</td>
                         <td className="px-4 py-3 text-[#6B7280] text-xs whitespace-nowrap tabular-nums">{fmtDate(inv.due_date)}</td>
-                        <td className="px-4 py-3 font-semibold text-[#0A0A0A] text-xs whitespace-nowrap tabular-nums">{fmtEuro(inv.total)}</td>
+                        <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                          <span className="font-semibold text-[#0A0A0A] text-xs">{fmtEuro(inv.outstanding)}</span>
+                          {inv.total > inv.outstanding + 0.02 && (
+                            <p className="text-[9px] text-[#9CA3AF]">de {fmtEuro(inv.total)}</p>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.cls}`}>
                             {badge.label}
