@@ -663,7 +663,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
           <ActividadClientesCard activos={activos} dormidos={dormidos} nuevos={nuevos} periodLabel={periodLabel} />
 
           {/* 2. Riesgo clientes */}
-          <RiesgoClientesCard vencidas={vencidas} pendientes={pendientes} />
+          <RiesgoClientesCard delegateId={id} vencidas={vencidas} pendientes={pendientes} />
 
           {/* 3. Comisiones liquidables */}
           <ComisionesCard

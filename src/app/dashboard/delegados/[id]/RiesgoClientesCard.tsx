@@ -4,6 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 
+function daysUntilCls(days: number | null) {
+  if (days === null) return "bg-[#F3F4F6] text-[#6B7280]";
+  if (days <= 7)  return "bg-red-100 text-[#8E0E1A]";
+  if (days <= 30) return "bg-amber-100 text-amber-700";
+  return "bg-green-100 text-green-700";
+}
+
+function daysOverdueCls(days: number) {
+  if (days > 60)  return "bg-[#8E0E1A] text-white";
+  if (days > 30)  return "bg-red-200 text-red-900";
+  return "bg-red-100 text-[#8E0E1A]";
+}
+
 export interface VencidaRow {
   invoiceId: string;
   docNumber: string;
@@ -25,6 +38,7 @@ export interface PendienteRow {
 }
 
 interface Props {
+  delegateId: string;
   vencidas: VencidaRow[];
   pendientes: PendienteRow[];
 }
@@ -57,7 +71,7 @@ function PaginationBar({ page, total, onPage }: { page: number; total: number; o
   );
 }
 
-export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
+export function RiesgoClientesCard({ delegateId, vencidas, pendientes }: Props) {
   const [vencidasPage, setVencidasPage]     = useState(1);
   const [pendientesPage, setPendientesPage] = useState(1);
 
@@ -113,8 +127,8 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                       <td className="px-4 py-2.5 tabular-nums font-semibold text-[#0A0A0A] whitespace-nowrap">{fmtEuro(r.total)}</td>
                       <td className="px-4 py-2.5 text-[#6B7280] whitespace-nowrap">{fmtDate(r.dueDate)}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-[#8E0E1A]">
-                          {r.daysOverdue}d
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${daysOverdueCls(r.daysOverdue)}`}>
+                          +{r.daysOverdue}d
                         </span>
                       </td>
                     </tr>
@@ -135,7 +149,7 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-[#F9FAFB]">
-                    {["Factura", "Cliente", "Importe", "Vencimiento"].map(h => (
+                    {["Factura", "Cliente", "Importe", "Vencimiento", "Días p/ vencer"].map(h => (
                       <th key={h} className="px-4 py-2 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -153,6 +167,11 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
                       <td className="px-4 py-2.5 text-[#6B7280] whitespace-nowrap">
                         {r.dueDate ? fmtDate(r.dueDate) : <span className="text-[#D1D5DB]">—</span>}
                       </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${daysUntilCls(r.daysUntilDue)}`}>
+                          {r.daysUntilDue !== null ? `${r.daysUntilDue}d` : "—"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,6 +181,16 @@ export function RiesgoClientesCard({ vencidas, pendientes }: Props) {
               </table>
             </div>
           )}
+        </div>
+      )}
+      {(vencidas.length > 0 || pendientes.length > 0) && (
+        <div className="px-5 py-3 border-t border-[#E5E7EB] flex justify-end">
+          <Link
+            href={`/dashboard/delegados/${delegateId}/riesgo`}
+            className="text-xs font-semibold text-[#8E0E1A] hover:underline"
+          >
+            Ver informe completo →
+          </Link>
         </div>
       )}
     </CollapsibleCard>
