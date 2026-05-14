@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useRef, useActionState } from "react";
 import { updateContactAction, UpdateContactState } from "@/app/actions/contacts";
+import { cccToIban, formatIban, validateIban } from "@/lib/iban";
 
 interface ContactData {
   id: string;
@@ -68,9 +69,118 @@ const inputCls =
 const selectCls =
   "w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0A0A0A] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors";
 
-function formatIban(raw: string) {
-  return raw.replace(/\s+/g, "").toUpperCase().replace(/(.{4})/g, "$1 ").trim();
+// ─── CCC → IBAN Calculator ────────────────────────────────────────────────────
+
+function CccCalculator({ onIban }: { onIban: (iban: string) => void }) {
+  const [entitat, setEntitat] = useState("");
+  const [oficina, setOficina] = useState("");
+  const [dc, setDc]           = useState("");
+  const [compte, setCompte]   = useState("");
+  const [err, setErr]         = useState("");
+
+  const refOficina = useRef<HTMLInputElement>(null);
+  const refDc      = useRef<HTMLInputElement>(null);
+  const refCompte  = useRef<HTMLInputElement>(null);
+
+  function handleEntitat(v: string) {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    setEntitat(d);
+    if (d.length === 4) refOficina.current?.focus();
+  }
+  function handleOficina(v: string) {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    setOficina(d);
+    if (d.length === 4) refDc.current?.focus();
+  }
+  function handleDc(v: string) {
+    const d = v.replace(/\D/g, "").slice(0, 2);
+    setDc(d);
+    if (d.length === 2) refCompte.current?.focus();
+  }
+  function handleCompte(v: string) {
+    setCompte(v.replace(/\D/g, "").slice(0, 10));
+  }
+
+  function calculate() {
+    const result = cccToIban(entitat, oficina, dc, compte);
+    if (!result) {
+      setErr("Comprova les longituds: entitat (4), oficina (4), DC (2), compte (10).");
+      return;
+    }
+    setErr("");
+    onIban(formatIban(result));
+  }
+
+  const cccInputCls = "h-9 w-full rounded-lg border border-[#E5E7EB] bg-white px-2 text-sm font-mono text-center text-[#0A0A0A] placeholder-[#D1D5DB] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors";
+
+  return (
+    <div className="rounded-lg border border-dashed border-[#D1D5DB] bg-[#FAFAFA] p-3 space-y-3">
+      <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">
+        Calculadora CCC → IBAN
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        <div>
+          <p className="text-[10px] text-[#9CA3AF] mb-1 text-center">Entitat (4d)</p>
+          <input
+            value={entitat}
+            onChange={(e) => handleEntitat(e.target.value)}
+            placeholder="0049"
+            maxLength={4}
+            inputMode="numeric"
+            className={cccInputCls}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] text-[#9CA3AF] mb-1 text-center">Oficina (4d)</p>
+          <input
+            ref={refOficina}
+            value={oficina}
+            onChange={(e) => handleOficina(e.target.value)}
+            placeholder="0003"
+            maxLength={4}
+            inputMode="numeric"
+            className={cccInputCls}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] text-[#9CA3AF] mb-1 text-center">D.C. (2d)</p>
+          <input
+            ref={refDc}
+            value={dc}
+            onChange={(e) => handleDc(e.target.value)}
+            placeholder="61"
+            maxLength={2}
+            inputMode="numeric"
+            className={cccInputCls}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] text-[#9CA3AF] mb-1 text-center">Compte (10d)</p>
+          <input
+            ref={refCompte}
+            value={compte}
+            onChange={(e) => handleCompte(e.target.value)}
+            placeholder="2100034456"
+            maxLength={10}
+            inputMode="numeric"
+            className={cccInputCls}
+          />
+        </div>
+      </div>
+      {err && <p className="text-[11px] text-[#8E0E1A]">{err}</p>}
+      <button
+        type="button"
+        onClick={calculate}
+        disabled={entitat.length + oficina.length + dc.length + compte.length < 20}
+        className="w-full h-8 rounded-lg bg-[#0A0A0A] text-xs font-semibold text-white hover:bg-[#374151] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        Calcular IBAN →
+      </button>
+    </div>
+  );
 }
+
+// ─── Main form ────────────────────────────────────────────────────────────────
 
 export function ContactEditForm({
   contact,
@@ -86,9 +196,11 @@ export function ContactEditForm({
   );
 
   const [payMethod, setPayMethod] = useState(initialPaymentMethod ?? "");
-  const [iban, setIban] = useState(initialIban ?? "");
+  const [iban, setIban]           = useState(initialIban ? formatIban(initialIban) : "");
 
-  const canSepa = payMethod === "direct_debit" && iban.trim().replace(/\s+/g, "").length >= 15;
+  const ibanStatus = validateIban(iban); // true | false | null
+  const showCalculator = payMethod === "direct_debit" && ibanStatus !== true;
+  const canSepa = payMethod === "direct_debit" && ibanStatus === true;
 
   return (
     <form action={action} className="space-y-7">
@@ -110,53 +222,22 @@ export function ContactEditForm({
         <SectionHeader>Información básica</SectionHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Nombre *">
-            <input
-              name="name"
-              defaultValue={contact.name}
-              required
-              className={inputCls}
-              placeholder="Nombre del contacto"
-            />
+            <input name="name" defaultValue={contact.name} required className={inputCls} placeholder="Nombre del contacto" />
           </Field>
           <Field label="NIF / CIF">
-            <input
-              name="code"
-              defaultValue={contact.code ?? ""}
-              className={inputCls}
-              placeholder="B12345678"
-            />
+            <input name="code" defaultValue={contact.code ?? ""} className={inputCls} placeholder="B12345678" />
           </Field>
           <Field label="Email">
-            <input
-              name="email"
-              type="email"
-              defaultValue={contact.email ?? ""}
-              className={inputCls}
-              placeholder="email@empresa.com"
-            />
+            <input name="email" type="email" defaultValue={contact.email ?? ""} className={inputCls} placeholder="email@empresa.com" />
           </Field>
           <Field label="Teléfono">
-            <input
-              name="phone"
-              defaultValue={contact.phone ?? ""}
-              className={inputCls}
-              placeholder="+34 600 000 000"
-            />
+            <input name="phone" defaultValue={contact.phone ?? ""} className={inputCls} placeholder="+34 600 000 000" />
           </Field>
           <Field label="Móvil">
-            <input
-              name="mobile"
-              defaultValue={contact.mobile ?? ""}
-              className={inputCls}
-              placeholder="+34 600 000 000"
-            />
+            <input name="mobile" defaultValue={contact.mobile ?? ""} className={inputCls} placeholder="+34 600 000 000" />
           </Field>
           <Field label="Tipo">
-            <select
-              name="type"
-              defaultValue={contact.type?.toString() ?? ""}
-              className={selectCls}
-            >
+            <select name="type" defaultValue={contact.type?.toString() ?? ""} className={selectCls}>
               <option value="">Sin tipo</option>
               {TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -164,12 +245,7 @@ export function ContactEditForm({
             </select>
           </Field>
           <Field label="Etiquetas (separadas por coma)">
-            <input
-              name="tags"
-              defaultValue={contact.tags?.join(", ") ?? ""}
-              className={inputCls}
-              placeholder="delegado, madrid, activo"
-            />
+            <input name="tags" defaultValue={contact.tags?.join(", ") ?? ""} className={inputCls} placeholder="delegado, madrid, activo" />
           </Field>
         </div>
       </div>
@@ -182,14 +258,14 @@ export function ContactEditForm({
             type="checkbox"
             name="recargo"
             defaultChecked={initialRecargo}
-            className="mt-0.5 h-4 w-4 rounded border-[#E5E7EB] text-[#8E0E1A] focus:ring-[#8E0E1A]/20 accent-[#8E0E1A]"
+            className="mt-0.5 h-4 w-4 rounded border-[#E5E7EB] accent-[#8E0E1A]"
           />
           <div>
             <span className="text-sm font-medium text-[#0A0A0A] group-hover:text-[#8E0E1A] transition-colors">
               Recargo de equivalencia
             </span>
             <p className="text-xs text-[#9CA3AF] mt-0.5">
-              Autónomos en régimen de recargo de equivalencia (código s_rec_14).
+              Autónomos en régimen de recargo de equivalencia (codi s_rec_14).
             </p>
           </div>
         </label>
@@ -201,12 +277,7 @@ export function ContactEditForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <Field label="Dirección">
-              <input
-                name="address"
-                defaultValue={contact.address ?? ""}
-                className={inputCls}
-                placeholder="Calle, número, piso…"
-              />
+              <input name="address" defaultValue={contact.address ?? ""} className={inputCls} placeholder="Calle, número, piso…" />
             </Field>
           </div>
           <Field label="Ciudad">
@@ -230,35 +301,50 @@ export function ContactEditForm({
           <SectionHeader>Datos de cobro</SectionHeader>
           <div className="space-y-4">
             <Field label="Forma de pago">
-              <select
-                name="payment_method"
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value)}
-                className={selectCls}
-              >
+              <select name="payment_method" value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className={selectCls}>
                 {PAYMENT_METHODS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
             </Field>
-            <Field label="IBAN">
-              <input
-                name="iban"
-                value={iban}
-                onChange={(e) => setIban(e.target.value)}
-                onBlur={(e) => setIban(formatIban(e.target.value))}
-                placeholder="ES00 0000 0000 0000 0000 0000"
-                className={inputCls + " font-mono tracking-wide"}
-              />
-            </Field>
+
+            {/* IBAN with live validation */}
+            <div>
+              <label className="block text-xs font-medium text-[#374151] mb-1">IBAN</label>
+              <div className="relative">
+                <input
+                  name="iban"
+                  value={iban}
+                  onChange={(e) => setIban(e.target.value.toUpperCase())}
+                  onBlur={(e) => setIban(formatIban(e.target.value))}
+                  placeholder="ES00 0000 0000 0000 0000 0000"
+                  className={[
+                    inputCls,
+                    "font-mono tracking-wide pr-9",
+                    ibanStatus === true  ? "border-emerald-400 focus:border-emerald-400 focus:ring-emerald-400/10" : "",
+                    ibanStatus === false ? "border-red-300 focus:border-red-400 focus:ring-red-400/10" : "",
+                  ].join(" ")}
+                />
+                {ibanStatus === true && (
+                  <span className="absolute right-3 top-2 text-emerald-500 text-sm font-bold select-none">✓</span>
+                )}
+                {ibanStatus === false && (
+                  <span className="absolute right-3 top-2 text-[#8E0E1A] text-sm font-bold select-none">✗</span>
+                )}
+              </div>
+              {ibanStatus === true  && <p className="text-[11px] text-emerald-600 mt-1">IBAN vàlid ✓</p>}
+              {ibanStatus === false && <p className="text-[11px] text-[#8E0E1A] mt-1">IBAN no vàlid — revisa els dígits.</p>}
+            </div>
+
+            {/* CCC Calculator — shows when direct_debit and no valid IBAN yet */}
+            {showCalculator && (
+              <CccCalculator onIban={(computed) => setIban(computed)} />
+            )}
+
             <Field label="BIC / SWIFT (opcional)">
-              <input
-                name="bic"
-                defaultValue={initialBic ?? ""}
-                placeholder="CAIXESBBXXX"
-                className={inputCls + " font-mono uppercase"}
-              />
+              <input name="bic" defaultValue={initialBic ?? ""} placeholder="CAIXESBBXXX" className={inputCls + " font-mono uppercase"} />
             </Field>
+
             {canSepa && (
               <a
                 href={`/api/sepa/${contact.id}`}
