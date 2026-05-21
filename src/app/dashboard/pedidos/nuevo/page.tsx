@@ -19,6 +19,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
     ]);
 
   const userRole = (profileData as { id?: string; role?: string } | null)?.role ?? "DELEGATE";
+  const canAssign = ["OWNER", "ADMIN", "KOL", "COORDINATOR", "CONSIGLIERE"].includes(userRole);
 
   // All contacts visible on this page — delegates get auto-assigned on order creation
   const { data: contactsRaw } = await admin
@@ -33,6 +34,28 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
     price: number | null; total: number | null; taxes: string[];
     price_pvp: number | null; price_pvd: number | null; price_pvl: number | null;
   }[];
+
+  // Delegate/KOL/coordinator options — only fetched for privileged users
+  let delegateOptions: { id: string; name: string }[] = [];
+  let kolOptions:      { id: string; name: string }[] = [];
+  let coordinatorOptions: { id: string; name: string }[] = [];
+
+  if (canAssign) {
+    const { data: profilesForAssign } = await admin
+      .from("profiles")
+      .select("id, full_name, delegate_name, role, is_kol, is_coordinator")
+      .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "CONSIGLIERE", "COM6"])
+      .order("full_name");
+
+    const pfa = (profilesForAssign ?? []) as {
+      id: string; full_name: string; delegate_name: string | null;
+      role: string; is_kol: boolean | null; is_coordinator: boolean | null;
+    }[];
+
+    delegateOptions    = pfa.map(p => ({ id: p.id, name: p.delegate_name ?? p.full_name }));
+    kolOptions         = pfa.filter(p => p.is_kol || p.role === "KOL").map(p => ({ id: p.id, name: p.delegate_name ?? p.full_name }));
+    coordinatorOptions = pfa.filter(p => p.is_coordinator || p.role === "COORDINATOR").map(p => ({ id: p.id, name: p.delegate_name ?? p.full_name }));
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
@@ -50,6 +73,10 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
         products={products}
         userRole={userRole}
         defaultContactId={defaultContactId}
+        canAssign={canAssign}
+        delegateOptions={delegateOptions}
+        kolOptions={kolOptions}
+        coordinatorOptions={coordinatorOptions}
       />
     </div>
   );

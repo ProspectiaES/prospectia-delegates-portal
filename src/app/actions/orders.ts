@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContact, createSalesOrder, updateSalesOrder, getDocument, getHoldedTaxes } from "@/lib/holded/api";
-import { sendMail, buildOrderEmail } from "@/lib/email";
+import { sendMail, buildOrderEmail, buildDelegateOrderEmail } from "@/lib/email";
 import { sendTelegram, buildOrderTelegram } from "@/lib/telegram";
 
 export interface OrderFormState {
@@ -31,6 +31,12 @@ export async function submitOrder(
     .eq("id", user.id)
     .maybeSingle();
   const isDelegate = profile?.role === "DELEGATE";
+  const canAssign = ["OWNER", "ADMIN", "KOL", "COORDINATOR", "CONSIGLIERE"].includes(profile?.role ?? "");
+
+  // ── Assignment fields (privileged users only) ─────────────────────────────
+  const assignedDelegateId   = canAssign ? ((formData.get("assigned_delegate_id")   as string)?.trim() || null) : null;
+  const assignedKolId        = canAssign ? ((formData.get("assigned_kol_id")        as string)?.trim() || null) : null;
+  const assignedCoordinatorId = canAssign ? ((formData.get("assigned_coordinator_id") as string)?.trim() || null) : null;
 
   // ── Client ────────────────────────────────────────────────────────────────
   const mode       = formData.get("client_mode") as "existing" | "new";
@@ -100,16 +106,18 @@ export async function submitOrder(
       const recommenderId = (formData.get("recommender_id") as string)?.trim() || null;
 
       await admin.from("holded_contacts").upsert({
-        id:             contactId,
-        name:           contactName,
-        email:          email ?? null,
-        phone:          phone ?? null,
-        address:        newAddress    ?? null,
-        city:           newCity       ?? null,
-        postal_code:    newPostalCode ?? null,
-        province:       newProvince   ?? null,
-        country:        newCountry    ?? null,
-        recommender_id: recommenderId,
+        id:                      contactId,
+        name:                    contactName,
+        email:                   email ?? null,
+        phone:                   phone ?? null,
+        address:                 newAddress    ?? null,
+        city:                    newCity       ?? null,
+        postal_code:             newPostalCode ?? null,
+        province:                newProvince   ?? null,
+        country:                 newCountry    ?? null,
+        recommender_id:          recommenderId,
+        assigned_kol_id:         assignedKolId,
+        assigned_coordinator_id: assignedCoordinatorId,
         raw:            { id: contactId, name: contactName, email, phone,
                           billAddress: { address: newAddress, city: newCity, postalCode: newPostalCode, province: newProvince, country: newCountry } },
         last_synced_at: new Date().toISOString(),
@@ -120,10 +128,19 @@ export async function submitOrder(
   }
 
   // ── Link delegate to contact ───────────────────────────────────────────────
-  if (isDelegate) {
+  const delegateToLink = assignedDelegateId ?? (isDelegate ? user.id : null);
+  if (delegateToLink) {
     await admin.from("contact_delegates")
-      .upsert({ contact_id: contactId, delegate_id: user.id }, { onConflict: "contact_id,delegate_id" })
+      .upsert({ contact_id: contactId, delegate_id: delegateToLink }, { onConflict: "contact_id,delegate_id" })
       .then(() => {}); // non-fatal
+  }
+
+  // For existing contacts: update KOL/coordinator if provided
+  if (mode === "existing" && (assignedKolId !== null || assignedCoordinatorId !== null)) {
+    const update: Record<string, string | null> = {};
+    if (assignedKolId !== null)         update.assigned_kol_id         = assignedKolId;
+    if (assignedCoordinatorId !== null) update.assigned_coordinator_id = assignedCoordinatorId;
+    await admin.from("holded_contacts").update(update).eq("id", contactId).then(() => {}); // non-fatal
   }
 
   // ── Products ──────────────────────────────────────────────────────────────
@@ -216,6 +233,37 @@ export async function submitOrder(
       subject: `Nuevo pedido ${docNumber ?? created.id} de ${delegateName}`,
       html: buildOrderEmail({ docNumber, contactName, delegateName, lines, notes, total: orderTotal, orderUrl }),
     }).catch(() => { /* best-effort */ });
+
+    // Notify the assigned delegate (if someone else assigned them)
+    if (assignedDelegateId && assignedDelegateId !== user.id) {
+      try {
+        const { data: delegateAuth } = await admin.auth.admin.getUserById(assignedDelegateId);
+        const delegateEmail = delegateAuth?.user?.email;
+        const { data: delegateProfile } = await admin.from("profiles")
+          .select("full_name, delegate_name")
+          .eq("id", assignedDelegateId)
+          .maybeSingle();
+        const delegateDisplayName = (delegateProfile as { full_name?: string; delegate_name?: string } | null)?.delegate_name
+          ?? (delegateProfile as { full_name?: string } | null)?.full_name
+          ?? "Delegado";
+        if (delegateEmail) {
+          sendMail({
+            to: delegateEmail,
+            subject: `Nuevo pedido ${docNumber ? `#${docNumber}` : ""} · ${contactName} — en producción`,
+            html: buildDelegateOrderEmail({
+              docNumber,
+              contactName,
+              delegateName: delegateDisplayName,
+              lines,
+              notes,
+              total: orderTotal,
+              orderUrl,
+              createdByName: delegateName,
+            }),
+          }).catch(() => { /* best-effort */ });
+        }
+      } catch { /* non-fatal */ }
+    }
 
     sendTelegram(
       buildOrderTelegram({ docNumber, contactName, delegateName, lines, notes, total: orderTotal, orderUrl })

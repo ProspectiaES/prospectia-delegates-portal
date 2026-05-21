@@ -22,12 +22,18 @@ interface Product {
 
 type Tarifa = "pvp" | "pvl" | "pvd";
 
+interface AssignOption { id: string; name: string; }
+
 interface Props {
   paymentMethods: PaymentMethod[];
   contacts: Contact[];
   products: Product[];
   userRole: string;
   defaultContactId?: string;
+  canAssign?: boolean;
+  delegateOptions?: AssignOption[];
+  kolOptions?: AssignOption[];
+  coordinatorOptions?: AssignOption[];
 }
 
 // ─── Recommender search (inline, uses already-loaded contacts list) ────────────
@@ -161,7 +167,7 @@ function RadioGroup({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function NewOrderForm({ paymentMethods, contacts, products, userRole, defaultContactId }: Props) {
+export function NewOrderForm({ paymentMethods, contacts, products, userRole, defaultContactId, canAssign, delegateOptions = [], kolOptions = [], coordinatorOptions = [] }: Props) {
   const [state, action, pending] = useActionState<OrderFormState | null, FormData>(submitOrder, null);
 
   const defaultContact = defaultContactId ? contacts.find(c => c.id === defaultContactId) : undefined;
@@ -183,6 +189,11 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
   useEffect(() => {
     setRecargo(clientMode === "existing" ? "false" : "");
   }, [clientMode]);
+
+  // Assignment (privileged users)
+  const [assignedDelegateId, setAssignedDelegateId]     = useState("");
+  const [assignedKolId, setAssignedKolId]               = useState("");
+  const [assignedCoordinatorId, setAssignedCoordinatorId] = useState("");
 
   // Tarifa
   const [tarifa, setTarifa] = useState<Tarifa>("pvp");
@@ -450,6 +461,54 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
           )}
         </div>
       </section>
+
+      {/* ── Section 1b: Asignación (privileged only) ─────────────────── */}
+      {canAssign && (
+        <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4">
+          <div className="mb-4">
+            <h2 className="text-sm font-bold text-[#0A0A0A]">Asignación</h2>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">Delegado, KOL y coordinador asociados a este cliente · no se envía a Holded</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Delegado</label>
+              <select
+                name="assigned_delegate_id"
+                value={assignedDelegateId}
+                onChange={e => setAssignedDelegateId(e.target.value)}
+                className={inputCls + " bg-white"}
+              >
+                <option value="">— Sin asignar —</option>
+                {delegateOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>KOL</label>
+              <select
+                name="assigned_kol_id"
+                value={assignedKolId}
+                onChange={e => setAssignedKolId(e.target.value)}
+                className={inputCls + " bg-white"}
+              >
+                <option value="">— Sin asignar —</option>
+                {kolOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Coordinador</label>
+              <select
+                name="assigned_coordinator_id"
+                value={assignedCoordinatorId}
+                onChange={e => setAssignedCoordinatorId(e.target.value)}
+                className={inputCls + " bg-white"}
+              >
+                <option value="">— Sin asignar —</option>
+                {coordinatorOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Section 2: Tarifa ─────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm px-5 py-4">
