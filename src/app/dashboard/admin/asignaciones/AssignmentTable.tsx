@@ -74,6 +74,7 @@ interface Props {
   coordinatorOptions: ActorOption[];
   affiliates: AffiliateOption[];
   groups: ContactGroupOption[];
+  isOwner?: boolean;
 }
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -107,6 +108,11 @@ function SelectCell({
   const [saved, setSaved] = useState(false);
   const [isPending, start] = useTransition();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local state when prop changes (e.g. after bulk update)
+  useEffect(() => {
+    if (!isPending) setValue(currentId ?? "");
+  }, [currentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleChange(newVal: string) {
     setValue(newVal);
@@ -485,9 +491,7 @@ function MergeModal({ contacts, onClose }: { contacts: ContactRow[]; onClose: ()
   );
 }
 
-// ─── Bulk mode config ─────────────────────────────────────────────────────────
-
-// ─── Sort header ─────────────────────────────────────────────────────────────
+// ─── Sort header ──────────────────────────────────────────────────────────────
 
 type SortCol = "name" | "code" | "type" | "delegate" | "kol" | "coordinator" | "recommender" | "affiliate";
 
@@ -530,17 +534,7 @@ function SortTh({
   );
 }
 
-// ─── Bulk mode config ─────────────────────────────────────────────────────────
-
-type BulkMode = "delegate" | "type" | "kol" | "coordinator" | "affiliate";
-
-const BULK_MODES: { id: BulkMode; label: string }[] = [
-  { id: "delegate",    label: "Delegado" },
-  { id: "type",        label: "Tipo" },
-  { id: "kol",         label: "KOL" },
-  { id: "coordinator", label: "Coordinador" },
-  { id: "affiliate",   label: "Afiliado" },
-];
+// ─── Bulk value defaults ──────────────────────────────────────────────────────
 
 const CONTACT_TYPES = [
   { value: "0", label: "Lead" },
@@ -550,16 +544,22 @@ const CONTACT_TYPES = [
   { value: "4", label: "Deudor" },
 ];
 
+type BulkValues = { delegate: string; type: string; kol: string; coordinator: string; affiliate: string };
+const BULK_DEFAULT: BulkValues = { delegate: "", type: "", kol: "", coordinator: "", affiliate: "" };
+
 // ─── Main table ───────────────────────────────────────────────────────────────
 
-export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOptions, affiliates, groups }: Props) {
+export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOptions, affiliates, groups, isOwner = false }: Props) {
+  // Local mirror of contacts — updated optimistically after each action
+  const [rows, setRows] = useState<ContactRow[]>(contacts);
+  useEffect(() => setRows(contacts), [contacts]);
+
   const [search, setSearch]                 = useState("");
   const [filterType, setFilterType]         = useState("");
   const [filterDelegate, setFilterDelegate] = useState("");
   const [filterGroup, setFilterGroup]       = useState("");
   const [selected, setSelected]             = useState<Set<string>>(new Set());
-  const [bulkMode, setBulkMode]             = useState<BulkMode>("delegate");
-  const [bulkValue, setBulkValue]           = useState("");
+  const [bulkValues, setBulkValues]         = useState<BulkValues>(BULK_DEFAULT);
   const [bulkPending, startBulk]            = useTransition();
   const [bulkMsg, setBulkMsg]               = useState("");
   const [showMerge, setShowMerge]           = useState(false);
@@ -588,7 +588,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return contacts.filter(c => {
+    return rows.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !(c.code ?? "").toLowerCase().includes(q)) return false;
       if (filterType !== "") {
         if (filterType === "__none__" && c.type !== null) return false;
@@ -599,7 +599,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
       if (filterGroup && !c.group_ids.includes(filterGroup)) return false;
       return true;
     });
-  }, [contacts, search, filterType, filterDelegate, filterGroup]);
+  }, [rows, search, filterType, filterDelegate, filterGroup]);
 
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
@@ -636,44 +636,92 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
       : new Set(paginated.map(c => c.id)));
   }
 
+  const hasBulkChange = Object.values(bulkValues).some(v => v !== "");
+
   async function handleBulkApply() {
     const ids = Array.from(selected);
-    if (!ids.length) return;
-    startBulk(async () => {
-      let res: { error?: string; updated: number };
-      if (bulkMode === "delegate")    res = await bulkAssignDelegateAction(ids, bulkValue || null);
-      else if (bulkMode === "type")   res = await bulkSetContactTypeAction(ids, bulkValue !== "" ? Number(bulkValue) : null);
-      else if (bulkMode === "kol")    res = await bulkSetKolAction(ids, bulkValue || null);
-      else if (bulkMode === "coordinator") res = await bulkSetCoordinatorAction(ids, bulkValue || null);
-      else                            res = await bulkSetAffiliateAction(ids, bulkValue || null);
+    if (!ids.length || !hasBulkChange) return;
 
-      if (res.error) {
-        setBulkMsg(`Error: ${res.error}`);
+    // Capture before async (avoid stale closure)
+    const idSet = new Set(ids);
+    const applied = { ...bulkValues };
+
+    startBulk(async () => {
+      const errors: string[] = [];
+
+      if (applied.delegate !== "") {
+        const val = applied.delegate === "__null__" ? null : applied.delegate;
+        const res = await bulkAssignDelegateAction(ids, val);
+        if (res.error) errors.push(res.error);
+      }
+      if (applied.type !== "") {
+        const val = applied.type === "__null__" ? null : Number(applied.type);
+        const res = await bulkSetContactTypeAction(ids, val);
+        if (res.error) errors.push(res.error);
+      }
+      if (applied.kol !== "") {
+        const val = applied.kol === "__null__" ? null : applied.kol;
+        const res = await bulkSetKolAction(ids, val);
+        if (res.error) errors.push(res.error);
+      }
+      if (applied.coordinator !== "") {
+        const val = applied.coordinator === "__null__" ? null : applied.coordinator;
+        const res = await bulkSetCoordinatorAction(ids, val);
+        if (res.error) errors.push(res.error);
+      }
+      if (applied.affiliate !== "") {
+        const val = applied.affiliate === "__null__" ? null : applied.affiliate;
+        const res = await bulkSetAffiliateAction(ids, val);
+        if (res.error) errors.push(res.error);
+      }
+
+      if (errors.length > 0) {
+        setBulkMsg(`Error: ${errors[0]}`);
       } else {
-        setBulkMsg(`${res.updated} clientes actualizados`);
+        setBulkMsg(`${ids.length} cliente${ids.length !== 1 ? "s" : ""} actualizados`);
+
+        // Optimistic local update so cells reflect new values immediately
+        setRows(prev => prev.map(r => {
+          if (!idSet.has(r.id)) return r;
+          const next = { ...r };
+          if (applied.delegate !== "") {
+            next.delegate_id = applied.delegate === "__null__" ? null : applied.delegate;
+          }
+          if (applied.type !== "") {
+            next.type = applied.type === "__null__" ? null : Number(applied.type);
+          }
+          if (applied.kol !== "") {
+            const val = applied.kol === "__null__" ? null : applied.kol;
+            next.assigned_kol_id = val;
+            next.assigned_kol_name = val ? (kolOptions.find(o => o.id === val)?.name ?? null) : null;
+          }
+          if (applied.coordinator !== "") {
+            const val = applied.coordinator === "__null__" ? null : applied.coordinator;
+            next.assigned_coordinator_id = val;
+            next.assigned_coordinator_name = val ? (coordinatorOptions.find(o => o.id === val)?.name ?? null) : null;
+          }
+          if (applied.affiliate !== "") {
+            const val = applied.affiliate === "__null__" ? null : applied.affiliate;
+            next.affiliate_id = val;
+            next.affiliate_name = val ? (affiliates.find(o => o.id === val)?.name ?? null) : null;
+          }
+          return next;
+        }));
+
         setSelected(new Set());
+        setBulkValues(BULK_DEFAULT);
         setTimeout(() => setBulkMsg(""), 3000);
       }
     });
   }
 
-  // Options for the bulk select based on current mode
-  const bulkOptions: { value: string; label: string }[] = useMemo(() => {
-    if (bulkMode === "delegate")    return delegates.map(d => ({ value: d.id, label: d.delegate_name ?? d.full_name }));
-    if (bulkMode === "type")        return CONTACT_TYPES.map(t => ({ value: t.value, label: t.label }));
-    if (bulkMode === "kol")         return kolOptions.map(o => ({ value: o.id, label: o.name }));
-    if (bulkMode === "coordinator") return coordinatorOptions.map(o => ({ value: o.id, label: o.name }));
-    if (bulkMode === "affiliate")   return affiliates.map(a => ({ value: a.id, label: a.name }));
-    return [];
-  }, [bulkMode, delegates, kolOptions, coordinatorOptions, affiliates]);
-
   const stats = useMemo(() => ({
-    total:      contacts.length,
-    assigned:   contacts.filter(c => c.delegate_id).length,
-    unassigned: contacts.filter(c => !c.delegate_id).length,
-  }), [contacts]);
+    total:      rows.length,
+    assigned:   rows.filter(c => c.delegate_id).length,
+    unassigned: rows.filter(c => !c.delegate_id).length,
+  }), [rows]);
 
-  const contactList = useMemo(() => contacts.map(c => ({ id: c.id, name: c.name })), [contacts]);
+  const contactList = useMemo(() => rows.map(c => ({ id: c.id, name: c.name })), [rows]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -724,51 +772,112 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="3"/><path d="M9 9l3 3M8 2h4M8 5h4" strokeLinecap="round"/></svg>
             Grupos
           </button>
-          <button onClick={() => setShowMerge(true)} className="h-9 px-3 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors flex items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2v4l4 2-4 2v4M11 2v4l-4 2 4 2v4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Fusionar
-          </button>
+          {isOwner && (
+            <button onClick={() => setShowMerge(true)} className="h-9 px-3 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2v4l4 2-4 2v4M11 2v4l-4 2 4 2v4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Fusionar
+            </button>
+          )}
         </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="bg-[#FEF2F2] border border-[#8E0E1A]/20 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
-          <span className="text-sm font-semibold text-[#8E0E1A] shrink-0">
-            {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
-          </span>
-
-          {/* Mode tabs */}
-          <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden bg-white shrink-0">
-            {BULK_MODES.map(m => (
-              <button
-                key={m.id}
-                onClick={() => { setBulkMode(m.id); setBulkValue(""); }}
-                className={["px-3 h-8 text-xs font-medium transition-colors border-r border-[#E5E7EB] last:border-0", bulkMode === m.id ? "bg-[#8E0E1A] text-white" : "text-[#374151] hover:bg-[#F3F4F6]"].join(" ")}
-              >
-                {m.label}
-              </button>
-            ))}
+        <div className="bg-[#FEF2F2] border border-[#8E0E1A]/20 rounded-xl px-4 py-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-sm font-semibold text-[#8E0E1A]">
+              {selected.size} seleccionado{selected.size !== 1 ? "s" : ""} · Configura los campos a cambiar y pulsa Aplicar
+            </span>
+            {bulkMsg && <span className="text-xs font-semibold text-emerald-600">{bulkMsg}</span>}
           </div>
 
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <select
-              value={bulkValue}
-              onChange={e => setBulkValue(e.target.value)}
-              className="h-8 flex-1 rounded-lg border border-[#E5E7EB] bg-white px-2 text-xs focus:border-[#8E0E1A] focus:outline-none transition-colors"
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Delegado */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-[#374151] uppercase tracking-wider">Delegado</label>
+              <select
+                value={bulkValues.delegate}
+                onChange={e => setBulkValues(v => ({ ...v, delegate: e.target.value }))}
+                className={[selectCls, bulkValues.delegate ? "border-[#8E0E1A] ring-1 ring-[#8E0E1A]/10" : ""].join(" ")}
+              >
+                <option value="">— No cambiar —</option>
+                <option value="__null__">— Sin asignar —</option>
+                {delegates.map(d => <option key={d.id} value={d.id}>{d.delegate_name ?? d.full_name}</option>)}
+              </select>
+            </div>
+
+            {/* Tipo */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-[#374151] uppercase tracking-wider">Tipo</label>
+              <select
+                value={bulkValues.type}
+                onChange={e => setBulkValues(v => ({ ...v, type: e.target.value }))}
+                className={[selectCls, bulkValues.type ? "border-[#8E0E1A] ring-1 ring-[#8E0E1A]/10" : ""].join(" ")}
+              >
+                <option value="">— No cambiar —</option>
+                <option value="__null__">— Sin tipo —</option>
+                {CONTACT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+
+            {/* KOL */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-[#374151] uppercase tracking-wider">KOL</label>
+              <select
+                value={bulkValues.kol}
+                onChange={e => setBulkValues(v => ({ ...v, kol: e.target.value }))}
+                className={[selectCls, bulkValues.kol ? "border-[#8E0E1A] ring-1 ring-[#8E0E1A]/10" : ""].join(" ")}
+              >
+                <option value="">— No cambiar —</option>
+                <option value="__null__">— Sin asignar —</option>
+                {kolOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+
+            {/* Coordinador */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-[#374151] uppercase tracking-wider">Coordinador</label>
+              <select
+                value={bulkValues.coordinator}
+                onChange={e => setBulkValues(v => ({ ...v, coordinator: e.target.value }))}
+                className={[selectCls, bulkValues.coordinator ? "border-[#8E0E1A] ring-1 ring-[#8E0E1A]/10" : ""].join(" ")}
+              >
+                <option value="">— No cambiar —</option>
+                <option value="__null__">— Sin asignar —</option>
+                {coordinatorOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+
+            {/* Afiliado */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-[#374151] uppercase tracking-wider">Afiliado</label>
+              <select
+                value={bulkValues.affiliate}
+                onChange={e => setBulkValues(v => ({ ...v, affiliate: e.target.value }))}
+                className={[selectCls, bulkValues.affiliate ? "border-[#8E0E1A] ring-1 ring-[#8E0E1A]/10" : ""].join(" ")}
+              >
+                <option value="">— No cambiar —</option>
+                <option value="__null__">— Sin asignar —</option>
+                {affiliates.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => { setSelected(new Set()); setBulkValues(BULK_DEFAULT); }}
+              className="h-8 px-3 rounded-lg text-xs font-medium text-[#6B7280] hover:bg-white/60 transition-colors"
             >
-              <option value="">— Sin asignar —</option>
-              {bulkOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+              Cancelar
+            </button>
             <button
               onClick={handleBulkApply}
-              disabled={bulkPending}
-              className="h-8 px-3 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 transition-colors whitespace-nowrap"
+              disabled={bulkPending || !hasBulkChange}
+              className="h-8 px-4 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 transition-colors whitespace-nowrap"
             >
-              {bulkPending ? "Guardando…" : "Aplicar a todos"}
+              {bulkPending ? "Guardando…" : `Aplicar a ${selected.size} cliente${selected.size !== 1 ? "s" : ""}`}
             </button>
           </div>
-          {bulkMsg && <span className="text-xs font-medium text-emerald-600">{bulkMsg}</span>}
         </div>
       )}
 
@@ -913,7 +1022,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
         )}
       </div>
 
-      {showMerge  && <MergeModal contacts={contacts} onClose={() => setShowMerge(false)} />}
+      {isOwner && showMerge  && <MergeModal contacts={rows} onClose={() => setShowMerge(false)} />}
       {showGroups && <GroupManagementModal initialGroups={groups} onClose={() => setShowGroups(false)} />}
     </div>
   );

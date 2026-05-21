@@ -537,6 +537,12 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/admin",                  label: "Auditoría",         Icon: IconAdmin,        exact: true },
       ],
     }] : []),
+    ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
+      label: "Sistema",
+      items: [
+        { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
+      ],
+    }] : []),
   ];
 }
 

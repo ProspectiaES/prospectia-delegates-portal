@@ -16,13 +16,32 @@ async function requireOwner() {
   return user;
 }
 
+// OWNER, KOL (is_kol=true or role=KOL), COORDINATOR (is_coordinator=true or role=COORDINATOR)
+async function requireActor() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles").select("role, is_kol, is_coordinator").eq("id", user.id).maybeSingle();
+  if (!profile) return null;
+  const allowed =
+    profile.role === "OWNER" ||
+    profile.is_kol === true ||
+    profile.role === "KOL" ||
+    profile.is_coordinator === true ||
+    profile.role === "COORDINATOR";
+  if (!allowed) return null;
+  return user;
+}
+
 // ─── Delegate assignment ───────────────────────────────────────────────────────
 
 export async function setContactDelegateAction(
   contactId: string,
   delegateId: string | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
 
   const admin = createAdminClient();
@@ -44,7 +63,7 @@ export async function bulkAssignDelegateAction(
   contactIds: string[],
   delegateId: string | null
 ): Promise<{ error?: string; updated: number }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
 
@@ -67,7 +86,7 @@ export async function setContactTypeAction(
   contactId: string,
   type: number | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
 
   const admin = createAdminClient();
@@ -102,7 +121,7 @@ export async function bulkSetContactTypeAction(
   contactIds: string[],
   type: number | null
 ): Promise<{ error?: string; updated: number }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
 
@@ -140,7 +159,7 @@ export async function setContactKolAction(
   contactId: string,
   kolId: string | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
   const admin = createAdminClient();
   const { error } = await admin
@@ -156,7 +175,7 @@ export async function setContactCoordinatorAction(
   contactId: string,
   coordinatorId: string | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
   const admin = createAdminClient();
   const { error } = await admin
@@ -172,7 +191,7 @@ export async function setContactAffiliateAction(
   contactId: string,
   affiliateId: string | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
   const admin = createAdminClient();
   const { error } = await admin
@@ -188,7 +207,7 @@ export async function bulkSetKolAction(
   contactIds: string[],
   kolId: string | null
 ): Promise<{ error?: string; updated: number }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
   const admin = createAdminClient();
@@ -205,7 +224,7 @@ export async function bulkSetCoordinatorAction(
   contactIds: string[],
   coordinatorId: string | null
 ): Promise<{ error?: string; updated: number }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
   const admin = createAdminClient();
@@ -222,7 +241,7 @@ export async function bulkSetAffiliateAction(
   contactIds: string[],
   affiliateId: string | null
 ): Promise<{ error?: string; updated: number }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
   const admin = createAdminClient();
@@ -241,7 +260,7 @@ export async function setContactRecommenderAction(
   contactId: string,
   recommenderId: string | null
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
 
   const admin = createAdminClient();
@@ -295,7 +314,7 @@ export async function setContactGroupsAction(
   contactId: string,
   groupIds: string[]
 ): Promise<{ error?: string }> {
-  const user = await requireOwner();
+  const user = await requireActor();
   if (!user) return { error: "No autorizado" };
 
   const admin = createAdminClient();

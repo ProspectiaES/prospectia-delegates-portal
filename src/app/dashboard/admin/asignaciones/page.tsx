@@ -14,7 +14,10 @@ export const metadata = { title: "Asignaciones de clientes — Prospectia" };
 
 export default async function AsignacionesPage() {
   const profile = await getProfile();
-  if (!profile || profile.role !== "OWNER") notFound();
+  const isOwner      = profile?.role === "OWNER";
+  const isKol        = !!(profile?.is_kol || profile?.role === "KOL");
+  const isCoordinator = !!(profile?.is_coordinator || profile?.role === "COORDINATOR");
+  if (!profile || (!isOwner && !isKol && !isCoordinator)) notFound();
 
   const admin = createAdminClient();
 
@@ -46,19 +49,50 @@ export default async function AsignacionesPage() {
   const rawContacts = contactsRes.data ?? [];
   const rawProfiles = profilesRes.data ?? [];
 
+  // ── Universe filter for KOL / COORDINATOR ────────────────────────────────────
+  let allowedContactIds: Set<string> | null = null;
+
+  if (!isOwner) {
+    const allowed = new Set<string>();
+    // Their own contacts as a delegate
+    (assignmentsRes.data ?? [])
+      .filter(r => r.delegate_id === profile.id)
+      .forEach(r => allowed.add(r.contact_id));
+
+    if (isKol) {
+      const kolDelegateIds = new Set(rawProfiles.filter(p => p.kol_id === profile.id).map(p => p.id));
+      (assignmentsRes.data ?? [])
+        .filter(r => kolDelegateIds.has(r.delegate_id))
+        .forEach(r => allowed.add(r.contact_id));
+      rawContacts.filter(c => c.assigned_kol_id === profile.id).forEach(c => allowed.add(c.id));
+    }
+    if (isCoordinator) {
+      const coordDelegateIds = new Set(rawProfiles.filter(p => p.coordinator_id === profile.id).map(p => p.id));
+      (assignmentsRes.data ?? [])
+        .filter(r => coordDelegateIds.has(r.delegate_id))
+        .forEach(r => allowed.add(r.contact_id));
+      rawContacts.filter(c => c.assigned_coordinator_id === profile.id).forEach(c => allowed.add(c.id));
+    }
+    allowedContactIds = allowed;
+  }
+
+  const filteredRawContacts = allowedContactIds
+    ? rawContacts.filter(c => allowedContactIds!.has(c.id))
+    : rawContacts;
+
   // ── Step 2: look up kol/coordinator names for delegate profiles ──────────────
   const linkedProfileIds = [
     ...new Set([
       ...rawProfiles.map(p => p.kol_id).filter(Boolean),
       ...rawProfiles.map(p => p.coordinator_id).filter(Boolean),
       // kol/coordinator assigned directly to contacts
-      ...rawContacts.map(c => c.assigned_kol_id).filter(Boolean),
-      ...rawContacts.map(c => c.assigned_coordinator_id).filter(Boolean),
+      ...filteredRawContacts.map(c => c.assigned_kol_id).filter(Boolean),
+      ...filteredRawContacts.map(c => c.assigned_coordinator_id).filter(Boolean),
     ]),
   ] as string[];
 
   // ── Step 3: look up recommender names ───────────────────────────────────────
-  const recommenderIds = [...new Set(rawContacts.map(c => c.recommender_id).filter(Boolean))] as string[];
+  const recommenderIds = [...new Set(filteredRawContacts.map(c => c.recommender_id).filter(Boolean))] as string[];
 
   const [linkedProfilesRes, recommenderRes] = await Promise.all([
     linkedProfileIds.length > 0
@@ -95,7 +129,7 @@ export default async function AsignacionesPage() {
   }
 
   // ── Build typed arrays ───────────────────────────────────────────────────────
-  const contacts: ContactRow[] = rawContacts.map(c => ({
+  const contacts: ContactRow[] = filteredRawContacts.map(c => ({
     id:                      c.id,
     name:                    c.name,
     code:                    c.code ?? null,
@@ -153,6 +187,7 @@ export default async function AsignacionesPage() {
         coordinatorOptions={coordinatorOptions}
         affiliates={affiliates}
         groups={groups}
+        isOwner={isOwner}
       />
     </div>
   );
