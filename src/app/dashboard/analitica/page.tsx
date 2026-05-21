@@ -33,6 +33,13 @@ function extractUnits(inv: Invoice, skuSet: Set<string> | string): number {
   }, 0);
 }
 
+// Canonical product name key — merges "Neck & Chin" / "Neck and Chin", case-insensitive
+function normalizeProdName(raw: string) {
+  return raw.trim().toLowerCase()
+    .replace(/\s*&\s*/g, " and ")
+    .replace(/\s+/g, " ");
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AnaliticaPage({
@@ -111,15 +118,22 @@ export default async function AnaliticaPage({
     const invs = allInvoices.filter(i => i.date >= start && i.date <= end);
     const units    = invs.reduce((s, i) => s + extractUnits(i, SKU_SPRAY), 0);
     const focUnits = invs.reduce((s, i) => s + extractUnits(i, SKUS_PROMO), 0);
-    // Total billed units across all SKUs (excludes FOC)
-    const allUnits = invs.reduce((s, i) => {
-      const lines = (i.raw?.products ?? i.raw?.items ?? []) as RawProduct[];
-      return s + lines.reduce((ls, l) => ls + Number(l.units ?? 0), 0);
-    }, 0) - focUnits;
+    const byProduct: Record<string, number> = {};
+    let allUnits = 0;
+    for (const inv of invs) {
+      const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
+      for (const l of lines) {
+        const u = Number(l.units ?? 0);
+        allUnits += u;
+        const key = normalizeProdName((l.name ?? l.sku ?? "").trim());
+        if (key) byProduct[key] = (byProduct[key] ?? 0) + u;
+      }
+    }
+    allUnits -= focUnits;
     const revenue  = invs.reduce((s, i) => s + (i.raw?.subtotal ?? 0), 0);
     const contactIds = new Set(invs.map(i => i.contact_id));
     const newClients = [...contactIds].filter(cid => firstInvoiceDate[cid] >= start).length;
-    return { units, focUnits, allUnits, revenue, activeClients: contactIds.size, newClients, count: invs.length };
+    return { units, focUnits, allUnits, byProduct, revenue, activeClients: contactIds.size, newClients, count: invs.length };
   }
 
   const cur = computeMonthMetrics(curStart, curEnd);
@@ -159,29 +173,29 @@ export default async function AnaliticaPage({
   // Total clients in cartera
   const totalClientsInCartera = new Set(cdRows.map(r => r.contact_id)).size;
 
-  // ── Top delegates by total units — all products, no SKU filter ───────────────
-  const delegateUnits: Record<string, number> = {};
+  // ── Top delegates — with per-product breakdown ────────────────────────────────
+  const delegateData: Record<string, { units: number; byProduct: Record<string, number> }> = {};
   for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
     const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
-    const total = lines.reduce((s, l) => s + Number(l.units ?? 0), 0);
     const deleg = cdRows.find(r => r.contact_id === inv.contact_id)?.delegate_id;
-    if (deleg) delegateUnits[deleg] = (delegateUnits[deleg] ?? 0) + total;
+    if (!deleg) continue;
+    if (!delegateData[deleg]) delegateData[deleg] = { units: 0, byProduct: {} };
+    for (const l of lines) {
+      const u = Number(l.units ?? 0);
+      delegateData[deleg].units += u;
+      const key = normalizeProdName((l.name ?? l.sku ?? "").trim());
+      if (key) delegateData[deleg].byProduct[key] = (delegateData[deleg].byProduct[key] ?? 0) + u;
+    }
   }
-  const topDelegates = Object.entries(delegateUnits)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id, units]) => {
+  const topDelegates = Object.entries(delegateData)
+    .sort((a, b) => b[1].units - a[1].units)
+    .slice(0, 12)
+    .map(([id, { units, byProduct }]) => {
       const d = delegates.find(d => d.id === id);
-      return { name: d?.delegate_name ?? d?.full_name ?? "—", units };
+      return { name: d?.delegate_name ?? d?.full_name ?? "—", units, byProduct };
     });
 
-  // ── Product breakdown (current month) — grouped by name to merge Shopify+local ─
-  function normalizeProdName(raw: string) {
-    return raw.trim().toLowerCase()
-      .replace(/\s*&\s*/g, " and ")   // "Neck & Chin" → "neck and chin"
-      .replace(/\s+/g, " ");
-  }
-
+  // ── Product breakdown (current month) — grouped by name, Shopify+local merged ─
   const productMap: Record<string, { displayName: string; skus: Set<string>; units: number }> = {};
   for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
     const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
@@ -193,9 +207,10 @@ export default async function AnaliticaPage({
       if (l.sku) productMap[key].skus.add(l.sku);
     }
   }
-  const skuBreakdown = Object.values(productMap)
-    .sort((a, b) => b.units - a.units)
-    .map(({ displayName, skus, units }) => ({
+  const skuBreakdown = Object.entries(productMap)
+    .sort((a, b) => b[1].units - a[1].units)
+    .map(([normalizedName, { displayName, skus, units }]) => ({
+      normalizedName,
       name: displayName,
       sku: [...skus].join(" · "),
       units,
