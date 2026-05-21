@@ -554,7 +554,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
   const [filterGroup, setFilterGroup]   = useState("");
   const [selected, setSelected]         = useState<Set<string>>(new Set());
   const [bulkValues, setBulkValues]     = useState<BulkValues>(BULK_DEFAULT);
-  const [bulkPending, startBulk]        = useTransition();
+  const [bulkPending, setBulkPending]   = useState(false);
   const [bulkMsg, setBulkMsg]           = useState("");
   const [showMerge, setShowMerge]       = useState(false);
   const [showGroups, setShowGroups]     = useState(false);
@@ -631,32 +631,35 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
     const idSet = new Set(ids);
     const applied = { ...bulkValues };
 
-    startBulk(async () => {
-      const errors: string[] = [];
+    setBulkPending(true);
+    const errors: string[] = [];
+    try {
       if (applied.delegate !== "") { const r = await bulkAssignDelegateAction(ids, applied.delegate === "__null__" ? null : applied.delegate); if (r.error) errors.push(r.error); }
       if (applied.type !== "")     { const r = await bulkSetContactTypeAction(ids, applied.type === "__null__" ? null : Number(applied.type)); if (r.error) errors.push(r.error); }
       if (applied.kol !== "")      { const r = await bulkSetKolAction(ids, applied.kol === "__null__" ? null : applied.kol); if (r.error) errors.push(r.error); }
       if (applied.coordinator !== "") { const r = await bulkSetCoordinatorAction(ids, applied.coordinator === "__null__" ? null : applied.coordinator); if (r.error) errors.push(r.error); }
       if (applied.affiliate !== "") { const r = await bulkSetAffiliateAction(ids, applied.affiliate === "__null__" ? null : applied.affiliate); if (r.error) errors.push(r.error); }
+    } finally {
+      setBulkPending(false);
+    }
 
-      if (errors.length > 0) { setBulkMsg(`Error: ${errors[0]}`); return; }
+    if (errors.length > 0) { setBulkMsg(`Error: ${errors[0]}`); return; }
 
-      setRows(prev => prev.map(r => {
-        if (!idSet.has(r.id)) return r;
-        const next = { ...r };
-        if (applied.delegate !== "") next.delegate_id = applied.delegate === "__null__" ? null : applied.delegate;
-        if (applied.type !== "") next.type = applied.type === "__null__" ? null : Number(applied.type);
-        if (applied.kol !== "") { const v = applied.kol === "__null__" ? null : applied.kol; next.assigned_kol_id = v; next.assigned_kol_name = v ? (kolOptions.find(o => o.id === v)?.name ?? null) : null; }
-        if (applied.coordinator !== "") { const v = applied.coordinator === "__null__" ? null : applied.coordinator; next.assigned_coordinator_id = v; next.assigned_coordinator_name = v ? (coordinatorOptions.find(o => o.id === v)?.name ?? null) : null; }
-        if (applied.affiliate !== "") { const v = applied.affiliate === "__null__" ? null : applied.affiliate; next.affiliate_id = v; next.affiliate_name = v ? (affiliates.find(o => o.id === v)?.name ?? null) : null; }
-        return next;
-      }));
+    setRows(prev => prev.map(r => {
+      if (!idSet.has(r.id)) return r;
+      const next = { ...r };
+      if (applied.delegate !== "") next.delegate_id = applied.delegate === "__null__" ? null : applied.delegate;
+      if (applied.type !== "") next.type = applied.type === "__null__" ? null : Number(applied.type);
+      if (applied.kol !== "") { const v = applied.kol === "__null__" ? null : applied.kol; next.assigned_kol_id = v; next.assigned_kol_name = v ? (kolOptions.find(o => o.id === v)?.name ?? null) : null; }
+      if (applied.coordinator !== "") { const v = applied.coordinator === "__null__" ? null : applied.coordinator; next.assigned_coordinator_id = v; next.assigned_coordinator_name = v ? (coordinatorOptions.find(o => o.id === v)?.name ?? null) : null; }
+      if (applied.affiliate !== "") { const v = applied.affiliate === "__null__" ? null : applied.affiliate; next.affiliate_id = v; next.affiliate_name = v ? (affiliates.find(o => o.id === v)?.name ?? null) : null; }
+      return next;
+    }));
 
-      setBulkMsg(`${ids.length} cliente${ids.length !== 1 ? "s" : ""} actualizados`);
-      setSelected(new Set());
-      setBulkValues(BULK_DEFAULT);
-      setTimeout(() => setBulkMsg(""), 3000);
-    });
+    setBulkMsg(`${ids.length} cliente${ids.length !== 1 ? "s" : ""} actualizados`);
+    setSelected(new Set());
+    setBulkValues(BULK_DEFAULT);
+    setTimeout(() => setBulkMsg(""), 3000);
   }
 
   const contactList = useMemo(() => rows.map(c => ({ id: c.id, name: c.name })), [rows]);
