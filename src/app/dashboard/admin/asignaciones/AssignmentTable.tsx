@@ -76,7 +76,14 @@ const ACTOR_PALETTE = [
   "#1e3a5f","#0f4c75","#1b4332","#4a1942","#7b2d00",
   "#2d3561","#0f3460","#533483","#065f46","#7f1d1d",
 ];
+const ACTOR_COLOR_OVERRIDES: Record<string, string> = {
+  "PROSPECTIA": "#8E0E1A",
+};
 function actorBg(name: string): string {
+  const upper = name.toUpperCase();
+  for (const [key, color] of Object.entries(ACTOR_COLOR_OVERRIDES)) {
+    if (upper.includes(key)) return color;
+  }
   let h = 0;
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
   return ACTOR_PALETTE[h % ACTOR_PALETTE.length];
