@@ -5,6 +5,8 @@ import { ActivityTracker } from "@/components/ActivityTracker";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationItem } from "@/components/NotificationBell";
+import { ChatWidget } from "@/components/ChatWidget";
+import { getTotalUnreadMessagesAction } from "@/app/actions/messages";
 
 function isMobileUA(ua: string) {
   return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
@@ -20,10 +22,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   let userProfile: { id: string; full_name: string; role: string; avatar_url: string | null; created_at: string; is_kol: boolean; is_coordinator: boolean } | null = null;
   let notifications: NotificationItem[] = [];
+  let unreadMessages = 0;
 
   if (user) {
     const admin = createAdminClient();
-    const [profileRes, notifRes] = await Promise.all([
+    const [profileRes, notifRes, unreadMsgCount] = await Promise.all([
       admin
         .from("profiles")
         .select("id, full_name, role, avatar_url, created_at, is_kol, is_coordinator")
@@ -35,8 +38,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         .eq("recipient_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20),
+      getTotalUnreadMessagesAction(),
     ]);
     userProfile = profileRes.data ?? null;
+    unreadMessages = unreadMsgCount;
     const rawNotifs = (notifRes.data ?? []) as unknown as Array<{
       id: string; type: string; is_read: boolean; created_at: string;
       task: { id: string; title: string } | Array<{ id: string; title: string }> | null;
@@ -57,6 +62,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <MobileDrawer user={userProfile} notifications={notifications}>
         {children}
         <ActivityTracker />
+        {user && (
+          <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+        )}
       </MobileDrawer>
     );
   }
@@ -68,6 +76,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
       <ActivityTracker />
+      {user && (
+        <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+      )}
     </div>
   );
 }

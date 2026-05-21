@@ -56,11 +56,11 @@ export function TaskEditForm({ task, profiles, projects }: Props) {
       )}
       {state?.success && (
         <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm text-emerald-700">
-          Canvis guardats correctament.
+          Cambios guardados correctamente.
         </div>
       )}
 
-      <Field label="Títol *">
+      <Field label="Título *">
         <input
           name="title"
           required
@@ -69,7 +69,7 @@ export function TaskEditForm({ task, profiles, projects }: Props) {
         />
       </Field>
 
-      <Field label="Descripció">
+      <Field label="Descripción">
         <textarea
           name="description"
           rows={4}
@@ -79,36 +79,36 @@ export function TaskEditForm({ task, profiles, projects }: Props) {
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Estat">
+        <Field label="Estado">
           <select name="status" defaultValue={task.status} className={selectCls}>
-            <option value="todo">Pendent</option>
-            <option value="in_progress">En curs</option>
-            <option value="done">Completat</option>
-            <option value="cancelled">Cancel·lat</option>
+            <option value="todo">Pendiente</option>
+            <option value="in_progress">En curso</option>
+            <option value="done">Completado</option>
+            <option value="cancelled">Cancelado</option>
           </select>
         </Field>
-        <Field label="Prioritat">
+        <Field label="Prioridad">
           <select name="priority" defaultValue={task.priority} className={selectCls}>
-            <option value="low">Baixa</option>
-            <option value="medium">Mitjana</option>
+            <option value="low">Baja</option>
+            <option value="medium">Media</option>
             <option value="high">Alta</option>
-            <option value="urgent">Urgent</option>
+            <option value="urgent">Urgente</option>
           </select>
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Assignar a">
+        <Field label="Asignar a">
           <select name="assignee_id" defaultValue={task.assignee_id ?? ""} className={selectCls}>
-            <option value="">— Ningú —</option>
+            <option value="">— Nadie —</option>
             {profiles.map(p => (
               <option key={p.id} value={p.id}>{p.full_name}</option>
             ))}
           </select>
         </Field>
-        <Field label="Projecte">
+        <Field label="Proyecto">
           <select name="project_id" defaultValue={task.project_id ?? ""} className={selectCls}>
-            <option value="">— Sense projecte —</option>
+            <option value="">— Sin proyecto —</option>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
@@ -116,7 +116,7 @@ export function TaskEditForm({ task, profiles, projects }: Props) {
         </Field>
       </div>
 
-      <Field label="Data límit">
+      <Field label="Fecha límite">
         <input
           name="due_date"
           type="date"
@@ -131,7 +131,7 @@ export function TaskEditForm({ task, profiles, projects }: Props) {
           disabled={pending}
           className="h-9 px-5 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-[#8E0E1A] focus:ring-offset-2"
         >
-          {pending ? "Guardant…" : "Guardar canvis"}
+          {pending ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
     </form>

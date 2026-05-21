@@ -9,7 +9,7 @@ export function DeleteTaskButton({ taskId }: { taskId: string }) {
   const router = useRouter();
 
   function handleDelete() {
-    if (!confirm("Segur que vols eliminar aquesta tasca?")) return;
+    if (!confirm("¿Seguro que quieres eliminar esta tarea?")) return;
     startTransition(async () => {
       await deleteTaskAction(taskId);
       router.push("/dashboard/tareas");
@@ -23,7 +23,7 @@ export function DeleteTaskButton({ taskId }: { taskId: string }) {
       disabled={pending}
       className="w-full h-9 rounded-lg border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
     >
-      {pending ? "Eliminant…" : "Eliminar tasca"}
+      {pending ? "Eliminando…" : "Eliminar tarea"}
     </button>
   );
 }

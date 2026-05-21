@@ -36,10 +36,9 @@ export function CommentThread({
 
   return (
     <div className="space-y-4">
-      {/* Comment list */}
       {initialComments.length === 0 ? (
         <p className="text-sm text-[#9CA3AF] text-center py-4">
-          Encara no hi ha comentaris.
+          Aún no hay comentarios.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -64,7 +63,7 @@ export function CommentThread({
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-xs font-semibold text-[#374151]">
-                    {c.author?.full_name ?? "Desconegut"}
+                    {c.author?.full_name ?? "Desconocido"}
                   </span>
                   <span className="text-[11px] text-[#9CA3AF]">{fmtDateTime(c.created_at)}</span>
                 </div>
@@ -77,7 +76,6 @@ export function CommentThread({
         </ul>
       )}
 
-      {/* Add comment form */}
       <form ref={formRef} action={action} className="flex flex-col gap-2 pt-2 border-t border-[#F3F4F6]">
         <input type="hidden" name="task_id" value={taskId} />
         {state?.error && (
@@ -87,7 +85,7 @@ export function CommentThread({
           name="content"
           required
           rows={3}
-          placeholder="Escriu un comentari…"
+          placeholder="Escribe un comentario…"
           className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors resize-none"
         />
         <div className="flex justify-end">
@@ -96,7 +94,7 @@ export function CommentThread({
             disabled={pending}
             className="h-8 px-4 rounded-lg bg-[#8E0E1A] text-xs font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-[#8E0E1A] focus:ring-offset-2"
           >
-            {pending ? "Enviant…" : "Comentar"}
+            {pending ? "Enviando…" : "Comentar"}
           </button>
         </div>
       </form>

@@ -27,10 +27,10 @@ interface Props {
 }
 
 const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
-  { id: "todo",        label: "Pendent",    color: "#6B7280" },
-  { id: "in_progress", label: "En curs",    color: "#2563EB" },
-  { id: "done",        label: "Completat",  color: "#059669" },
-  { id: "cancelled",   label: "Cancel·lat", color: "#DC2626" },
+  { id: "todo",        label: "Pendiente",   color: "#6B7280" },
+  { id: "in_progress", label: "En curso",    color: "#2563EB" },
+  { id: "done",        label: "Completado",  color: "#059669" },
+  { id: "cancelled",   label: "Cancelado",   color: "#DC2626" },
 ];
 
 // ─── Draggable card wrapper ───────────────────────────────────────────────────
@@ -81,7 +81,7 @@ function KanbanColumn({
         </div>
         <button
           onClick={() => setShowModal(true)}
-          title="Nova tasca"
+          title="Nueva tarea"
           className="w-6 h-6 rounded flex items-center justify-center text-[#9CA3AF] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -104,7 +104,7 @@ function KanbanColumn({
 
         {tasks.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-xs text-[#9CA3AF]">Cap tasca</p>
+            <p className="text-xs text-[#9CA3AF]">Sin tareas</p>
           </div>
         )}
       </div>
@@ -167,7 +167,7 @@ export function KanbanBoard({ initialTasks, profiles, projects }: Props) {
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-[#0A0A0A]">Tasques</h1>
+        <h1 className="text-lg font-semibold text-[#0A0A0A]">Tareas</h1>
         <button
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] transition-colors focus:outline-none focus:ring-2 focus:ring-[#8E0E1A] focus:ring-offset-2"
@@ -175,7 +175,7 @@ export function KanbanBoard({ initialTasks, profiles, projects }: Props) {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
             <path d="M7 2v10M2 7h10" strokeLinecap="round"/>
           </svg>
-          Nova tasca
+          Nueva tarea
         </button>
       </div>
 

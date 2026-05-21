@@ -14,11 +14,11 @@ export interface NotificationItem {
 }
 
 const TYPE_TEXT: Record<NotificationItem["type"], string> = {
-  assigned:       "t'ha assignat",
-  commented:      "ha comentat",
-  status_changed: "ha canviat l'estat",
-  mentioned:      "t'ha mencionat",
-  due_soon:       "venç aviat",
+  assigned:       "te ha asignado",
+  commented:      "ha comentado en",
+  status_changed: "cambió el estado de",
+  mentioned:      "te mencionó en",
+  due_soon:       "vence pronto:",
 };
 
 function relativeTime(iso: string) {
@@ -64,7 +64,7 @@ export function NotificationBell({
       <button
         onClick={() => setOpen(o => !o)}
         className="relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors w-full"
-        aria-label={`Notificacions${unread > 0 ? ` (${unread} sense llegir)` : ""}`}
+        aria-label={`Notificaciones${unread > 0 ? ` (${unread} sin leer)` : ""}`}
       >
         <span className="relative text-[#6B7280]">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
@@ -77,14 +77,14 @@ export function NotificationBell({
             </span>
           )}
         </span>
-        Notificacions
+        Notificaciones
       </button>
 
       {open && (
         <div className="absolute bottom-full left-0 mb-1 w-80 bg-white rounded-xl border border-[#E5E7EB] shadow-xl z-50">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#F3F4F6]">
             <span className="text-xs font-semibold text-[#374151]">
-              Notificacions
+              Notificaciones
               {unread > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF2F2] text-[#8E0E1A]">
                   {unread}
@@ -97,7 +97,7 @@ export function NotificationBell({
                 disabled={isPending}
                 className="text-[11px] font-medium text-[#8E0E1A] hover:underline disabled:opacity-50"
               >
-                Marcar tot llegit
+                Marcar todo leído
               </button>
             )}
           </div>
@@ -105,7 +105,7 @@ export function NotificationBell({
           <ul className="max-h-72 overflow-y-auto divide-y divide-[#F9FAFB]">
             {notifications.length === 0 ? (
               <li className="px-4 py-6 text-center text-xs text-[#9CA3AF]">
-                Cap notificació
+                Sin notificaciones
               </li>
             ) : (
               notifications.map(n => (

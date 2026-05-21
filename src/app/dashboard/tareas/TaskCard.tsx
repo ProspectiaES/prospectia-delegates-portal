@@ -17,19 +17,19 @@ export interface TaskCardData {
 }
 
 const PRIORITY: Record<TaskPriority, { label: string; cls: string }> = {
-  low:    { label: "Baixa",   cls: "bg-[#F3F4F6] text-[#6B7280]" },
-  medium: { label: "Mitjana", cls: "bg-blue-50 text-blue-600" },
+  low:    { label: "Baja",    cls: "bg-[#F3F4F6] text-[#6B7280]" },
+  medium: { label: "Media",   cls: "bg-blue-50 text-blue-600" },
   high:   { label: "Alta",    cls: "bg-amber-50 text-amber-600" },
-  urgent: { label: "Urgent",  cls: "bg-[#FEF2F2] text-[#8E0E1A]" },
+  urgent: { label: "Urgente", cls: "bg-[#FEF2F2] text-[#8E0E1A]" },
 };
 
 function relativeDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
-  if (diff === 0) return "Avui";
-  if (diff === 1) return "Demà";
-  if (diff === -1) return "Ahir";
+  if (diff === 0) return "Hoy";
+  if (diff === 1) return "Mañana";
+  if (diff === -1) return "Ayer";
   return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 }
 
@@ -63,7 +63,7 @@ export function TaskCard({ task }: { task: TaskCardData }) {
         )}
         {task.contact_id && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600">
-            Client
+            Cliente
           </span>
         )}
         {task.salesorder_id && (
@@ -79,9 +79,9 @@ export function TaskCard({ task }: { task: TaskCardData }) {
             <span className={`text-[11px] font-medium flex items-center gap-0.5 ${overdue ? "text-[#8E0E1A]" : "text-[#6B7280]"}`}>
               {overdue && (
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-                  <path d="M6 1L1 10h10L6 1zm0 2.5l2.8 4.5H3.2L6 3.5zm0 2v1.5" strokeWidth="0"/>
-                  <rect x="5.5" y="5" width="1" height="2" rx="0.5"/>
-                  <rect x="5.5" y="8" width="1" height="1" rx="0.5"/>
+                  <path d="M6 1L1 10h10L6 1z" strokeWidth="0" fillOpacity="0.15"/>
+                  <rect x="5.5" y="4.5" width="1" height="3" rx="0.5"/>
+                  <rect x="5.5" y="8.5" width="1" height="1" rx="0.5"/>
                 </svg>
               )}
               {relativeDate(task.due_date)}

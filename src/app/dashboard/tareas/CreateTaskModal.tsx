@@ -34,7 +34,7 @@ export function CreateTaskModal({ defaultStatus = "todo", profiles, projects, on
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg">
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB]">
-          <h2 className="text-sm font-semibold text-[#0A0A0A]">Nova tasca</h2>
+          <h2 className="text-sm font-semibold text-[#0A0A0A]">Nueva tarea</h2>
           <button
             type="button"
             onClick={onClose}
@@ -56,56 +56,56 @@ export function CreateTaskModal({ defaultStatus = "todo", profiles, projects, on
           )}
 
           <div>
-            <label className="block text-xs font-medium text-[#374151] mb-1">Títol *</label>
+            <label className="block text-xs font-medium text-[#374151] mb-1">Título *</label>
             <input
               name="title"
               required
-              placeholder="Descripció breu de la tasca…"
+              placeholder="Descripción breve de la tarea…"
               className={inputCls}
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[#374151] mb-1">Descripció</label>
+            <label className="block text-xs font-medium text-[#374151] mb-1">Descripción</label>
             <textarea
               name="description"
               rows={3}
-              placeholder="Detalls opcionals…"
+              placeholder="Detalles opcionales…"
               className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 transition-colors resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[#374151] mb-1">Prioritat</label>
+              <label className="block text-xs font-medium text-[#374151] mb-1">Prioridad</label>
               <select name="priority" defaultValue="medium" className={selectCls}>
-                <option value="low">Baixa</option>
-                <option value="medium">Mitjana</option>
+                <option value="low">Baja</option>
+                <option value="medium">Media</option>
                 <option value="high">Alta</option>
-                <option value="urgent">Urgent</option>
+                <option value="urgent">Urgente</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#374151] mb-1">Data límit</label>
+              <label className="block text-xs font-medium text-[#374151] mb-1">Fecha límite</label>
               <input name="due_date" type="date" className={inputCls} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[#374151] mb-1">Assignar a</label>
+              <label className="block text-xs font-medium text-[#374151] mb-1">Asignar a</label>
               <select name="assignee_id" className={selectCls}>
-                <option value="">— Ningú —</option>
+                <option value="">— Nadie —</option>
                 {profiles.map(p => (
                   <option key={p.id} value={p.id}>{p.full_name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#374151] mb-1">Projecte</label>
+              <label className="block text-xs font-medium text-[#374151] mb-1">Proyecto</label>
               <select name="project_id" className={selectCls}>
-                <option value="">— Sense projecte —</option>
+                <option value="">— Sin proyecto —</option>
                 {projects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -119,14 +119,14 @@ export function CreateTaskModal({ defaultStatus = "todo", profiles, projects, on
               onClick={onClose}
               className="h-9 px-4 rounded-lg text-sm font-medium text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
             >
-              Cancel·lar
+              Cancelar
             </button>
             <button
               type="submit"
               disabled={pending}
               className="h-9 px-5 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#6B0A14] disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-[#8E0E1A] focus:ring-offset-2"
             >
-              {pending ? "Creant…" : "Crear tasca"}
+              {pending ? "Creando…" : "Crear tarea"}
             </button>
           </div>
         </form>

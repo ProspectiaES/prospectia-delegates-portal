@@ -96,7 +96,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-[#9CA3AF] mb-6">
         <Link href="/dashboard/tareas" className="hover:text-[#8E0E1A] transition-colors">
-          Tasques
+          Tareas
         </Link>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
           <path d="M4.5 3l3 3-3 3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -109,7 +109,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <h2 className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-4">
-              Detalls de la tasca
+              Detalles de la tarea
             </h2>
             <TaskEditForm
               task={task}
@@ -121,7 +121,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           {/* Comments */}
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-5">
             <h2 className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-4">
-              Comentaris ({comments.length})
+              Comentarios ({comments.length})
             </h2>
             <CommentThread taskId={id} initialComments={comments} />
           </div>
@@ -130,42 +130,42 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         {/* Right: Metadata */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3">
-            <h3 className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Informació</h3>
+            <h3 className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Información</h3>
 
             {task.creator && (
               <div>
-                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Creat per</p>
+                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Creado por</p>
                 <p className="text-sm font-medium text-[#374151]">{task.creator.full_name}</p>
               </div>
             )}
             <div>
-              <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Creat</p>
+              <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Creado</p>
               <p className="text-sm font-medium text-[#374151]">{fmtDate(task.created_at)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Actualitzat</p>
+              <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Actualizado</p>
               <p className="text-sm font-medium text-[#374151]">{fmtDate(task.updated_at)}</p>
             </div>
 
             {task.contact_id && (
               <div>
-                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Client vinculat</p>
+                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Cliente vinculado</p>
                 <Link
                   href={`/dashboard/clientes/${task.contact_id}`}
                   className="text-sm font-medium text-[#8E0E1A] hover:underline"
                 >
-                  Veure client →
+                  Ver cliente →
                 </Link>
               </div>
             )}
             {task.salesorder_id && (
               <div>
-                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Pedido vinculat</p>
+                <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wider mb-0.5">Pedido vinculado</p>
                 <Link
                   href={`/dashboard/pedidos/${task.salesorder_id}`}
                   className="text-sm font-medium text-[#8E0E1A] hover:underline"
                 >
-                  Veure pedido →
+                  Ver pedido →
                 </Link>
               </div>
             )}

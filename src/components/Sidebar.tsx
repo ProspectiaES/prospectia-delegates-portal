@@ -485,9 +485,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       ],
     },
     {
-      label: "Equip",
+      label: "Equipo",
       items: [
-        { href: "/dashboard/tareas", label: "Tasques", Icon: IconTasques, exact: false },
+        { href: "/dashboard/tareas", label: "Tareas", Icon: IconTasques, exact: false },
       ],
     },
     {
