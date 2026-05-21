@@ -122,6 +122,14 @@ const IconRendimiento = () => (
   </svg>
 );
 
+const IconAnalitica = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v7a2.5 2.5 0 0 1-5 0v-7A2.5 2.5 0 0 1 9.5 2Z" strokeLinejoin="round"/>
+    <path d="M4.5 8A1.5 1.5 0 0 1 6 9.5v2A1.5 1.5 0 0 1 3 11.5v-2A1.5 1.5 0 0 1 4.5 8Z" strokeLinejoin="round"/>
+    <path d="M0.5 14.5h15" strokeLinecap="round"/>
+  </svg>
+);
+
 const IconCRM = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <path d="M1 12.5C1 10.567 2.567 9 4.5 9h7C13.433 9 15 10.567 15 12.5v0" strokeLinecap="round"/>
@@ -530,6 +538,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Sistema",
       items: [
+        { href: "/dashboard/analitica",              label: "Analítica IA",      Icon: IconAnalitica,    exact: false },
         { href: "/dashboard/performance",            label: "Performance",       Icon: IconRendimiento,  exact: true },
         { href: "/dashboard/performance/pedidos",    label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
         { href: "/dashboard/autofacturas",           label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
@@ -540,7 +549,8 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
       label: "Sistema",
       items: [
-        { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
+        { href: "/dashboard/analitica",          label: "Analítica IA",  Icon: IconAnalitica, exact: false },
+        { href: "/dashboard/admin/asignaciones", label: "Asignaciones",  Icon: IconDelegados, exact: false },
       ],
     }] : []),
   ];
