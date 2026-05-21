@@ -530,10 +530,11 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Sistema",
       items: [
-        { href: "/dashboard/performance",         label: "Performance",      Icon: IconRendimiento,  exact: true },
-        { href: "/dashboard/performance/pedidos", label: "Pedidos delegats", Icon: IconPedidos,      exact: false },
-        { href: "/dashboard/autofacturas",        label: "Autofacturas",     Icon: IconAutofacturas, exact: false },
-        { href: "/dashboard/admin",        label: "Auditoría",    Icon: IconAdmin,        exact: false },
+        { href: "/dashboard/performance",            label: "Performance",       Icon: IconRendimiento,  exact: true },
+        { href: "/dashboard/performance/pedidos",    label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
+        { href: "/dashboard/autofacturas",           label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
+        { href: "/dashboard/admin/asignaciones",     label: "Asignaciones",      Icon: IconDelegados,    exact: false },
+        { href: "/dashboard/admin",                  label: "Auditoría",         Icon: IconAdmin,        exact: true },
       ],
     }] : []),
   ];
