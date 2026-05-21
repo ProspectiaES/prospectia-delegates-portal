@@ -111,10 +111,15 @@ export default async function AnaliticaPage({
     const invs = allInvoices.filter(i => i.date >= start && i.date <= end);
     const units    = invs.reduce((s, i) => s + extractUnits(i, SKU_SPRAY), 0);
     const focUnits = invs.reduce((s, i) => s + extractUnits(i, SKUS_PROMO), 0);
+    // Total billed units across all SKUs (excludes FOC)
+    const allUnits = invs.reduce((s, i) => {
+      const lines = (i.raw?.products ?? i.raw?.items ?? []) as RawProduct[];
+      return s + lines.reduce((ls, l) => ls + Number(l.units ?? 0), 0);
+    }, 0) - focUnits;
     const revenue  = invs.reduce((s, i) => s + (i.raw?.subtotal ?? 0), 0);
     const contactIds = new Set(invs.map(i => i.contact_id));
     const newClients = [...contactIds].filter(cid => firstInvoiceDate[cid] >= start).length;
-    return { units, focUnits, revenue, activeClients: contactIds.size, newClients, count: invs.length };
+    return { units, focUnits, allUnits, revenue, activeClients: contactIds.size, newClients, count: invs.length };
   }
 
   const cur = computeMonthMetrics(curStart, curEnd);
@@ -187,6 +192,7 @@ export default async function AnaliticaPage({
       period={{ year, month, label: `${MONTH_LABELS[month]} ${year}`, isNow, mesStr }}
       kpis={{
         units:           cur.units,
+        allUnits:        cur.allUnits,
         focUnits:        cur.focUnits,
         revenue:         cur.revenue,
         invoiceCount:    cur.count,
