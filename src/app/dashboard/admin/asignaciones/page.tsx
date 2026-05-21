@@ -14,13 +14,7 @@ export default async function AsignacionesPage() {
   const [contactsRes, delegatesRes, assignmentsRes, groupsRes, groupMembersRes] = await Promise.all([
     admin
       .from("holded_contacts")
-      .select(`
-        id, name, code, type,
-        recommender_id,
-        recommender:holded_contacts!holded_contacts_recommender_id_fkey(id, name),
-        affiliate_id,
-        affiliate:bixgrow_affiliates!holded_contacts_affiliate_id_fkey(id, email, first_name, last_name)
-      `)
+      .select("id, name, code, type, recommender_id, affiliate_id")
       .is("merged_into_id", null)
       .order("name"),
     // All assignable profiles — no show_in_delegate_list filter (OWNER needs all)
@@ -45,6 +39,31 @@ export default async function AsignacionesPage() {
       .select("contact_id, group_id"),
   ]);
 
+  const rawContacts = contactsRes.data ?? [];
+
+  // Collect unique recommender and affiliate IDs for a second-pass lookup
+  const recommenderIds = [...new Set(rawContacts.map(c => c.recommender_id).filter(Boolean))] as string[];
+  const affiliateIds   = [...new Set(rawContacts.map(c => c.affiliate_id).filter(Boolean))] as string[];
+
+  const [recommenderRes, affiliateRes] = await Promise.all([
+    recommenderIds.length > 0
+      ? admin.from("holded_contacts").select("id, name").in("id", recommenderIds)
+      : Promise.resolve({ data: [] }),
+    affiliateIds.length > 0
+      ? admin.from("bixgrow_affiliates").select("id, email, first_name, last_name").in("id", affiliateIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const recommenderMap: Record<string, string> = {};
+  for (const r of recommenderRes.data ?? []) recommenderMap[r.id] = r.name;
+
+  const affiliateMap: Record<string, string> = {};
+  for (const a of affiliateRes.data ?? []) {
+    affiliateMap[a.id] = (a.first_name || a.last_name)
+      ? [a.first_name, a.last_name].filter(Boolean).join(" ")
+      : a.email;
+  }
+
   // Build assignment map: contact_id → first delegate_id
   const assignMap: Record<string, string> = {};
   for (const row of assignmentsRes.data ?? []) {
@@ -58,44 +77,19 @@ export default async function AsignacionesPage() {
     groupMap[row.contact_id].push(row.group_id);
   }
 
-  function pickFirst<T>(v: T | T[] | null): T | null {
-    if (!v) return null;
-    return Array.isArray(v) ? (v[0] ?? null) : v;
-  }
+  const contacts: ContactRow[] = rawContacts.map(c => ({
+    id:               c.id,
+    name:             c.name,
+    code:             c.code ?? null,
+    type:             c.type ?? null,
+    delegate_id:      assignMap[c.id] ?? null,
+    recommender_id:   c.recommender_id ?? null,
+    recommender_name: c.recommender_id ? (recommenderMap[c.recommender_id] ?? null) : null,
+    affiliate_name:   c.affiliate_id   ? (affiliateMap[c.affiliate_id]   ?? null) : null,
+    group_ids:        groupMap[c.id] ?? [],
+  }));
 
-  type RawAffiliate = { id: string; email: string; first_name: string | null; last_name: string | null } | null;
-  type RawContact   = { id: string; name: string } | null;
-
-  const contacts: ContactRow[] = ((contactsRes.data ?? []) as unknown[]).map((c: unknown) => {
-    const row = c as {
-      id: string; name: string; code: string | null; type: number | null;
-      recommender_id: string | null;
-      recommender: RawContact | RawContact[];
-      affiliate_id: string | null;
-      affiliate: RawAffiliate | RawAffiliate[];
-    };
-    const rec = pickFirst(row.recommender);
-    const aff = pickFirst(row.affiliate);
-    const affName = aff
-      ? (aff.first_name || aff.last_name)
-        ? [aff.first_name, aff.last_name].filter(Boolean).join(" ")
-        : aff.email
-      : null;
-
-    return {
-      id:               row.id,
-      name:             row.name,
-      code:             row.code ?? null,
-      type:             row.type ?? null,
-      delegate_id:      assignMap[row.id] ?? null,
-      recommender_id:   row.recommender_id ?? null,
-      recommender_name: rec?.name ?? null,
-      affiliate_name:   affName,
-      group_ids:        groupMap[row.id] ?? [],
-    };
-  });
-
-  type RawDelegate = {
+  type RawDelegate = { // eslint-disable-next-line @typescript-eslint/no-unused-vars
     id: string;
     full_name: string;
     delegate_name: string | null;
