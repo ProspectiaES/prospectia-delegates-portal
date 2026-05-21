@@ -18,6 +18,7 @@ interface MonthBar {
 }
 interface Network { totalDelegates: number; kolCount: number; coordCount: number; totalClients: number; activeThisMonth: number; newThisMonth: number; }
 interface TopDelegate { name: string; units: number; }
+interface SkuRow { sku: string; name: string; units: number; }
 
 interface Props {
   period: Period;
@@ -25,6 +26,7 @@ interface Props {
   history: MonthBar[];
   network: Network;
   topDelegates: TopDelegate[];
+  skuBreakdown: SkuRow[];
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -81,7 +83,7 @@ function BarChart({
   const barW = W / data.length - 1;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 12}`} className="w-full" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H + 12}`} className="w-full h-16" preserveAspectRatio="none">
       {data.map((d, i) => {
         const h = Math.max(2, (values[i] / maxVal) * H);
         const x = i * (W / data.length);
@@ -102,6 +104,31 @@ function BarChart({
         );
       })}
     </svg>
+  );
+}
+
+// ─── SKU breakdown table ──────────────────────────────────────────────────────
+
+function SkuTable({ rows }: { rows: SkuRow[] }) {
+  if (rows.length === 0) return <p className="text-sm text-[#9CA3AF] py-2">Sin datos este mes</p>;
+  const maxUnits = rows[0].units;
+  return (
+    <div className="divide-y divide-[#F9FAFB]">
+      {rows.map(r => (
+        <div key={r.sku} className="flex items-center gap-3 py-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-[#0A0A0A] truncate">{r.name || r.sku}</p>
+            <p className="text-[10px] text-[#9CA3AF] font-mono">{r.sku}</p>
+          </div>
+          <div className="w-24 hidden sm:block">
+            <div className="w-full h-1 bg-[#F3F4F6] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#8E0E1A]" style={{ width: `${Math.round((r.units / maxUnits) * 100)}%` }} />
+            </div>
+          </div>
+          <span className="text-sm font-bold tabular-nums text-[#0A0A0A] w-10 text-right">{r.units}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -230,7 +257,7 @@ function MonthNav({ mesStr }: { mesStr: string }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function DashboardView({ period, kpis, history, network, topDelegates }: Props) {
+export function DashboardView({ period, kpis, history, network, topDelegates, skuBreakdown }: Props) {
   const [chatOpen, setChatOpen] = useState(false);
 
   const maxTopUnits = topDelegates.length > 0 ? topDelegates[0].units : 1;
@@ -262,7 +289,7 @@ export function DashboardView({ period, kpis, history, network, topDelegates }: 
         {/* ── KPI row ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <KpiCard
-            label="Unidades"
+            label="Ud. totales"
             value={String(kpis.allUnits)}
             sub={kpis.focUnits > 0 ? `+${kpis.focUnits} FOC` : `${kpis.invoiceCount} facturas`}
           />
@@ -307,6 +334,11 @@ export function DashboardView({ period, kpis, history, network, topDelegates }: 
             <BarChart data={history} getValue={d => d.newClients} color="#6366F1" currentYear={period.year} currentMonth={period.month} />
           </Section>
         </div>
+
+        {/* ── SKU breakdown ───────────────────────────────────────────── */}
+        <Section title={`Unidades por producto · ${period.label}`} sub="Todas las líneas de factura del mes">
+          <SkuTable rows={skuBreakdown} />
+        </Section>
 
         {/* ── Year evolution table ─────────────────────────────────────── */}
         <Section title={`Evolución ${period.year}`} sub="Enero–Diciembre · acumulado del año">

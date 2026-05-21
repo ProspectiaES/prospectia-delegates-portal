@@ -174,6 +174,20 @@ export default async function AnaliticaPage({
       return { name: d?.delegate_name ?? d?.full_name ?? "—", units };
     });
 
+  // ── SKU breakdown (current month) ────────────────────────────────────────────
+  const skuMap: Record<string, { name: string; units: number }> = {};
+  for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
+    const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
+    for (const l of lines) {
+      const sku = l.sku ?? "SIN-SKU";
+      if (!skuMap[sku]) skuMap[sku] = { name: l.name ?? sku, units: 0 };
+      skuMap[sku].units += Number(l.units ?? 0);
+    }
+  }
+  const skuBreakdown = Object.entries(skuMap)
+    .sort((a, b) => b[1].units - a[1].units)
+    .map(([sku, { name, units }]) => ({ sku, name, units }));
+
   // ── Economic simulation ───────────────────────────────────────────────────────
   const sim = simRes.data as { net_sale_price?: number; estructura_pct?: number; logistics_pct?: number; production_cost_lines?: { unit_cost?: number }[] } | null;
   const costPerUnit = sim
@@ -211,6 +225,7 @@ export default async function AnaliticaPage({
         newThisMonth: cur.newClients,
       }}
       topDelegates={topDelegates}
+      skuBreakdown={skuBreakdown}
     />
   );
 }
