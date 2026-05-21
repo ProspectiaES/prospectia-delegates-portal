@@ -885,8 +885,8 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[1200px]">
-            <thead>
-              <tr className="border-b border-[#F3F4F6] bg-[#FAFAFA]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-[#F3F4F6] bg-[#FAFAFA] shadow-sm">
                 <th className="w-10 px-3 py-3 text-left">
                   <input type="checkbox" checked={selected.size === paginated.length && paginated.length > 0} onChange={toggleAll} className="h-4 w-4 rounded border-[#D1D5DB] accent-[#8E0E1A]" />
                 </th>
