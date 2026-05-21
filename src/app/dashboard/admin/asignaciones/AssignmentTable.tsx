@@ -487,6 +487,51 @@ function MergeModal({ contacts, onClose }: { contacts: ContactRow[]; onClose: ()
 
 // ─── Bulk mode config ─────────────────────────────────────────────────────────
 
+// ─── Sort header ─────────────────────────────────────────────────────────────
+
+type SortCol = "name" | "code" | "type" | "delegate" | "kol" | "coordinator" | "recommender" | "affiliate";
+
+function SortTh({
+  label,
+  col,
+  current,
+  dir,
+  onSort,
+  className,
+}: {
+  label: string;
+  col: SortCol;
+  current: SortCol | "";
+  dir: "asc" | "desc";
+  onSort: (col: SortCol) => void;
+  className?: string;
+}) {
+  const active = current === col;
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className={[
+        "px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap cursor-pointer select-none transition-colors",
+        active ? "text-[#8E0E1A]" : "text-[#6B7280] hover:text-[#374151]",
+        className ?? "",
+      ].join(" ")}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" className={active ? "opacity-100" : "opacity-30"}>
+          {active && dir === "asc"
+            ? <path d="M2 7l3-4 3 4" strokeLinecap="round" strokeLinejoin="round"/>
+            : active && dir === "desc"
+            ? <path d="M2 3l3 4 3-4" strokeLinecap="round" strokeLinejoin="round"/>
+            : <><path d="M2 4l3-2.5L8 4" strokeLinecap="round" strokeLinejoin="round"/><path d="M2 6l3 2.5 3-2.5" strokeLinecap="round" strokeLinejoin="round"/></>}
+        </svg>
+      </span>
+    </th>
+  );
+}
+
+// ─── Bulk mode config ─────────────────────────────────────────────────────────
+
 type BulkMode = "delegate" | "type" | "kol" | "coordinator" | "affiliate";
 
 const BULK_MODES: { id: BulkMode; label: string }[] = [
@@ -519,8 +564,27 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
   const [bulkMsg, setBulkMsg]               = useState("");
   const [showMerge, setShowMerge]           = useState(false);
   const [showGroups, setShowGroups]         = useState(false);
+  const [sortCol, setSortCol]               = useState<SortCol | "">("");
+  const [sortDir, setSortDir]               = useState<"asc" | "desc">("asc");
   const [page, setPage]                     = useState(0);
   const PAGE_SIZE = 50;
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) {
+      if (sortDir === "asc") setSortDir("desc");
+      else { setSortCol(""); setSortDir("asc"); }
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+    setPage(0);
+  }
+
+  const delegateMap = useMemo(() => {
+    const m: Record<string, DelegateOption> = {};
+    for (const d of delegates) m[d.id] = d;
+    return m;
+  }, [delegates]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -537,8 +601,30 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
     });
   }, [contacts, search, filterType, filterDelegate, filterGroup]);
 
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    return [...filtered].sort((a, b) => {
+      let av = "", bv = "";
+      if (sortCol === "name")        { av = a.name;                     bv = b.name; }
+      else if (sortCol === "code")   { av = a.code ?? "";               bv = b.code ?? ""; }
+      else if (sortCol === "type")   { av = a.type !== null ? String(a.type) : "9"; bv = b.type !== null ? String(b.type) : "9"; }
+      else if (sortCol === "delegate") {
+        const ad = a.delegate_id ? delegateMap[a.delegate_id] : null;
+        const bd = b.delegate_id ? delegateMap[b.delegate_id] : null;
+        av = ad ? (ad.delegate_name ?? ad.full_name) : "";
+        bv = bd ? (bd.delegate_name ?? bd.full_name) : "";
+      }
+      else if (sortCol === "kol")          { av = a.assigned_kol_name ?? "";         bv = b.assigned_kol_name ?? ""; }
+      else if (sortCol === "coordinator")  { av = a.assigned_coordinator_name ?? ""; bv = b.assigned_coordinator_name ?? ""; }
+      else if (sortCol === "recommender")  { av = a.recommender_name ?? "";           bv = b.recommender_name ?? ""; }
+      else if (sortCol === "affiliate")    { av = a.affiliate_name ?? "";             bv = b.affiliate_name ?? ""; }
+      const cmp = av.localeCompare(bv, "es", { sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filtered, sortCol, sortDir, delegateMap]);
+
+  const pageCount = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   function resetPage() { setPage(0); }
   function toggleRow(id: string) {
@@ -631,7 +717,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
           </select>
         )}
 
-        <span className="text-xs text-[#9CA3AF] shrink-0">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-[#9CA3AF] shrink-0">{sorted.length} resultado{sorted.length !== 1 ? "s" : ""}</span>
 
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setShowGroups(true)} className="h-9 px-3 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#374151] hover:bg-[#F3F4F6] transition-colors flex items-center gap-1.5">
@@ -695,12 +781,15 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
                 <th className="w-10 px-3 py-3 text-left">
                   <input type="checkbox" checked={selected.size === paginated.length && paginated.length > 0} onChange={toggleAll} className="h-4 w-4 rounded border-[#D1D5DB] accent-[#8E0E1A]" />
                 </th>
-                {[
-                  "Cliente", "NIF/CIF", "Tipo", "Delegado", "KOL",
-                  "Coordinador", "Recomendador", "Afiliado", "Grupos",
-                ].map(h => (
-                  <th key={h} className="px-3 py-3 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
+                <SortTh label="Cliente"       col="name"        current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="NIF/CIF"       col="code"        current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Tipo"          col="type"        current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Delegado"      col="delegate"    current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="KOL"           col="kol"         current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Coordinador"   col="coordinator" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Recomendador"  col="recommender" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Afiliado"      col="affiliate"   current={sortCol} dir={sortDir} onSort={handleSort} />
+                <th className="px-3 py-3 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Grupos</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9FAFB]">
@@ -803,7 +892,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
         {/* Pagination */}
         {pageCount > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-[#F3F4F6]">
-            <span className="text-xs text-[#9CA3AF]">Página {page + 1} de {pageCount} · {filtered.length} clientes</span>
+            <span className="text-xs text-[#9CA3AF]">Página {page + 1} de {pageCount} · {sorted.length} clientes</span>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="h-7 w-7 rounded flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] disabled:opacity-40">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7.5 3L4.5 6l3 3" strokeLinecap="round" strokeLinejoin="round"/></svg>

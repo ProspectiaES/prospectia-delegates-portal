@@ -121,13 +121,9 @@ export default async function AsignacionesPage() {
     coordinator_name: p.coordinator_id ? (profileNameMap[p.coordinator_id] ?? null) : null,
   }));
 
-  const kolOptions: ActorOption[] = rawProfiles
-    .filter(p => p.role === "KOL")
-    .map(p => ({ id: p.id, name: p.full_name }));
-
-  const coordinatorOptions: ActorOption[] = rawProfiles
-    .filter(p => p.role === "COORDINATOR")
-    .map(p => ({ id: p.id, name: p.full_name }));
+  // KOL and coordinator can be any profile in the system (no role restriction)
+  const kolOptions: ActorOption[] = rawProfiles.map(p => ({ id: p.id, name: p.delegate_name ?? p.full_name }));
+  const coordinatorOptions: ActorOption[] = rawProfiles.map(p => ({ id: p.id, name: p.delegate_name ?? p.full_name }));
 
   const affiliates: AffiliateOption[] = (affiliatesRes.data ?? []).map(a => ({
     id:   a.id,
