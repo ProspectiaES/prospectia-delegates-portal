@@ -1,7 +1,14 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
-import { AssignmentTable, type ContactRow, type DelegateOption, type ContactGroupOption } from "./AssignmentTable";
+import {
+  AssignmentTable,
+  type ContactRow,
+  type DelegateOption,
+  type ContactGroupOption,
+  type ActorOption,
+  type AffiliateOption,
+} from "./AssignmentTable";
 
 export const metadata = { title: "Asignaciones de clientes — Prospectia" };
 
@@ -11,107 +18,120 @@ export default async function AsignacionesPage() {
 
   const admin = createAdminClient();
 
-  const [contactsRes, delegatesRes, assignmentsRes, groupsRes, groupMembersRes] = await Promise.all([
-    admin
-      .from("holded_contacts")
-      .select("id, name, code, type, recommender_id, affiliate_id")
-      .is("merged_into_id", null)
-      .order("name"),
-    // All assignable profiles — no show_in_delegate_list filter (OWNER needs all)
-    admin
-      .from("profiles")
-      .select(`
-        id, full_name, delegate_name, kol_id, coordinator_id,
-        kol:profiles!profiles_kol_id_fkey(full_name),
-        coordinator:profiles!profiles_coordinator_id_fkey(full_name)
-      `)
-      .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "CONSIGLIERE", "COM6"])
-      .order("full_name"),
-    admin
-      .from("contact_delegates")
-      .select("contact_id, delegate_id"),
-    admin
-      .from("contact_groups")
-      .select("id, name, color, holded_tag")
-      .order("name"),
-    admin
-      .from("contact_group_members")
-      .select("contact_id, group_id"),
-  ]);
+  // ── Step 1: parallel fetches that don't depend on each other ─────────────────
+  const [contactsRes, profilesRes, assignmentsRes, groupsRes, groupMembersRes, affiliatesRes] =
+    await Promise.all([
+      admin
+        .from("holded_contacts")
+        .select("id, name, code, type, recommender_id, affiliate_id, assigned_kol_id, assigned_coordinator_id")
+        .is("merged_into_id", null)
+        .order("name"),
+
+      // All assignable profiles — no show_in_delegate_list filter (admin view)
+      admin
+        .from("profiles")
+        .select("id, full_name, delegate_name, role, kol_id, coordinator_id")
+        .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "CONSIGLIERE", "COM6"])
+        .order("full_name"),
+
+      admin.from("contact_delegates").select("contact_id, delegate_id"),
+
+      admin.from("contact_groups").select("id, name, color, holded_tag").order("name"),
+
+      admin.from("contact_group_members").select("contact_id, group_id"),
+
+      admin.from("bixgrow_affiliates").select("id, email, first_name, last_name").order("email"),
+    ]);
 
   const rawContacts = contactsRes.data ?? [];
+  const rawProfiles = profilesRes.data ?? [];
 
-  // Collect unique recommender and affiliate IDs for a second-pass lookup
+  // ── Step 2: look up kol/coordinator names for delegate profiles ──────────────
+  const linkedProfileIds = [
+    ...new Set([
+      ...rawProfiles.map(p => p.kol_id).filter(Boolean),
+      ...rawProfiles.map(p => p.coordinator_id).filter(Boolean),
+      // kol/coordinator assigned directly to contacts
+      ...rawContacts.map(c => c.assigned_kol_id).filter(Boolean),
+      ...rawContacts.map(c => c.assigned_coordinator_id).filter(Boolean),
+    ]),
+  ] as string[];
+
+  // ── Step 3: look up recommender names ───────────────────────────────────────
   const recommenderIds = [...new Set(rawContacts.map(c => c.recommender_id).filter(Boolean))] as string[];
-  const affiliateIds   = [...new Set(rawContacts.map(c => c.affiliate_id).filter(Boolean))] as string[];
 
-  const [recommenderRes, affiliateRes] = await Promise.all([
+  const [linkedProfilesRes, recommenderRes] = await Promise.all([
+    linkedProfileIds.length > 0
+      ? admin.from("profiles").select("id, full_name").in("id", linkedProfileIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
     recommenderIds.length > 0
       ? admin.from("holded_contacts").select("id, name").in("id", recommenderIds)
-      : Promise.resolve({ data: [] }),
-    affiliateIds.length > 0
-      ? admin.from("bixgrow_affiliates").select("id, email, first_name, last_name").in("id", affiliateIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ]);
+
+  // ── Build lookup maps ────────────────────────────────────────────────────────
+  const profileNameMap: Record<string, string> = {};
+  for (const p of linkedProfilesRes.data ?? []) profileNameMap[p.id] = p.full_name;
 
   const recommenderMap: Record<string, string> = {};
   for (const r of recommenderRes.data ?? []) recommenderMap[r.id] = r.name;
 
-  const affiliateMap: Record<string, string> = {};
-  for (const a of affiliateRes.data ?? []) {
-    affiliateMap[a.id] = (a.first_name || a.last_name)
+  const affiliateNameMap: Record<string, string> = {};
+  for (const a of affiliatesRes.data ?? []) {
+    affiliateNameMap[a.id] = (a.first_name || a.last_name)
       ? [a.first_name, a.last_name].filter(Boolean).join(" ")
       : a.email;
   }
 
-  // Build assignment map: contact_id → first delegate_id
   const assignMap: Record<string, string> = {};
   for (const row of assignmentsRes.data ?? []) {
     if (!assignMap[row.contact_id]) assignMap[row.contact_id] = row.delegate_id;
   }
 
-  // Build group membership map: contact_id → group_id[]
   const groupMap: Record<string, string[]> = {};
   for (const row of groupMembersRes.data ?? []) {
     if (!groupMap[row.contact_id]) groupMap[row.contact_id] = [];
     groupMap[row.contact_id].push(row.group_id);
   }
 
+  // ── Build typed arrays ───────────────────────────────────────────────────────
   const contacts: ContactRow[] = rawContacts.map(c => ({
-    id:               c.id,
-    name:             c.name,
-    code:             c.code ?? null,
-    type:             c.type ?? null,
-    delegate_id:      assignMap[c.id] ?? null,
-    recommender_id:   c.recommender_id ?? null,
-    recommender_name: c.recommender_id ? (recommenderMap[c.recommender_id] ?? null) : null,
-    affiliate_name:   c.affiliate_id   ? (affiliateMap[c.affiliate_id]   ?? null) : null,
-    group_ids:        groupMap[c.id] ?? [],
+    id:                      c.id,
+    name:                    c.name,
+    code:                    c.code ?? null,
+    type:                    c.type ?? null,
+    delegate_id:             assignMap[c.id] ?? null,
+    recommender_id:          c.recommender_id ?? null,
+    recommender_name:        c.recommender_id ? (recommenderMap[c.recommender_id] ?? null) : null,
+    affiliate_id:            c.affiliate_id ?? null,
+    affiliate_name:          c.affiliate_id ? (affiliateNameMap[c.affiliate_id] ?? null) : null,
+    assigned_kol_id:         c.assigned_kol_id ?? null,
+    assigned_kol_name:       c.assigned_kol_id ? (profileNameMap[c.assigned_kol_id] ?? null) : null,
+    assigned_coordinator_id: c.assigned_coordinator_id ?? null,
+    assigned_coordinator_name: c.assigned_coordinator_id ? (profileNameMap[c.assigned_coordinator_id] ?? null) : null,
+    group_ids:               groupMap[c.id] ?? [],
   }));
 
-  type RawDelegate = { // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    id: string;
-    full_name: string;
-    delegate_name: string | null;
-    kol_id: string | null;
-    coordinator_id: string | null;
-    kol: { full_name: string } | { full_name: string }[] | null;
-    coordinator: { full_name: string } | { full_name: string }[] | null;
-  };
+  const delegates: DelegateOption[] = rawProfiles.map(p => ({
+    id:           p.id,
+    full_name:    p.full_name,
+    delegate_name: p.delegate_name,
+    role:         p.role,
+    kol_name:     p.kol_id ? (profileNameMap[p.kol_id] ?? null) : null,
+    coordinator_name: p.coordinator_id ? (profileNameMap[p.coordinator_id] ?? null) : null,
+  }));
 
-  function pickName(v: { full_name: string } | { full_name: string }[] | null): string | null {
-    if (!v) return null;
-    return Array.isArray(v) ? (v[0]?.full_name ?? null) : v.full_name;
-  }
+  const kolOptions: ActorOption[] = rawProfiles
+    .filter(p => p.role === "KOL")
+    .map(p => ({ id: p.id, name: p.full_name }));
 
-  const delegates: DelegateOption[] = ((delegatesRes.data ?? []) as unknown as RawDelegate[]).map(d => ({
-    id:               d.id,
-    full_name:        d.full_name,
-    delegate_name:    d.delegate_name,
-    kol_id:           d.kol_id,
-    kol_name:         pickName(d.kol),
-    coordinator_id:   d.coordinator_id,
-    coordinator_name: pickName(d.coordinator),
+  const coordinatorOptions: ActorOption[] = rawProfiles
+    .filter(p => p.role === "COORDINATOR")
+    .map(p => ({ id: p.id, name: p.full_name }));
+
+  const affiliates: AffiliateOption[] = (affiliatesRes.data ?? []).map(a => ({
+    id:   a.id,
+    name: affiliateNameMap[a.id],
   }));
 
   const groups: ContactGroupOption[] = (groupsRes.data ?? []).map(g => ({
@@ -122,17 +142,22 @@ export default async function AsignacionesPage() {
   }));
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-lg font-semibold text-[#0A0A0A]">Asignaciones de clientes</h1>
-          <p className="text-sm text-[#6B7280] mt-0.5">
-            Gestiona los actores asignados a cada cliente: delegado, recomendador, grupos y tipo.
-          </p>
-        </div>
+    <div className="p-6 max-w-[1600px] mx-auto">
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-[#0A0A0A]">Asignaciones de clientes</h1>
+        <p className="text-sm text-[#6B7280] mt-0.5">
+          Gestiona todos los actores asignados a cada cliente.
+        </p>
       </div>
 
-      <AssignmentTable contacts={contacts} delegates={delegates} groups={groups} />
+      <AssignmentTable
+        contacts={contacts}
+        delegates={delegates}
+        kolOptions={kolOptions}
+        coordinatorOptions={coordinatorOptions}
+        affiliates={affiliates}
+        groups={groups}
+      />
     </div>
   );
 }

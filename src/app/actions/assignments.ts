@@ -134,6 +134,107 @@ export async function bulkSetContactTypeAction(
   return { updated: contactIds.length };
 }
 
+// ─── Direct KOL / Coordinator / Affiliate assignment ──────────────────────────
+
+export async function setContactKolAction(
+  contactId: string,
+  kolId: string | null
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ assigned_kol_id: kolId })
+    .eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+export async function setContactCoordinatorAction(
+  contactId: string,
+  coordinatorId: string | null
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ assigned_coordinator_id: coordinatorId })
+    .eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+export async function setContactAffiliateAction(
+  contactId: string,
+  affiliateId: string | null
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ affiliate_id: affiliateId })
+    .eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+export async function bulkSetKolAction(
+  contactIds: string[],
+  kolId: string | null
+): Promise<{ error?: string; updated: number }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado", updated: 0 };
+  if (!contactIds.length) return { updated: 0 };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ assigned_kol_id: kolId })
+    .in("id", contactIds);
+  if (error) return { error: error.message, updated: 0 };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return { updated: contactIds.length };
+}
+
+export async function bulkSetCoordinatorAction(
+  contactIds: string[],
+  coordinatorId: string | null
+): Promise<{ error?: string; updated: number }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado", updated: 0 };
+  if (!contactIds.length) return { updated: 0 };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ assigned_coordinator_id: coordinatorId })
+    .in("id", contactIds);
+  if (error) return { error: error.message, updated: 0 };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return { updated: contactIds.length };
+}
+
+export async function bulkSetAffiliateAction(
+  contactIds: string[],
+  affiliateId: string | null
+): Promise<{ error?: string; updated: number }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado", updated: 0 };
+  if (!contactIds.length) return { updated: 0 };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ affiliate_id: affiliateId })
+    .in("id", contactIds);
+  if (error) return { error: error.message, updated: 0 };
+  revalidatePath("/dashboard/admin/asignaciones");
+  return { updated: contactIds.length };
+}
+
 // ─── Recommender ──────────────────────────────────────────────────────────────
 
 export async function setContactRecommenderAction(
