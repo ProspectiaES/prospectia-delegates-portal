@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { updateContact } from "@/lib/holded/api";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -60,25 +61,180 @@ export async function bulkAssignDelegateAction(
   return { updated: contactIds.length };
 }
 
-// ─── Mass update (payment method) ─────────────────────────────────────────────
+// ─── Contact type (synced to Holded) ──────────────────────────────────────────
 
-export async function bulkSetPaymentMethodAction(
+export async function setContactTypeAction(
+  contactId: string,
+  type: number | null
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+
+  const admin = createAdminClient();
+
+  const { data: contact } = await admin
+    .from("holded_contacts")
+    .select("name")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (!contact) return { error: "Contacto no encontrado" };
+
+  const { error: dbError } = await admin
+    .from("holded_contacts")
+    .update({ type })
+    .eq("id", contactId);
+  if (dbError) return { error: dbError.message };
+
+  try {
+    await updateContact(contactId, {
+      name: contact.name,
+      ...(type !== null ? { type } : {}),
+    });
+  } catch (e) {
+    console.error("[setContactTypeAction] Holded sync failed:", e);
+  }
+
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+export async function bulkSetContactTypeAction(
   contactIds: string[],
-  paymentMethod: string
+  type: number | null
 ): Promise<{ error?: string; updated: number }> {
   const user = await requireOwner();
   if (!user) return { error: "No autorizado", updated: 0 };
   if (!contactIds.length) return { updated: 0 };
 
   const admin = createAdminClient();
-  const { error } = await admin
+
+  const { error: dbError } = await admin
     .from("holded_contacts")
-    .update({ payment_method: paymentMethod || null })
+    .update({ type })
+    .in("id", contactIds);
+  if (dbError) return { error: dbError.message, updated: 0 };
+
+  const { data: contacts } = await admin
+    .from("holded_contacts")
+    .select("id, name")
     .in("id", contactIds);
 
-  if (error) return { error: error.message, updated: 0 };
+  for (const c of contacts ?? []) {
+    try {
+      await updateContact(c.id, {
+        name: c.name,
+        ...(type !== null ? { type } : {}),
+      });
+    } catch (e) {
+      console.error("[bulkSetContactTypeAction] Holded sync failed for", c.id, e);
+    }
+  }
+
   revalidatePath("/dashboard/admin/asignaciones");
   return { updated: contactIds.length };
+}
+
+// ─── Recommender ──────────────────────────────────────────────────────────────
+
+export async function setContactRecommenderAction(
+  contactId: string,
+  recommenderId: string | null
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("holded_contacts")
+    .update({ recommender_id: recommenderId })
+    .eq("id", contactId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+// ─── Contact groups (custom categories → synced as Holded tags) ───────────────
+
+export async function createContactGroupAction(
+  name: string,
+  color: string,
+  holdedTag: string
+): Promise<{ error?: string; group?: { id: string } }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("contact_groups")
+    .insert({ name, color, holded_tag: holdedTag })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/admin/asignaciones");
+  return { group: data };
+}
+
+export async function deleteContactGroupAction(
+  groupId: string
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("contact_groups").delete().eq("id", groupId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
+}
+
+export async function setContactGroupsAction(
+  contactId: string,
+  groupIds: string[]
+): Promise<{ error?: string }> {
+  const user = await requireOwner();
+  if (!user) return { error: "No autorizado" };
+
+  const admin = createAdminClient();
+
+  const { data: allGroups } = await admin
+    .from("contact_groups")
+    .select("id, holded_tag");
+  const allGroupTagSet = new Set((allGroups ?? []).map(g => g.holded_tag));
+  const selectedGroupIds = new Set(groupIds);
+  const selectedGroupTags = (allGroups ?? [])
+    .filter(g => selectedGroupIds.has(g.id))
+    .map(g => g.holded_tag);
+
+  const { data: contact } = await admin
+    .from("holded_contacts")
+    .select("name, tags")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (!contact) return { error: "Contacto no encontrado" };
+
+  const existingTags: string[] = Array.isArray(contact.tags) ? contact.tags : [];
+  const nonGroupTags = existingTags.filter(t => !allGroupTagSet.has(t));
+  const newTags = [...nonGroupTags, ...selectedGroupTags];
+
+  await admin.from("contact_group_members").delete().eq("contact_id", contactId);
+  if (groupIds.length > 0) {
+    await admin.from("contact_group_members").insert(
+      groupIds.map(gid => ({ contact_id: contactId, group_id: gid }))
+    );
+  }
+  await admin.from("holded_contacts").update({ tags: newTags }).eq("id", contactId);
+
+  try {
+    await updateContact(contactId, { name: contact.name, tags: newTags });
+  } catch (e) {
+    console.error("[setContactGroupsAction] Holded sync failed:", e);
+  }
+
+  revalidatePath("/dashboard/admin/asignaciones");
+  return {};
 }
 
 // ─── Merge contacts ────────────────────────────────────────────────────────────
@@ -103,9 +259,7 @@ export async function checkMergeAction(
   const [sourceRes, targetRes, invoicesRes, salesordersRes] = await Promise.all([
     admin.from("holded_contacts").select("id, name, merged_into_id").eq("id", sourceId).maybeSingle(),
     admin.from("holded_contacts").select("id, name, merged_into_id").eq("id", targetId).maybeSingle(),
-    // Check if source has Holded invoices — these reference the source ID in Holded and cannot be moved
     admin.from("holded_invoices").select("id", { count: "exact", head: true }).eq("contact_id", sourceId),
-    // Check if source has Holded sales orders
     admin.from("holded_salesorders").select("id", { count: "exact", head: true }).eq("contact_id", sourceId),
   ]);
 
@@ -147,7 +301,6 @@ export async function mergeContactsAction(
   const user = await requireOwner();
   if (!user) return { error: "No autorizado" };
 
-  // Re-check before executing
   const check = await checkMergeAction(sourceId, targetId);
   if (!check.canMerge) return { error: check.blockers[0] };
 
@@ -179,7 +332,27 @@ export async function mergeContactsAction(
   // 2. Transfer tasks linked to source
   await admin.from("tasks").update({ contact_id: targetId }).eq("contact_id", sourceId);
 
-  // 3. Copy payment data to target if target is missing it
+  // 3. Transfer group memberships
+  const { data: sourceGroups } = await admin
+    .from("contact_group_members")
+    .select("group_id")
+    .eq("contact_id", sourceId);
+  const { data: targetGroups } = await admin
+    .from("contact_group_members")
+    .select("group_id")
+    .eq("contact_id", targetId);
+  const targetGroupIds = new Set((targetGroups ?? []).map(r => r.group_id));
+  for (const row of sourceGroups ?? []) {
+    if (!targetGroupIds.has(row.group_id)) {
+      await admin.from("contact_group_members").insert({
+        contact_id: targetId,
+        group_id: row.group_id,
+      });
+    }
+  }
+  await admin.from("contact_group_members").delete().eq("contact_id", sourceId);
+
+  // 4. Copy payment data to target if missing
   const { data: sourceContact } = await admin
     .from("holded_contacts")
     .select("iban, bic, payment_method, mandate_ref")
@@ -193,8 +366,8 @@ export async function mergeContactsAction(
 
   if (sourceContact) {
     const updates: Record<string, string | null> = {};
-    if (!targetContact?.iban       && sourceContact.iban)           updates.iban           = sourceContact.iban;
-    if (!targetContact?.bic        && sourceContact.bic)            updates.bic            = sourceContact.bic;
+    if (!targetContact?.iban           && sourceContact.iban)           updates.iban           = sourceContact.iban;
+    if (!targetContact?.bic            && sourceContact.bic)            updates.bic            = sourceContact.bic;
     if (!targetContact?.payment_method && sourceContact.payment_method) updates.payment_method = sourceContact.payment_method;
     if (!targetContact?.mandate_ref    && sourceContact.mandate_ref)    updates.mandate_ref    = sourceContact.mandate_ref;
     if (Object.keys(updates).length > 0) {
@@ -202,7 +375,7 @@ export async function mergeContactsAction(
     }
   }
 
-  // 4. Mark source as merged
+  // 5. Mark source as merged
   await admin.from("holded_contacts")
     .update({ merged_into_id: targetId })
     .eq("id", sourceId);

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
-import { AssignmentTable, type ContactRow, type DelegateOption } from "./AssignmentTable";
+import { AssignmentTable, type ContactRow, type DelegateOption, type ContactGroupOption } from "./AssignmentTable";
 
 export const metadata = { title: "Asignaciones de clientes — Prospectia" };
 
@@ -11,13 +11,19 @@ export default async function AsignacionesPage() {
 
   const admin = createAdminClient();
 
-  const [contactsRes, delegatesRes, assignmentsRes] = await Promise.all([
-    // All contacts
+  const [contactsRes, delegatesRes, assignmentsRes, groupsRes, groupMembersRes] = await Promise.all([
     admin
       .from("holded_contacts")
-      .select("id, name, code, payment_method")
+      .select(`
+        id, name, code, type,
+        recommender_id,
+        recommender:holded_contacts!holded_contacts_recommender_id_fkey(id, name),
+        affiliate_id,
+        affiliate:bixgrow_affiliates!holded_contacts_affiliate_id_fkey(id, email, first_name, last_name)
+      `)
+      .is("merged_into_id", null)
       .order("name"),
-    // All delegate profiles with their KOL and coordinator names
+    // All assignable profiles — no show_in_delegate_list filter (OWNER needs all)
     admin
       .from("profiles")
       .select(`
@@ -26,29 +32,68 @@ export default async function AsignacionesPage() {
         coordinator:profiles!profiles_coordinator_id_fkey(full_name)
       `)
       .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "CONSIGLIERE", "COM6"])
-      .eq("show_in_delegate_list", true)
       .order("full_name"),
-    // All assignments (contact_id → delegate_id)
     admin
       .from("contact_delegates")
       .select("contact_id, delegate_id"),
+    admin
+      .from("contact_groups")
+      .select("id, name, color, holded_tag")
+      .order("name"),
+    admin
+      .from("contact_group_members")
+      .select("contact_id, group_id"),
   ]);
 
-  // Build assignment map: contact_id → delegate_id (take first if multiple)
+  // Build assignment map: contact_id → first delegate_id
   const assignMap: Record<string, string> = {};
   for (const row of assignmentsRes.data ?? []) {
-    if (!assignMap[row.contact_id]) {
-      assignMap[row.contact_id] = row.delegate_id;
-    }
+    if (!assignMap[row.contact_id]) assignMap[row.contact_id] = row.delegate_id;
   }
 
-  const contacts: ContactRow[] = (contactsRes.data ?? []).map(c => ({
-    id:             c.id,
-    name:           c.name,
-    code:           c.code ?? null,
-    delegate_id:    assignMap[c.id] ?? null,
-    payment_method: c.payment_method ?? null,
-  }));
+  // Build group membership map: contact_id → group_id[]
+  const groupMap: Record<string, string[]> = {};
+  for (const row of groupMembersRes.data ?? []) {
+    if (!groupMap[row.contact_id]) groupMap[row.contact_id] = [];
+    groupMap[row.contact_id].push(row.group_id);
+  }
+
+  function pickFirst<T>(v: T | T[] | null): T | null {
+    if (!v) return null;
+    return Array.isArray(v) ? (v[0] ?? null) : v;
+  }
+
+  type RawAffiliate = { id: string; email: string; first_name: string | null; last_name: string | null } | null;
+  type RawContact   = { id: string; name: string } | null;
+
+  const contacts: ContactRow[] = ((contactsRes.data ?? []) as unknown[]).map((c: unknown) => {
+    const row = c as {
+      id: string; name: string; code: string | null; type: number | null;
+      recommender_id: string | null;
+      recommender: RawContact | RawContact[];
+      affiliate_id: string | null;
+      affiliate: RawAffiliate | RawAffiliate[];
+    };
+    const rec = pickFirst(row.recommender);
+    const aff = pickFirst(row.affiliate);
+    const affName = aff
+      ? (aff.first_name || aff.last_name)
+        ? [aff.first_name, aff.last_name].filter(Boolean).join(" ")
+        : aff.email
+      : null;
+
+    return {
+      id:               row.id,
+      name:             row.name,
+      code:             row.code ?? null,
+      type:             row.type ?? null,
+      delegate_id:      assignMap[row.id] ?? null,
+      recommender_id:   row.recommender_id ?? null,
+      recommender_name: rec?.name ?? null,
+      affiliate_name:   affName,
+      group_ids:        groupMap[row.id] ?? [],
+    };
+  });
 
   type RawDelegate = {
     id: string;
@@ -75,18 +120,25 @@ export default async function AsignacionesPage() {
     coordinator_name: pickName(d.coordinator),
   }));
 
+  const groups: ContactGroupOption[] = (groupsRes.data ?? []).map(g => ({
+    id:         g.id,
+    name:       g.name,
+    color:      g.color,
+    holded_tag: g.holded_tag,
+  }));
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-semibold text-[#0A0A0A]">Asignaciones de clientes</h1>
           <p className="text-sm text-[#6B7280] mt-0.5">
-            Gestiona qué delegado es responsable de cada cliente.
+            Gestiona los actores asignados a cada cliente: delegado, recomendador, grupos y tipo.
           </p>
         </div>
       </div>
 
-      <AssignmentTable contacts={contacts} delegates={delegates} />
+      <AssignmentTable contacts={contacts} delegates={delegates} groups={groups} />
     </div>
   );
 }
