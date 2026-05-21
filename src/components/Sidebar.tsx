@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
 import { useWeather, wmoLookup } from "@/lib/weather";
+import { NotificationBell, type NotificationItem } from "@/components/NotificationBell";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,14 @@ const IconBruixola = () => (
     <circle cx="8" cy="8" r="6.5"/>
     <path d="M8 3v2M8 11v2M3 8h2M11 8h2" strokeLinecap="round"/>
     <path d="M8 8l-2-3 5 1-3 2z" fill="currentColor" strokeWidth="0.5"/>
+  </svg>
+);
+
+const IconTasques = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="1.5" y="3" width="3" height="10" rx="1"/>
+    <rect x="6.5" y="1.5" width="3" height="11.5" rx="1"/>
+    <rect x="11.5" y="5" width="3" height="8" rx="1"/>
   </svg>
 );
 
@@ -476,6 +485,12 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       ],
     },
     {
+      label: "Equip",
+      items: [
+        { href: "/dashboard/tareas", label: "Tasques", Icon: IconTasques, exact: false },
+      ],
+    },
+    {
       label: "Afiliados",
       items: [
         { href: "/dashboard/afiliados",       label: "Afiliados",       Icon: IconAfiliados,       exact: false },
@@ -526,10 +541,11 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Sidebar({ user, drawer = false, onClose }: {
+export function Sidebar({ user, drawer = false, onClose, notifications = [] }: {
   user?: UserProps;
   drawer?: boolean;
   onClose?: () => void;
+  notifications?: NotificationItem[];
 }) {
   const pathname  = usePathname();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -634,8 +650,9 @@ export function Sidebar({ user, drawer = false, onClose }: {
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="px-2 py-3 border-t border-[#E5E7EB] shrink-0">
+        {/* Notifications + Logout */}
+        <div className="px-2 py-2 border-t border-[#E5E7EB] shrink-0 space-y-0.5">
+          <NotificationBell initialNotifications={notifications} />
           <form action={logout}>
             <button
               type="submit"

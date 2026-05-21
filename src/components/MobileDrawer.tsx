@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Sidebar, type UserProps } from "./Sidebar";
+import type { NotificationItem } from "./NotificationBell";
 
-export function MobileDrawer({ user, children }: { user: UserProps; children: React.ReactNode }) {
+export function MobileDrawer({ user, children, notifications = [] }: { user: UserProps; children: React.ReactNode; notifications?: NotificationItem[] }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -62,7 +63,7 @@ export function MobileDrawer({ user, children }: { user: UserProps; children: Re
       )}
 
       {/* Drawer */}
-      {open && <Sidebar user={user} drawer onClose={() => setOpen(false)} />}
+      {open && <Sidebar user={user} drawer onClose={() => setOpen(false)} notifications={notifications} />}
 
       {/* Content */}
       <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden", background: "#F5F5F7", minWidth: 0 }}>
