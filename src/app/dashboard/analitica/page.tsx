@@ -159,12 +159,13 @@ export default async function AnaliticaPage({
   // Total clients in cartera
   const totalClientsInCartera = new Set(cdRows.map(r => r.contact_id)).size;
 
-  // ── Top delegates by units (current month) ───────────────────────────────────
+  // ── Top delegates by total units — all products, no SKU filter ───────────────
   const delegateUnits: Record<string, number> = {};
   for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
-    const units = extractUnits(inv, SKU_SPRAY);
+    const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
+    const total = lines.reduce((s, l) => s + Number(l.units ?? 0), 0);
     const deleg = cdRows.find(r => r.contact_id === inv.contact_id)?.delegate_id;
-    if (deleg) delegateUnits[deleg] = (delegateUnits[deleg] ?? 0) + units;
+    if (deleg) delegateUnits[deleg] = (delegateUnits[deleg] ?? 0) + total;
   }
   const topDelegates = Object.entries(delegateUnits)
     .sort((a, b) => b[1] - a[1])

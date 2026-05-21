@@ -289,9 +289,9 @@ export function DashboardView({ period, kpis, history, network, topDelegates, sk
         {/* ── KPI row ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <KpiCard
-            label="Ud. totales"
+            label="Ud. facturadas"
             value={String(kpis.allUnits)}
-            sub={kpis.focUnits > 0 ? `+${kpis.focUnits} FOC` : `${kpis.invoiceCount} facturas`}
+            sub={`${kpis.invoiceCount} facturas`}
           />
           <KpiCard
             label="Facturación"
@@ -318,7 +318,7 @@ export function DashboardView({ period, kpis, history, network, topDelegates, sk
           <KpiCard
             label="Facturas"
             value={String(kpis.invoiceCount)}
-            sub={`${kpis.units} ud spray`}
+            sub={kpis.focUnits > 0 ? `+${kpis.focUnits} ud FOC` : undefined}
           />
         </div>
 
@@ -371,7 +371,7 @@ export function DashboardView({ period, kpis, history, network, topDelegates, sk
           </Section>
 
           {/* Top delegados */}
-          <Section title="Top delegados" sub="Unidades spray este mes">
+          <Section title="Top delegados" sub="Unidades totales facturadas este mes">
             {topDelegates.length === 0 ? (
               <p className="text-sm text-[#9CA3AF] text-center py-4">Sin ventas registradas</p>
             ) : (
