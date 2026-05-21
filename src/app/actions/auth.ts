@@ -42,7 +42,7 @@ export async function login(
     await logAuthEvent(data.user.id, profile?.full_name ?? data.user.email ?? "Unknown", "login");
   }
 
-  redirect("/dashboard/diario");
+  redirect("/dashboard");
 }
 
 export async function resetPassword(
