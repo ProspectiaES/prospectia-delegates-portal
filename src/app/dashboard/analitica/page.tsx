@@ -176,12 +176,18 @@ export default async function AnaliticaPage({
     });
 
   // ── Product breakdown (current month) — grouped by name to merge Shopify+local ─
+  function normalizeProdName(raw: string) {
+    return raw.trim().toLowerCase()
+      .replace(/\s*&\s*/g, " and ")   // "Neck & Chin" → "neck and chin"
+      .replace(/\s+/g, " ");
+  }
+
   const productMap: Record<string, { displayName: string; skus: Set<string>; units: number }> = {};
   for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
     const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
     for (const l of lines) {
       const rawName = (l.name ?? l.sku ?? "Sin nombre").trim();
-      const key = rawName.toLowerCase();
+      const key = normalizeProdName(rawName);
       if (!productMap[key]) productMap[key] = { displayName: rawName, skus: new Set(), units: 0 };
       productMap[key].units += Number(l.units ?? 0);
       if (l.sku) productMap[key].skus.add(l.sku);
