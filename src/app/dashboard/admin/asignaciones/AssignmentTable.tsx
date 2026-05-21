@@ -662,7 +662,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
   function toggleSinDelegado() { setFilterDelegate(v => v === "__none__" ? "" : "__none__"); setPage(0); }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -777,8 +777,8 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
       )}
 
       {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden">
-        <div className="overflow-auto max-h-[calc(100vh-200px)]">
+      <div className="bg-white rounded-2xl border border-[#E5E7EB] flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="overflow-auto flex-1 min-h-0">
           <table className="w-full text-sm min-w-[960px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-[#F3F4F6] bg-white">
@@ -885,9 +885,9 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination – outside the scroll area, pinned to bottom */}
         {pageCount > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[#F9FAFB]">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-t border-[#F9FAFB]">
             <span className="text-xs text-[#9CA3AF]">Pág. {page + 1} / {pageCount} · {sorted.length} clientes</span>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="h-7 w-7 rounded-lg flex items-center justify-center text-[#6B7280] hover:bg-[#F3F4F6] disabled:opacity-30">

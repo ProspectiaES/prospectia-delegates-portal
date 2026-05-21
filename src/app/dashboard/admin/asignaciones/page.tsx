@@ -172,11 +172,11 @@ export default async function AsignacionesPage() {
   }));
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto">
-      <div className="mb-6">
+    <div className="px-6 pt-6 pb-3 max-w-[1600px] mx-auto h-full flex flex-col">
+      <div className="mb-4 shrink-0">
         <h1 className="text-lg font-semibold text-[#0A0A0A]">Asignaciones de clientes</h1>
         <p className="text-sm text-[#6B7280] mt-0.5">
-          Gestiona todos los actores asignados a cada cliente.
+          Edición inline · actualizaciones masivas · merge de contactos
         </p>
       </div>
 
