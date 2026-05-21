@@ -883,7 +883,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-260px)]">
           <table className="w-full text-sm min-w-[1200px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-[#F3F4F6] bg-[#FAFAFA] shadow-sm">
