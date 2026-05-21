@@ -174,19 +174,25 @@ export default async function AnaliticaPage({
       return { name: d?.delegate_name ?? d?.full_name ?? "—", units };
     });
 
-  // ── SKU breakdown (current month) ────────────────────────────────────────────
-  const skuMap: Record<string, { name: string; units: number }> = {};
+  // ── Product breakdown (current month) — grouped by name to merge Shopify+local ─
+  const productMap: Record<string, { displayName: string; skus: Set<string>; units: number }> = {};
   for (const inv of allInvoices.filter(i => i.date >= curStart && i.date <= curEnd)) {
     const lines = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
     for (const l of lines) {
-      const sku = l.sku ?? "SIN-SKU";
-      if (!skuMap[sku]) skuMap[sku] = { name: l.name ?? sku, units: 0 };
-      skuMap[sku].units += Number(l.units ?? 0);
+      const rawName = (l.name ?? l.sku ?? "Sin nombre").trim();
+      const key = rawName.toLowerCase();
+      if (!productMap[key]) productMap[key] = { displayName: rawName, skus: new Set(), units: 0 };
+      productMap[key].units += Number(l.units ?? 0);
+      if (l.sku) productMap[key].skus.add(l.sku);
     }
   }
-  const skuBreakdown = Object.entries(skuMap)
-    .sort((a, b) => b[1].units - a[1].units)
-    .map(([sku, { name, units }]) => ({ sku, name, units }));
+  const skuBreakdown = Object.values(productMap)
+    .sort((a, b) => b.units - a.units)
+    .map(({ displayName, skus, units }) => ({
+      name: displayName,
+      sku: [...skus].join(" · "),
+      units,
+    }));
 
   // ── Economic simulation ───────────────────────────────────────────────────────
   const sim = simRes.data as { net_sale_price?: number; estructura_pct?: number; logistics_pct?: number; production_cost_lines?: { unit_cost?: number }[] } | null;
