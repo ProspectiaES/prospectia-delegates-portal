@@ -56,6 +56,7 @@ export async function setContactDelegateAction(
   }
 
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 
@@ -114,6 +115,7 @@ export async function setContactTypeAction(
   }
 
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 
@@ -164,10 +166,11 @@ export async function setContactKolAction(
   const admin = createAdminClient();
   const { error } = await admin
     .from("holded_contacts")
-    .update({ assigned_kol_id: kolId })
+    .update({ kol_id: kolId })
     .eq("id", contactId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 
@@ -180,10 +183,11 @@ export async function setContactCoordinatorAction(
   const admin = createAdminClient();
   const { error } = await admin
     .from("holded_contacts")
-    .update({ assigned_coordinator_id: coordinatorId })
+    .update({ coordinator_id: coordinatorId })
     .eq("id", contactId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 
@@ -200,6 +204,7 @@ export async function setContactAffiliateAction(
     .eq("id", contactId);
   if (error) return { error: error.message };
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 
@@ -213,10 +218,11 @@ export async function bulkSetKolAction(
   const admin = createAdminClient();
   const { error } = await admin
     .from("holded_contacts")
-    .update({ assigned_kol_id: kolId })
+    .update({ kol_id: kolId })
     .in("id", contactIds);
   if (error) return { error: error.message, updated: 0 };
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath("/dashboard/clientes");
   return { updated: contactIds.length };
 }
 
@@ -230,10 +236,11 @@ export async function bulkSetCoordinatorAction(
   const admin = createAdminClient();
   const { error } = await admin
     .from("holded_contacts")
-    .update({ assigned_coordinator_id: coordinatorId })
+    .update({ coordinator_id: coordinatorId })
     .in("id", contactIds);
   if (error) return { error: error.message, updated: 0 };
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath("/dashboard/clientes");
   return { updated: contactIds.length };
 }
 
@@ -271,6 +278,7 @@ export async function setContactRecommenderAction(
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard/admin/asignaciones");
+  revalidatePath(`/dashboard/clientes/${contactId}`);
   return {};
 }
 

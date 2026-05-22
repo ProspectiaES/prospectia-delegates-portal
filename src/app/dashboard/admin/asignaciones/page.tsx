@@ -26,7 +26,7 @@ export default async function AsignacionesPage() {
     await Promise.all([
       admin
         .from("holded_contacts")
-        .select("id, name, code, type, recommender_id, affiliate_id, assigned_kol_id, assigned_coordinator_id, is_internacional")
+        .select("id, name, code, type, recommender_id, affiliate_id, kol_id, coordinator_id, is_internacional")
         .is("merged_into_id", null)
         .order("name"),
 
@@ -64,14 +64,14 @@ export default async function AsignacionesPage() {
       (assignmentsRes.data ?? [])
         .filter(r => kolDelegateIds.has(r.delegate_id))
         .forEach(r => allowed.add(r.contact_id));
-      rawContacts.filter(c => c.assigned_kol_id === profile.id).forEach(c => allowed.add(c.id));
+      rawContacts.filter(c => c.kol_id === profile.id).forEach(c => allowed.add(c.id));
     }
     if (isCoordinator) {
       const coordDelegateIds = new Set(rawProfiles.filter(p => p.coordinator_id === profile.id).map(p => p.id));
       (assignmentsRes.data ?? [])
         .filter(r => coordDelegateIds.has(r.delegate_id))
         .forEach(r => allowed.add(r.contact_id));
-      rawContacts.filter(c => c.assigned_coordinator_id === profile.id).forEach(c => allowed.add(c.id));
+      rawContacts.filter(c => c.coordinator_id === profile.id).forEach(c => allowed.add(c.id));
     }
     allowedContactIds = allowed;
   }
@@ -86,8 +86,8 @@ export default async function AsignacionesPage() {
       ...rawProfiles.map(p => p.kol_id).filter(Boolean),
       ...rawProfiles.map(p => p.coordinator_id).filter(Boolean),
       // kol/coordinator assigned directly to contacts
-      ...filteredRawContacts.map(c => c.assigned_kol_id).filter(Boolean),
-      ...filteredRawContacts.map(c => c.assigned_coordinator_id).filter(Boolean),
+      ...filteredRawContacts.map(c => c.kol_id).filter(Boolean),
+      ...filteredRawContacts.map(c => c.coordinator_id).filter(Boolean),
     ]),
   ] as string[];
 
@@ -139,10 +139,10 @@ export default async function AsignacionesPage() {
     recommender_name:        c.recommender_id ? (recommenderMap[c.recommender_id] ?? null) : null,
     affiliate_id:            c.affiliate_id ?? null,
     affiliate_name:          c.affiliate_id ? (affiliateNameMap[c.affiliate_id] ?? null) : null,
-    assigned_kol_id:         c.assigned_kol_id ?? null,
-    assigned_kol_name:       c.assigned_kol_id ? (profileNameMap[c.assigned_kol_id] ?? null) : null,
-    assigned_coordinator_id: c.assigned_coordinator_id ?? null,
-    assigned_coordinator_name: c.assigned_coordinator_id ? (profileNameMap[c.assigned_coordinator_id] ?? null) : null,
+    assigned_kol_id:           c.kol_id ?? null,
+    assigned_kol_name:         c.kol_id ? (profileNameMap[c.kol_id] ?? null) : null,
+    assigned_coordinator_id:   c.coordinator_id ?? null,
+    assigned_coordinator_name: c.coordinator_id ? (profileNameMap[c.coordinator_id] ?? null) : null,
     group_ids:               groupMap[c.id] ?? [],
     is_internacional:        (c as { is_internacional?: boolean }).is_internacional ?? false,
   }));
