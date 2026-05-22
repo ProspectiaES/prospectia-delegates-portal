@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition, useActionState } from "react";
-import { createObjectiu, updateObjectiu, deleteObjectiu, quickUpdateProgress } from "@/app/actions/bruixola-objectius";
+import { createObjectiu, updateObjectiu, deleteObjectiu, quickUpdateProgress, addObjectiuEntry } from "@/app/actions/bruixola-objectius";
 import type { Objectiu } from "./page";
 
-const ESTAT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+export const ESTAT_CFG: Record<string, { bg: string; text: string; label: string }> = {
   actiu:     { bg: "#DBEAFE", text: "#1D4ED8", label: "Actiu" },
   assolit:   { bg: "#D1FAE5", text: "#065F46", label: "Assolit" },
   bloquejat: { bg: "#FEE2E2", text: "#991B1B", label: "Bloquejat" },
@@ -18,16 +18,16 @@ const TIPUS_LABELS: Record<string, string> = {
 };
 
 const TRIMESTRES = ["Q1","Q2","Q3","Q4"];
-const MESOS = ["Gen","Feb","Mar","Abr","Mai","Jun","Jul","Ago","Set","Oct","Nov","Des"];
+export const MESOS = ["Gen","Feb","Mar","Abr","Mai","Jun","Jul","Ago","Set","Oct","Nov","Des"];
 
-function periodLabel(o: Objectiu) {
+export function periodLabel(o: Objectiu) {
   if (o.tipus === "trimestral" && o.trimestre) return `${o.any} · Q${o.trimestre}`;
   if (o.tipus === "mensual" && o.mes) return `${o.any} · ${MESOS[o.mes - 1]}`;
   return String(o.any);
 }
 
-function EstatBadge({ estat }: { estat: string }) {
-  const c = ESTAT_COLORS[estat] ?? ESTAT_COLORS.actiu;
+export function EstatBadge({ estat }: { estat: string }) {
+  const c = ESTAT_CFG[estat] ?? ESTAT_CFG.actiu;
   return (
     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ backgroundColor: c.bg, color: c.text }}>
@@ -36,15 +36,129 @@ function EstatBadge({ estat }: { estat: string }) {
   );
 }
 
-function ProgressBar({ value }: { value: number }) {
+export function ProgressBar({ value, estat }: { value: number; estat?: string }) {
   const pct = Math.min(100, Math.max(0, value));
-  const color = pct >= 100 ? "#059669" : pct >= 60 ? "#2563EB" : pct >= 30 ? "#D97706" : "#DC2626";
+  const color = estat === "assolit" ? "#059669" : estat === "bloquejat" ? "#DC2626" : estat === "desviat" ? "#D97706" : "#8E0E1A";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-[#F3F4F6] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
       <span className="text-[10px] font-bold tabular-nums w-7 text-right" style={{ color }}>{pct}%</span>
+    </div>
+  );
+}
+
+// ─── Parse notes as tracking entries ─────────────────────────────────────────
+// Format: [2026-05-22] val:1231 Nota de seguiment
+type TrackEntry = { date: string; val: number | null; nota: string };
+
+export function parseNotes(notes: string | null): TrackEntry[] {
+  if (!notes) return [];
+  return notes.split("\n").filter(Boolean).map(line => {
+    const dateM = line.match(/^\[(\d{4}-\d{2}-\d{2})\]/);
+    const valM  = line.match(/val:([\d.]+)/);
+    const nota  = line.replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, "").replace(/val:[\d.]+\s*/, "").trim();
+    return {
+      date: dateM?.[1] ?? "",
+      val:  valM ? parseFloat(valM[1]) : null,
+      nota,
+    };
+  }).filter(e => e.date).reverse();
+}
+
+// ─── Seguiment panel ─────────────────────────────────────────────────────────
+
+function SeguimentPanel({ o, realData }: { o: Objectiu; realData?: { label: string; value: number; unit?: string }[] }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [nota, setNota] = useState("");
+  const [valor, setValor] = useState("");
+  const [pending, start] = useTransition();
+
+  const entries = parseNotes(o.notes);
+  const today = new Date().toISOString().slice(0, 10);
+
+  function addEntry() {
+    if (!nota.trim()) return;
+    start(async () => {
+      await addObjectiuEntry(o.id, {
+        data: today,
+        nota: nota.trim(),
+        valor: valor ? parseFloat(valor) : null,
+      });
+      setNota("");
+      setValor("");
+      setShowAdd(false);
+    });
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[#F3F4F6] space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Seguiment</p>
+        <button onClick={() => setShowAdd(v => !v)}
+          className="text-[10px] font-medium text-[#8E0E1A] hover:underline">
+          {showAdd ? "Cancel·lar" : "+ Afegir entrada"}
+        </button>
+      </div>
+
+      {/* Real data from system */}
+      {realData && realData.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {realData.map(d => (
+            <div key={d.label} className="bg-[#F9FAFB] rounded-lg px-3 py-2">
+              <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider">{d.label}</p>
+              <p className="text-sm font-bold text-[#0A0A0A] mt-0.5">
+                {d.unit === "€"
+                  ? new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(d.value)
+                  : d.value.toLocaleString("es-ES")}{d.unit && d.unit !== "€" ? ` ${d.unit}` : ""}
+              </p>
+              {o.valor_objectiu != null && (
+                <p className="text-[9px] text-[#9CA3AF] mt-0.5">
+                  {Math.round((d.value / o.valor_objectiu) * 100)}% de l&apos;objectiu
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add entry form */}
+      {showAdd && (
+        <div className="bg-[#F9FAFB] rounded-lg p-3 space-y-2">
+          <div className="flex gap-2">
+            <input value={nota} onChange={e => setNota(e.target.value)}
+              placeholder="Nota de seguiment…"
+              className="flex-1 border border-[#E5E7EB] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] bg-white" />
+            <input value={valor} onChange={e => setValor(e.target.value)}
+              type="number" step="any" placeholder="Valor"
+              className="w-24 border border-[#E5E7EB] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] bg-white" />
+            <button onClick={addEntry} disabled={pending || !nota.trim()}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#8E0E1A] text-white disabled:opacity-50 hover:bg-[#7A0B16] transition-colors">
+              {pending ? "…" : "OK"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Entry log */}
+      {entries.length > 0 ? (
+        <div className="space-y-1 max-h-40 overflow-y-auto">
+          {entries.map((e, i) => (
+            <div key={i} className="flex items-start gap-2 text-[11px]">
+              <span className="text-[#9CA3AF] tabular-nums shrink-0 pt-0.5">{e.date}</span>
+              {e.val != null && (
+                <span className="font-semibold text-[#374151] shrink-0">
+                  {e.val.toLocaleString("es-ES")}
+                </span>
+              )}
+              <span className="text-[#374151]">{e.nota}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] text-[#9CA3AF]">Sense entrades de seguiment.</p>
+      )}
     </div>
   );
 }
@@ -76,7 +190,7 @@ function QuickEditRow({ o, onDone }: { o: Objectiu; onDone: () => void }) {
         <label className="text-[10px] text-[#6B7280] uppercase tracking-wider">Estat</label>
         <select value={estat} onChange={e => setEstat(e.target.value)}
           className="text-xs border border-[#E5E7EB] rounded-lg px-2 py-1 bg-white">
-          {Object.entries(ESTAT_COLORS).map(([k, v]) => (
+          {Object.entries(ESTAT_CFG).map(([k, v]) => (
             <option key={k} value={k}>{v.label}</option>
           ))}
         </select>
@@ -94,16 +208,26 @@ function QuickEditRow({ o, onDone }: { o: Objectiu; onDone: () => void }) {
 
 // ─── Objectiu Card ────────────────────────────────────────────────────────────
 
-function ObjectiuCard({
-  o, onEdit, onDelete,
-}: { o: Objectiu; onEdit: (o: Objectiu) => void; onDelete: (id: string) => void }) {
+export function ObjectiuCard({
+  o, onEdit, onDelete, showSeguiment = true,
+  realData,
+}: {
+  o: Objectiu;
+  onEdit: (o: Objectiu) => void;
+  onDelete: (id: string) => void;
+  showSeguiment?: boolean;
+  realData?: { label: string; value: number; unit?: string }[];
+}) {
   const [quickEdit, setQuickEdit] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [delPending, startDel] = useTransition();
 
   function doDelete() {
-    startDel(async () => { await deleteObjectiu(o.id); });
+    startDel(async () => { await deleteObjectiu(o.id); onDelete(o.id); });
   }
+
+  const entries = parseNotes(o.notes);
 
   return (
     <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-2 hover:border-[#D1D5DB] transition-colors">
@@ -118,7 +242,7 @@ function ObjectiuCard({
           )}
           <p className="text-sm font-semibold text-[#0A0A0A] leading-snug">{o.titol}</p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           <EstatBadge estat={o.estat} />
           <button onClick={() => setQuickEdit(v => !v)}
             className="text-[10px] font-medium text-[#6B7280] hover:text-[#111827] border border-[#E5E7EB] rounded-lg px-2 py-0.5 hover:bg-[#F9FAFB] transition-colors">
@@ -130,9 +254,7 @@ function ObjectiuCard({
           </button>
           {!confirmDelete ? (
             <button onClick={() => setConfirmDelete(true)}
-              className="text-[10px] text-[#9CA3AF] hover:text-red-600 border border-transparent rounded-lg px-1 py-0.5 transition-colors">
-              ✕
-            </button>
+              className="text-[10px] text-[#9CA3AF] hover:text-red-600 border border-transparent rounded-lg px-1 py-0.5 transition-colors">✕</button>
           ) : (
             <span className="flex items-center gap-1">
               <button onClick={doDelete} disabled={delPending}
@@ -151,15 +273,21 @@ function ObjectiuCard({
         {o.data_objectiu && (
           <span className="text-[#D97706]">⏱ {new Date(o.data_objectiu).toLocaleDateString("ca-ES", { day:"2-digit", month:"short", year:"numeric" })}</span>
         )}
-        {o.metrica && <span className="truncate max-w-[180px]">{o.metrica}</span>}
+        {o.metrica && <span className="truncate max-w-[200px]">{o.metrica}</span>}
+        {entries.length > 0 && (
+          <button onClick={() => setExpanded(v => !v)}
+            className="text-[#8E0E1A] font-medium hover:underline">
+            {entries.length} entrada{entries.length !== 1 ? "es" : ""} {expanded ? "▲" : "▼"}
+          </button>
+        )}
       </div>
 
-      <ProgressBar value={o.progress} />
+      <ProgressBar value={o.progress} estat={o.estat} />
 
-      {o.metrica && (o.valor_actual !== null || o.valor_objectiu !== null) && (
+      {(o.valor_actual !== null || o.valor_objectiu !== null) && (
         <p className="text-[10px] text-[#6B7280]">
-          {o.valor_actual !== null && <span>Actual: <strong className="text-[#111827]">{o.valor_actual}</strong> </span>}
-          {o.valor_objectiu !== null && <span>/ Objectiu: <strong className="text-[#111827]">{o.valor_objectiu}</strong></span>}
+          {o.valor_actual !== null && <span>Actual: <strong className="text-[#111827]">{o.valor_actual.toLocaleString("es-ES")}</strong> </span>}
+          {o.valor_objectiu !== null && <span>/ Objectiu: <strong className="text-[#111827]">{o.valor_objectiu.toLocaleString("es-ES")}</strong></span>}
         </p>
       )}
 
@@ -178,34 +306,36 @@ function ObjectiuCard({
       )}
 
       {quickEdit && <QuickEditRow o={o} onDone={() => setQuickEdit(false)} />}
+
+      {showSeguiment && (expanded || quickEdit === false) && (
+        <SeguimentPanel o={o} realData={expanded ? realData : undefined} />
+      )}
     </div>
   );
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
-function ObjectiuForm({
-  initial, onClose,
-}: { initial?: Objectiu; onClose: () => void }) {
+export function ObjectiuForm({
+  initial, onClose, defaultDivisio,
+}: { initial?: Objectiu; onClose: () => void; defaultDivisio?: string }) {
   const currentYear = new Date().getFullYear();
   const [tipus, setTipus] = useState(initial?.tipus ?? "anual");
   const action = initial ? updateObjectiu : createObjectiu;
   const [state, formAction, pending] = useActionState(action, null);
 
-  if (state?.success) {
-    onClose();
-    return null;
-  }
+  if (state?.success) { onClose(); return null; }
 
   return (
     <form action={formAction} className="space-y-3">
       {initial && <input type="hidden" name="id" value={initial.id} />}
+      <input type="hidden" name="divisio" value={initial?.divisio ?? defaultDivisio ?? ""} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="sm:col-span-2">
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Títol *</label>
           <input name="titol" defaultValue={initial?.titol} required
-            placeholder="Ex: Arribar a 500 delegats actius al Q3"
+            placeholder="Ex: Arribar a 50.000€ facturats al Q3"
             className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
         </div>
 
@@ -229,7 +359,7 @@ function ObjectiuForm({
           <div>
             <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Trimestre</label>
             <select name="trimestre" defaultValue={initial?.trimestre ?? ""}
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]">
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20">
               <option value="">—</option>
               {TRIMESTRES.map((t, i) => <option key={t} value={i + 1}>{t}</option>)}
             </select>
@@ -240,7 +370,7 @@ function ObjectiuForm({
           <div>
             <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Mes</label>
             <select name="mes" defaultValue={initial?.mes ?? ""}
-              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]">
+              className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20">
               <option value="">—</option>
               {MESOS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
@@ -250,15 +380,15 @@ function ObjectiuForm({
         <div>
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Estat</label>
           <select name="estat" defaultValue={initial?.estat ?? "actiu"}
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]">
-            {Object.entries(ESTAT_COLORS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20">
+            {Object.entries(ESTAT_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
 
         <div>
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Prioritat</label>
           <select name="prioritat" defaultValue={initial?.prioritat ?? ""}
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]">
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20">
             <option value="">—</option>
             <option value="1">1 — Crítica</option>
             <option value="2">2 — Alta</option>
@@ -269,9 +399,7 @@ function ObjectiuForm({
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">
-            Progrés: <span className="text-[#8E0E1A] font-bold">{initial?.progress ?? 0}%</span>
-          </label>
+          <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Progrés</label>
           <input name="progress" type="range" min={0} max={100} step={5}
             defaultValue={initial?.progress ?? 0}
             className="w-full accent-[#8E0E1A]" />
@@ -280,47 +408,47 @@ function ObjectiuForm({
         <div>
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Data límit</label>
           <input name="data_objectiu" type="date" defaultValue={initial?.data_objectiu?.slice(0, 10) ?? ""}
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div className="sm:col-span-2">
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Mètrica (KPI)</label>
           <input name="metrica" defaultValue={initial?.metrica ?? ""}
-            placeholder="Ex: Facturació mensual, NPS, Delegats actius…"
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            placeholder="Ex: Facturació mensual, Clients actius, NPS…"
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div>
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Valor actual</label>
           <input name="valor_actual" type="number" step="any" defaultValue={initial?.valor_actual ?? ""}
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div>
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Valor objectiu</label>
           <input name="valor_objectiu" type="number" step="any" defaultValue={initial?.valor_objectiu ?? ""}
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div className="sm:col-span-2">
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Següent acció</label>
           <input name="seguent_accio" defaultValue={initial?.seguent_accio ?? ""}
             placeholder="Que cal fer ara per avançar?"
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Decisió pending</label>
+          <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Decisió pendent</label>
           <input name="decisio_pendent" defaultValue={initial?.decisio_pendent ?? ""}
             placeholder="Decisió que cal prendre…"
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A]" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20" />
         </div>
 
         <div className="sm:col-span-2">
           <label className="block text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider mb-1">Descripció</label>
           <textarea name="descripcio" rows={2} defaultValue={initial?.descripcio ?? ""}
             placeholder="Detalls, context, com mesurem l'assoliment…"
-            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 focus:border-[#8E0E1A] resize-none" />
+            className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/20 resize-none" />
         </div>
       </div>
 
@@ -344,7 +472,15 @@ function ObjectiuForm({
 
 // ─── Main Client Component ────────────────────────────────────────────────────
 
-export function ObjectiusClient({ objectius, currentYear }: { objectius: Objectiu[]; currentYear: number }) {
+export function ObjectiusClient({
+  objectius, currentYear, defaultDivisio,
+  getRealData,
+}: {
+  objectius: Objectiu[];
+  currentYear: number;
+  defaultDivisio?: string;
+  getRealData?: (o: Objectiu) => { label: string; value: number; unit?: string }[];
+}) {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Objectiu | null>(null);
   const [filterYear, setFilterYear] = useState(currentYear);
@@ -359,20 +495,13 @@ export function ObjectiusClient({ objectius, currentYear }: { objectius: Objecti
     return true;
   });
 
-  // Stats for current filter
-  const total     = filtered.length;
-  const assolits  = filtered.filter(o => o.estat === "assolit").length;
+  const total      = filtered.length;
+  const assolits   = filtered.filter(o => o.estat === "assolit").length;
   const bloquejats = filtered.filter(o => o.estat === "bloquejat").length;
   const avgProgress = total > 0 ? Math.round(filtered.reduce((s, o) => s + o.progress, 0) / total) : 0;
 
-  function handleDelete(id: string) {
-    // optimistic removal would need state, for now just rely on revalidation
-    void id;
-  }
-
   return (
     <div className="space-y-4">
-      {/* Stats bar */}
       {total > 0 && (
         <div className="grid grid-cols-4 gap-3">
           {[
@@ -389,7 +518,6 @@ export function ObjectiusClient({ objectius, currentYear }: { objectius: Objecti
         </div>
       )}
 
-      {/* Filters + New button */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-[#F3F4F6] rounded-lg p-0.5">
           {years.map(y => (
@@ -408,7 +536,7 @@ export function ObjectiusClient({ objectius, currentYear }: { objectius: Objecti
           {["actiu","assolit","bloquejat","desviat","pendent"].map(e => (
             <button key={e} onClick={() => setFilterEstat(e)}
               className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${filterEstat === e ? "bg-white text-[#0A0A0A] shadow-sm" : "text-[#6B7280] hover:text-[#111827]"}`}>
-              {ESTAT_COLORS[e]?.label ?? e}
+              {ESTAT_CFG[e]?.label ?? e}
             </button>
           ))}
         </div>
@@ -421,36 +549,35 @@ export function ObjectiusClient({ objectius, currentYear }: { objectius: Objecti
         </button>
       </div>
 
-      {/* New/Edit form */}
       {(showForm && !editTarget) && (
         <div className="bg-white rounded-xl border border-[#8E0E1A]/30 p-5">
           <p className="text-sm font-bold text-[#0A0A0A] mb-4">Nou objectiu</p>
-          <ObjectiuForm onClose={() => setShowForm(false)} />
+          <ObjectiuForm onClose={() => setShowForm(false)} defaultDivisio={defaultDivisio} />
         </div>
       )}
 
       {editTarget && (
         <div className="bg-white rounded-xl border border-[#8E0E1A]/30 p-5">
           <p className="text-sm font-bold text-[#0A0A0A] mb-4">Editar objectiu</p>
-          <ObjectiuForm initial={editTarget} onClose={() => setEditTarget(null)} />
+          <ObjectiuForm initial={editTarget} onClose={() => setEditTarget(null)} defaultDivisio={defaultDivisio} />
         </div>
       )}
 
-      {/* List */}
       {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-[#E5E7EB] p-12 text-center">
-          <p className="text-sm text-[#9CA3AF]">Cap objectiu per {filterYear}{filterEstat !== "all" ? ` amb estat "${ESTAT_COLORS[filterEstat]?.label}"` : ""}.</p>
+          <p className="text-sm text-[#9CA3AF]">Cap objectiu per {filterYear}{filterEstat !== "all" ? ` amb estat "${ESTAT_CFG[filterEstat]?.label}"` : ""}.</p>
           <button onClick={() => { setEditTarget(null); setShowForm(true); }}
             className="mt-3 text-sm font-semibold text-[#8E0E1A] hover:underline">
             + Crear primer objectiu
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map(o => (
             <ObjectiuCard key={o.id} o={o}
               onEdit={obj => { setEditTarget(obj); setShowForm(false); }}
-              onDelete={handleDelete}
+              onDelete={() => {}}
+              realData={getRealData?.(o)}
             />
           ))}
         </div>

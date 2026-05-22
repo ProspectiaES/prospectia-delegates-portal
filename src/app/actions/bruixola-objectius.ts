@@ -49,12 +49,14 @@ export async function createObjectiu(
   const descripcio       = (formData.get("descripcio") as string || "").trim() || null;
   const decisio_pendent  = (formData.get("decisio_pendent") as string || "").trim() || null;
 
+  const divisio = (formData.get("divisio") as string || "").trim() || null;
+
   const admin = createAdminClient();
   const { error } = await admin.from("bruixola_objectius").insert({
     user_id: user.id,
     titol, tipus, any, trimestre, mes, estat, prioritat, progress,
     data_objectiu, metrica, valor_objectiu, valor_actual,
-    seguent_accio, descripcio, decisio_pendent,
+    seguent_accio, descripcio, decisio_pendent, divisio,
     created_by: user.id,
   });
 
@@ -62,6 +64,7 @@ export async function createObjectiu(
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
+  if (divisio) revalidatePath(`/dashboard/bruixola/internacional/objectius`);
   return { success: true };
 }
 
@@ -95,6 +98,7 @@ export async function updateObjectiu(
     seguent_accio:   (formData.get("seguent_accio") as string || "").trim() || null,
     descripcio:      (formData.get("descripcio") as string || "").trim() || null,
     decisio_pendent: (formData.get("decisio_pendent") as string || "").trim() || null,
+    divisio:         (formData.get("divisio") as string || "").trim() || null,
     updated_at:      new Date().toISOString(),
   }).eq("id", id).eq("user_id", user.id);
 
@@ -102,6 +106,7 @@ export async function updateObjectiu(
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
+  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }
 
@@ -115,6 +120,7 @@ export async function deleteObjectiu(id: string): Promise<ObjectiuFormState> {
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
+  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }
 
@@ -132,5 +138,41 @@ export async function quickUpdateProgress(id: string, progress: number, estat: s
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
+  revalidatePath("/dashboard/bruixola/internacional/objectius");
+  return { success: true };
+}
+
+export async function addObjectiuEntry(
+  id: string,
+  data: { data: string; nota: string; valor?: number | null }
+): Promise<ObjectiuFormState> {
+  const user = await checkAccess();
+  if (!user) return { error: "Sense permisos" };
+
+  const admin = createAdminClient();
+  // Fetch current entries
+  const { data: obj } = await admin
+    .from("bruixola_objectius")
+    .select("notes, valor_actual")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!obj) return { error: "Objectiu no trobat" };
+
+  // Append entry as structured text inside notes
+  const existing = obj.notes ?? "";
+  const line = `[${data.data}]${data.valor != null ? ` val:${data.valor}` : ""} ${data.nota}`;
+  const updated: Record<string, unknown> = {
+    notes: existing ? `${existing}\n${line}` : line,
+    updated_at: new Date().toISOString(),
+  };
+  if (data.valor != null) updated.valor_actual = data.valor;
+
+  const { error } = await admin.from("bruixola_objectius").update(updated).eq("id", id).eq("user_id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/bruixola");
+  revalidatePath("/dashboard/bruixola/objectius");
+  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }

@@ -23,9 +23,13 @@ export type Objectiu = {
   seguent_accio: string | null;
   descripcio: string | null;
   decisio_pendent: string | null;
+  notes: string | null;
+  divisio: string | null;
   created_at: string;
   updated_at: string;
 };
+
+const SELECT = "id,titol,tipus,any,trimestre,mes,estat,prioritat,progress,data_objectiu,metrica,valor_objectiu,valor_actual,seguent_accio,descripcio,decisio_pendent,notes,divisio,created_at,updated_at";
 
 export default async function ObjectiusPage() {
   const profile = await getProfile();
@@ -36,7 +40,7 @@ export default async function ObjectiusPage() {
   const admin = createAdminClient();
   const { data } = await admin
     .from("bruixola_objectius")
-    .select("id,titol,tipus,any,trimestre,mes,estat,prioritat,progress,data_objectiu,metrica,valor_objectiu,valor_actual,seguent_accio,descripcio,decisio_pendent,created_at,updated_at")
+    .select(SELECT)
     .eq("user_id", profile.id)
     .order("any", { ascending: false })
     .order("prioritat", { ascending: true, nullsFirst: false })
@@ -53,6 +57,10 @@ export default async function ObjectiusPage() {
           <h1 className="text-xl font-bold text-[#0A0A0A]">Objectius estratègics</h1>
           <p className="text-xs text-[#9CA3AF] mt-0.5">{objectius.length} objectiu{objectius.length !== 1 ? "s" : ""} registrats</p>
         </div>
+        <Link href="/dashboard/bruixola/internacional/objectius"
+          className="h-8 px-3 rounded-lg text-[12px] font-medium text-[#8E0E1A] border border-[#FECACA] hover:bg-[#FEF2F2] transition-colors flex items-center">
+          Internacional →
+        </Link>
       </div>
 
       <ObjectiusClient objectius={objectius} currentYear={currentYear} />
