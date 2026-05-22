@@ -26,7 +26,7 @@ export default async function AsignacionesPage() {
     await Promise.all([
       admin
         .from("holded_contacts")
-        .select("id, name, code, type, recommender_id, affiliate_id, assigned_kol_id, assigned_coordinator_id")
+        .select("id, name, code, type, recommender_id, affiliate_id, assigned_kol_id, assigned_coordinator_id, is_internacional")
         .is("merged_into_id", null)
         .order("name"),
 
@@ -144,6 +144,7 @@ export default async function AsignacionesPage() {
     assigned_coordinator_id: c.assigned_coordinator_id ?? null,
     assigned_coordinator_name: c.assigned_coordinator_id ? (profileNameMap[c.assigned_coordinator_id] ?? null) : null,
     group_ids:               groupMap[c.id] ?? [],
+    is_internacional:        (c as { is_internacional?: boolean }).is_internacional ?? false,
   }));
 
   const delegates: DelegateOption[] = rawProfiles.map(p => ({

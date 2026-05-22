@@ -21,6 +21,7 @@ import {
   mergeContactsAction,
   type MergeCheckResult,
 } from "@/app/actions/assignments";
+import { toggleInternacional } from "@/app/actions/contacts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export interface ContactRow {
   assigned_coordinator_id: string | null;
   assigned_coordinator_name: string | null;
   group_ids: string[];
+  is_internacional: boolean;
 }
 
 export interface DelegateOption {
@@ -104,6 +106,37 @@ const TYPE_INFO: Record<number, { label: string; bg: string; text: string }> = {
 const Spinner = () => (
   <div className="w-3 h-3 border border-[#8E0E1A] border-t-transparent rounded-full animate-spin shrink-0" />
 );
+
+// ─── InternacionalCell ────────────────────────────────────────────────────────
+
+function InternacionalCell({ contactId, value }: { contactId: string; value: boolean }) {
+  const [local, setLocal] = useState(value);
+  const [pending, start] = useTransition();
+  function toggle() {
+    const next = !local;
+    setLocal(next);
+    start(async () => { await toggleInternacional(contactId, next); });
+  }
+  return (
+    <button
+      onClick={toggle}
+      disabled={pending}
+      title={local ? "Internacional — clic per treure" : "Comercial — clic per marcar Internacional"}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold transition-colors disabled:opacity-60 ${
+        local
+          ? "bg-[#FEE2E2] text-[#991B1B] hover:bg-[#FECACA]"
+          : "bg-[#F3F4F6] text-[#9CA3AF] hover:bg-[#E5E7EB]"
+      }`}
+    >
+      {pending
+        ? <div className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
+        : local
+          ? <><span className="w-1.5 h-1.5 rounded-full bg-[#8E0E1A] inline-block" />INTL</>
+          : "—"
+      }
+    </button>
+  );
+}
 
 // ─── BadgeSelectCell ──────────────────────────────────────────────────────────
 
@@ -737,15 +770,6 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
           </select>
         </div>
 
-        {groups.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Categoría</span>
-            <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setPage(0); }} className="h-7 rounded-full border border-[#E5E7EB] bg-white px-3 text-xs focus:border-[#8E0E1A] focus:outline-none transition-colors">
-              <option value="">Todas</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* ── Bulk bar ─────────────────────────────────────────────────────────── */}
@@ -802,7 +826,7 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
                 <SortTh label="Coordinador"  col="coordinator" current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Recomendador" col="recommender" current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Afiliado"     col="affiliate"   current={sortCol} dir={sortDir} onSort={handleSort} />
-                <th className="px-4 py-3 text-left text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Categorías</th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Internacional</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F9FAFB]">
@@ -881,9 +905,9 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
                       />
                     </td>
 
-                    {/* Categorías */}
-                    <td className="px-4 py-3">
-                      <GroupsCell contactId={c.id} currentGroupIds={c.group_ids} allGroups={groups} />
+                    {/* Internacional */}
+                    <td className="px-4 py-3 w-24">
+                      <InternacionalCell contactId={c.id} value={c.is_internacional} />
                     </td>
                   </tr>
                 );

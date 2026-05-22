@@ -270,6 +270,8 @@ export async function toggleInternacional(contactId: string, value: boolean) {
 
   revalidatePath(`/dashboard/clientes/${contactId}`);
   revalidatePath(`/dashboard/bruixola/internacional`);
+  revalidatePath(`/dashboard/bruixola/internacional/assignar`);
+  revalidatePath(`/dashboard/admin/asignaciones`);
   return { success: true };
 }
 
@@ -295,5 +297,6 @@ export async function bulkSetInternacional(toAdd: string[], toRemove: string[]) 
 
   revalidatePath(`/dashboard/bruixola/internacional`);
   revalidatePath(`/dashboard/bruixola/internacional/assignar`);
+  revalidatePath(`/dashboard/admin/asignaciones`);
   return { success: true };
 }
