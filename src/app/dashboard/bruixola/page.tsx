@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SKUS_PROMO } from "@/lib/skus";
 import { BruixolaPeriodNav } from "@/components/BruixolaPeriodNav";
+import { ObjectiusDashboard } from "./objectius/ObjectiusDashboard";
 
 export const metadata = { title: "Brúixola — Quadre de Comandament" };
 
@@ -35,15 +36,21 @@ export default async function BruixolaPage({ searchParams }: { searchParams: Pro
   const { end: windowEnd } = monthRange(year, month);
 
   const admin = createAdminClient();
-  const [invRes, creditRes, profilesRes, cdRes, simRes] = await Promise.all([
+  const [invRes, creditRes, profilesRes, cdRes, simRes, objectiusRes] = await Promise.all([
     admin.from("holded_invoices").select("id,contact_id,status,date,is_credit_note,from_invoice_id,raw")
       .in("status",[1,2,3]).eq("is_credit_note",false).gte("date",windowStart).lte("date",windowEnd),
     admin.from("holded_invoices").select("from_invoice_id").eq("is_credit_note",true).not("from_invoice_id","is",null),
     admin.from("profiles").select("id,full_name,delegate_name,role,is_kol,is_coordinator,kol_id").in("role",["DELEGATE","KOL","COORDINATOR"]),
     admin.from("contact_delegates").select("contact_id,delegate_id"),
     admin.from("economic_simulations").select("net_sale_price,estructura_pct,logistics_pct,production_cost_lines").eq("is_performance_reference",true).maybeSingle(),
+    admin.from("bruixola_objectius")
+      .select("id,titol,tipus,any,trimestre,mes,estat,prioritat,progress,data_objectiu,metrica,valor_objectiu,valor_actual,seguent_accio,decisio_pendent")
+      .eq("user_id", profile.id)
+      .order("prioritat", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false }),
   ]);
 
+  const objectius = (objectiusRes.data ?? []) as { id:string; titol:string; tipus:string; any:number; trimestre:number|null; mes:number|null; estat:string; prioritat:number|null; progress:number; data_objectiu:string|null; metrica:string|null; valor_objectiu:number|null; valor_actual:number|null; seguent_accio:string|null; decisio_pendent:string|null }[];
   const cancelled = new Set(((creditRes.data??[]) as {from_invoice_id:string|null}[]).map(r=>r.from_invoice_id).filter(Boolean) as string[]);
   const allInv = ((invRes.data??[]) as Inv[]).filter(i=>!cancelled.has(i.id));
   const profiles = (profilesRes.data??[]) as {id:string;full_name:string;delegate_name:string|null;role:string;is_kol:boolean;is_coordinator:boolean;kol_id:string|null}[];
@@ -159,6 +166,7 @@ export default async function BruixolaPage({ searchParams }: { searchParams: Pro
         <div className="flex items-center gap-2 flex-wrap">
           <BruixolaPeriodNav mesStr={mesStr} basePath="/dashboard/bruixola" />
           {[
+            {href:"/dashboard/bruixola/objectius",label:"Objectius"},
             {href:"/dashboard/bruixola/rendiment",label:"Rendiment"},
             {href:"/dashboard/bruixola/financier",label:"Motor Econòmic"},
             {href:"/dashboard/bruixola/rendibilitat",label:"Rendibilitat"},
@@ -170,6 +178,9 @@ export default async function BruixolaPage({ searchParams }: { searchParams: Pro
           ))}
         </div>
       </div>
+
+      {/* Objectius */}
+      <ObjectiusDashboard objectius={objectius} currentYear={year} userId={profile.id} />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
