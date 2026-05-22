@@ -66,7 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {user && (
           <>
             <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
-            <ProsperoWidget />
+            <ProsperoWidget userRole={userProfile?.role ?? "DELEGATE"} />
           </>
         )}
       </MobileDrawer>
@@ -83,7 +83,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {user && (
         <>
           <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
-          <ProsperoWidget />
+          <ProsperoWidget userRole={userProfile?.role ?? "DELEGATE"} />
         </>
       )}
     </div>
