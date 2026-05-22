@@ -212,10 +212,10 @@ export default async function InternacionalPage({
           <div className="flex items-center gap-2">
             <BruixolaPeriodNav mesStr={mesStr} basePath="/dashboard/bruixola/internacional" />
             <Link
-              href="/dashboard/clientes"
-              className="text-xs font-medium text-[#6B7280] hover:text-[#111827] border border-[#E5E7EB] rounded-lg px-3 py-1.5 hover:bg-[#F9FAFB] transition-colors"
+              href="/dashboard/bruixola/internacional/assignar"
+              className="text-xs font-semibold text-white bg-[#111827] hover:bg-[#1F2937] rounded-lg px-3 py-1.5 transition-colors"
             >
-              Gestionar clients
+              Gestionar assignacions
             </Link>
           </div>
         </div>
