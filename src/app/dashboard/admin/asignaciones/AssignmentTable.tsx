@@ -792,10 +792,10 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
           <table className="w-full text-sm min-w-[960px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-[#F3F4F6] bg-white">
-                <th className="w-10 px-4 py-3">
+                <th className="w-10 px-4 py-3 sticky left-0 z-20 bg-white">
                   <input type="checkbox" checked={selected.size === paginated.length && paginated.length > 0} onChange={toggleAll} className="h-3.5 w-3.5 rounded border-[#D1D5DB] accent-[#8E0E1A]" />
                 </th>
-                <SortTh label="Cliente"      col="name"        current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Cliente" col="name" current={sortCol} dir={sortDir} onSort={handleSort} className="sticky left-10 z-20 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] min-w-[160px]" />
                 <SortTh label="Tipología"    col="type"        current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortTh label="Delegado(s)"  col="delegate"    current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortTh label="KOL"          col="kol"         current={sortCol} dir={sortDir} onSort={handleSort} />
@@ -811,12 +811,12 @@ export function AssignmentTable({ contacts, delegates, kolOptions, coordinatorOp
                 const delegateName = c.delegate_id ? (delegateMap[c.delegate_id]?.delegate_name ?? delegateMap[c.delegate_id]?.full_name ?? null) : null;
                 return (
                   <tr key={c.id} className={["transition-colors", isSelected ? "bg-[#FFF5F5]" : "hover:bg-[#FAFAFA]"].join(" ")}>
-                    <td className="px-4 py-3">
+                    <td className={["px-4 py-3 sticky left-0 z-10", isSelected ? "bg-[#FFF5F5]" : "bg-white group-hover:bg-[#FAFAFA]"].join(" ")}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleRow(c.id)} className="h-3.5 w-3.5 rounded border-[#D1D5DB] accent-[#8E0E1A]" />
                     </td>
 
                     {/* Cliente + NIF */}
-                    <td className="px-4 py-3 min-w-[160px]">
+                    <td className={["px-4 py-3 sticky left-10 z-10 min-w-[160px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]", isSelected ? "bg-[#FFF5F5]" : "bg-white"].join(" ")}>
                       <Link href={`/dashboard/clientes/${c.id}`} className="font-semibold text-[#0A0A0A] hover:text-[#8E0E1A] transition-colors text-sm leading-tight block">
                         {c.name}
                       </Link>
