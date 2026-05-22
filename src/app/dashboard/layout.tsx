@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationItem } from "@/components/NotificationBell";
 import { ChatWidget } from "@/components/ChatWidget";
+import { ProsperoWidget } from "@/components/ProsperoWidget";
 import { getTotalUnreadMessagesAction } from "@/app/actions/messages";
 
 function isMobileUA(ua: string) {
@@ -63,7 +64,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
         <ActivityTracker />
         {user && (
-          <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+          <>
+            <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+            <ProsperoWidget />
+          </>
         )}
       </MobileDrawer>
     );
@@ -71,13 +75,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-full">
-      <Sidebar user={userProfile} notifications={notifications} />
+      <Sidebar user={userProfile} notifications={notifications} initialUnread={unreadMessages} />
       <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-[#F5F5F7]">
         {children}
       </main>
       <ActivityTracker />
       {user && (
-        <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+        <>
+          <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
+          <ProsperoWidget />
+        </>
       )}
     </div>
   );

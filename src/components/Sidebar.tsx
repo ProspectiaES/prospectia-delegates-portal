@@ -558,11 +558,106 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Sidebar({ user, drawer = false, onClose, notifications = [] }: {
+// ─── Featured cards (Próspero + Mensajería) ───────────────────────────────────
+
+function FeaturedCards({ initialUnread = 0 }: { initialUnread?: number }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [unread, setUnread] = useState(initialUnread);
+
+  // Listen for unread count updates from ChatWidget
+  useEffect(() => {
+    function handler(e: Event) {
+      setUnread((e as CustomEvent<number>).detail ?? 0);
+    }
+    document.addEventListener("chat-unread", handler);
+    return () => document.removeEventListener("chat-unread", handler);
+  }, []);
+
+  function openProspero() {
+    document.dispatchEvent(new CustomEvent("open-prospero"));
+  }
+
+  function openMensajeria() {
+    document.dispatchEvent(new CustomEvent("open-mensajeria"));
+  }
+
+  return (
+    <div className="px-2 pt-1 pb-0 shrink-0">
+      {!collapsed && (
+        <div className="space-y-1.5 mb-1.5">
+          {/* Próspero */}
+          <button
+            onClick={openProspero}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
+            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
+          >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "#8E0E1A" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
+                <ellipse cx="12" cy="13" rx="7" ry="8" />
+                <circle cx="9" cy="11" r="1.5" fill="white" stroke="none" />
+                <circle cx="15" cy="11" r="1.5" fill="white" stroke="none" />
+                <path d="M8 7c-1-1.5-2-2-3-1.5" strokeLinecap="round" />
+                <path d="M16 7c1-1.5 2-2 3-1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Próspero</p>
+              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Tu asistente IA</p>
+            </div>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          </button>
+
+          {/* Mensajería */}
+          <button
+            onClick={openMensajeria}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
+            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
+          >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "#8E0E1A" }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
+                <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Mensajería</p>
+              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Mensajería instantánea</p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {unread > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#8E0E1A] text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        className="w-full flex items-center justify-center py-0.5 rounded-lg hover:bg-[#F3F4F6] transition-colors"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
+          {collapsed
+            ? <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            : <path d="M2 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+          }
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+export function Sidebar({ user, drawer = false, onClose, notifications = [], initialUnread = 0 }: {
   user?: UserProps;
   drawer?: boolean;
   onClose?: () => void;
   notifications?: NotificationItem[];
+  initialUnread?: number;
 }) {
   const pathname  = usePathname();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -616,8 +711,11 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [] }: {
           <IdentityPanel user={user} open={panelOpen} onToggle={togglePanel} />
         )}
 
+        {/* Featured: Próspero + Mensajería */}
+        <FeaturedCards initialUnread={initialUnread} />
+
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
+        <nav className="flex-1 py-2 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
           {sections.map(({ label, items }) => {
             const visibleItems = items.filter(item => {
               if (item.href === "/dashboard/productos") return user?.role === "OWNER";

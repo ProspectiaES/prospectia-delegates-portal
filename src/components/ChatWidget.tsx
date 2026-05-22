@@ -282,14 +282,26 @@ export function ChatWidget({
     ]);
     setConversations(convs);
     setProfiles(profs);
-    const total = convs.reduce((s, c) => s + c.unread, 0);
-    setUnread(total);
+    setUnread(convs.reduce((s, c) => s + c.unread, 0));
   }, []);
 
+  // Open from sidebar card event
   useEffect(() => {
-    if (open) {
-      loadConversations();
+    function handler() {
+      setOpen(true);
+      setActivePerson(null);
     }
+    document.addEventListener("open-mensajeria", handler);
+    return () => document.removeEventListener("open-mensajeria", handler);
+  }, []);
+
+  // Broadcast unread count so sidebar card can display badge
+  useEffect(() => {
+    document.dispatchEvent(new CustomEvent("chat-unread", { detail: unread }));
+  }, [unread]);
+
+  useEffect(() => {
+    if (open) loadConversations();
   }, [open, loadConversations]);
 
   // Poll for unread count when closed
@@ -304,84 +316,56 @@ export function ChatWidget({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [open]);
 
-  function handleOpen() {
-    setOpen(o => !o);
-    if (!open) setActivePerson(null);
-  }
-
   function handleSelect(p: Profile) {
     setActivePerson(p);
-    // Clear unread for this person optimistically
     setConversations(prev => prev.map(c => c.userId === p.id ? { ...c, unread: 0 } : c));
   }
 
   const totalUnread = conversations.reduce((s, c) => s + c.unread, 0) || unread;
 
-  return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
-      {/* Chat panel */}
-      {open && (
-        <div className="w-80 h-[480px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden">
-          {/* Panel header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-[#8E0E1A] shrink-0 rounded-t-2xl">
-            <div className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
-                <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-sm font-semibold text-white">
-                {activePerson ? `Chat con ${activePerson.full_name.split(" ")[0]}` : "Mensajes"}
-              </span>
-            </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="p-1 rounded text-white/70 hover:text-white transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                <path d="M2 2l10 10M12 2L2 12" strokeLinecap="round"/>
-              </svg>
-            </button>
-          </div>
+  if (!open) return null;
 
-          {/* Content */}
-          <div className="flex-1 min-h-0">
-            {activePerson ? (
-              <ConversationView
-                currentUserId={currentUserId}
-                other={activePerson}
-                onBack={() => setActivePerson(null)}
-              />
-            ) : (
-              <ConversationList
-                conversations={conversations}
-                profiles={profiles}
-                onSelect={handleSelect}
-              />
+  return (
+    <div className="fixed bottom-5 left-[232px] z-50">
+      <div className="w-80 h-[480px] bg-white rounded-2xl shadow-2xl border border-[#E5E7EB] flex flex-col overflow-hidden">
+        {/* Panel header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-[#8E0E1A] shrink-0 rounded-t-2xl">
+          <div className="flex items-center gap-2">
+            {activePerson && (
+              <button onClick={() => setActivePerson(null)} className="text-white/70 hover:text-white mr-1">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M9 2L4 7l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
+              <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-sm font-semibold text-white">
+              {activePerson ? activePerson.full_name.split(" ")[0] : "Mensajería"}
+            </span>
+            {totalUnread > 0 && !activePerson && (
+              <span className="min-w-[16px] h-4 px-1 rounded-full bg-white text-[#8E0E1A] text-[9px] font-bold flex items-center justify-center">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
             )}
           </div>
+          <button onClick={() => setOpen(false)} className="p-1 rounded text-white/70 hover:text-white transition-colors">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M2 2l10 10M12 2L2 12" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
-      )}
 
-      {/* Floating button */}
-      <button
-        onClick={handleOpen}
-        aria-label="Mensajes internos"
-        className="w-14 h-14 rounded-full bg-[#8E0E1A] shadow-lg hover:bg-[#6B0A14] hover:shadow-xl transition-all flex items-center justify-center relative active:scale-95"
-      >
-        {open ? (
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-            <path d="M4 4l14 14M18 4L4 18" strokeLinecap="round"/>
-          </svg>
-        ) : (
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-            <path d="M20 3H2a1 1 0 00-1 1v11a1 1 0 001 1h3v3.5L9.5 16H20a1 1 0 001-1V4a1 1 0 00-1-1z" strokeLinejoin="round"/>
-          </svg>
-        )}
-        {totalUnread > 0 && !open && (
-          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-white text-[#8E0E1A] text-[10px] font-bold flex items-center justify-center leading-none shadow">
-            {totalUnread > 99 ? "99+" : totalUnread}
-          </span>
-        )}
-      </button>
+        {/* Content */}
+        <div className="flex-1 min-h-0">
+          {activePerson ? (
+            <ConversationView currentUserId={currentUserId} other={activePerson} onBack={() => setActivePerson(null)} />
+          ) : (
+            <ConversationList conversations={conversations} profiles={profiles} onSelect={handleSelect} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
