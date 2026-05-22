@@ -517,6 +517,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/bruixola",                  label: "Brúixola",       Icon: IconBruixola, exact: true },
         { href: "/dashboard/bruixola/rendiment",        label: "Rendiment",      Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/internacional",    label: "Internacional",  Icon: IconBruixola, exact: false },
         { href: "/dashboard/bruixola/financier",        label: "Motor Econòmic", Icon: IconBruixola, exact: false },
         { href: "/dashboard/bruixola/rendibilitat",     label: "Rendibilitat",   Icon: IconBruixola, exact: false },
       ],

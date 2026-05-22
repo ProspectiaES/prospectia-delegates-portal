@@ -254,3 +254,21 @@ export async function saveContactRecommender(
   revalidatePath(`/dashboard/clientes/${contactId}`);
   return { success: true };
 }
+
+export async function toggleInternacional(contactId: string, value: boolean) {
+  "use server";
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticat" };
+
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("holded_contacts").update({ is_internacional: value }).eq("id", contactId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/clientes/${contactId}`);
+  revalidatePath(`/dashboard/bruixola/internacional`);
+  return { success: true };
+}

@@ -13,6 +13,7 @@ import { ProfileAssignSelect } from "./ProfileAssignSelect";
 import { saveContactKOL, saveContactCoordinator, saveContactCommission6 } from "@/app/actions/contacts";
 import { getProfile } from "@/lib/profile";
 import { ClienteCRMPanel, CreateProspectoButton, type CRMActivity } from "./ClienteCRMPanel";
+import { InternacionalToggle } from "./InternacionalToggle";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ interface DbContact {
   kol_id: string | null;
   coordinator_id: string | null;
   commission_6_id: string | null;
+  is_internacional: boolean;
   first_synced_at: string;
   last_synced_at: string;
   raw: Record<string, unknown>;
@@ -99,7 +101,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     getProfile(),
     supabase
       .from("holded_contacts")
-      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, recommender_id, payment_method, iban, bic, kol_id, coordinator_id, commission_6_id, first_synced_at, last_synced_at, raw")
+      .select("id, name, code, email, phone, mobile, type, tags, address, city, postal_code, province, country, country_code, affiliate_id, recommender_id, payment_method, iban, bic, kol_id, coordinator_id, commission_6_id, is_internacional, first_synced_at, last_synced_at, raw")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -465,6 +467,16 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Divisió Internacional */}
+          {isOwner && (
+            <div>
+              <div className="px-5 py-3 bg-[#FAFAFA] border-b border-[#F3F4F6]">
+                <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Divisió</p>
+              </div>
+              <InternacionalToggle contactId={contact.id} value={contact.is_internacional ?? false} />
             </div>
           )}
         </div>
