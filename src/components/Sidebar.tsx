@@ -580,17 +580,36 @@ function FeaturedCards({ initialUnread = 0 }: { initialUnread?: number }) {
           >
             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
               style={{ backgroundColor: "#8E0E1A" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" aria-hidden>
-                <ellipse cx="12" cy="13" rx="7" ry="8" />
-                <circle cx="9" cy="11" r="1.5" fill="white" stroke="none" />
-                <circle cx="15" cy="11" r="1.5" fill="white" stroke="none" />
-                <path d="M8 7c-1-1.5-2-2-3-1.5" strokeLinecap="round" />
-                <path d="M16 7c1-1.5 2-2 3-1.5" strokeLinecap="round" />
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
+                <path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8c0 1.16.3 2.25.82 3.19L1.5 14.5l3.31-.82A6.5 6.5 0 1 0 8 1.5z" strokeLinejoin="round"/>
+                <circle cx="5.5" cy="8" r="0.75" fill="white" stroke="none"/>
+                <circle cx="8" cy="8" r="0.75" fill="white" stroke="none"/>
+                <circle cx="10.5" cy="8" r="0.75" fill="white" stroke="none"/>
               </svg>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Próspero</p>
               <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Tu asistente IA</p>
+            </div>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          </button>
+
+          {/* Próspero Analytics */}
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent("open-prospero-analitic"))}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
+            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
+          >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "#8E0E1A" }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
+                <path d="M2 13L6 8l3 3 3-4 2-2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 2v12h12" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Próspero Analytics</p>
+              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Inteligencia financiera IA</p>
             </div>
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           </button>

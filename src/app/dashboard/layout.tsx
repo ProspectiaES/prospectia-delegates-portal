@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationItem } from "@/components/NotificationBell";
 import { ChatWidget } from "@/components/ChatWidget";
 import { ProsperoWidget } from "@/components/ProsperoWidget";
+import { ProsperoAnalitic } from "@/components/ProsperoAnalitic";
 import { getTotalUnreadMessagesAction } from "@/app/actions/messages";
 
 function isMobileUA(ua: string) {
@@ -67,6 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <>
             <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
             <ProsperoWidget userRole={userProfile?.role ?? "DELEGATE"} />
+            <ProsperoAnalitic />
           </>
         )}
       </MobileDrawer>
@@ -84,6 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <>
           <ChatWidget currentUserId={user.id} initialUnread={unreadMessages} />
           <ProsperoWidget userRole={userProfile?.role ?? "DELEGATE"} />
+          <ProsperoAnalitic />
         </>
       )}
     </div>

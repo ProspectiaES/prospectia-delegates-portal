@@ -87,6 +87,12 @@ export function ProsperoAnalitic() {
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    function handler() { setOpen(true); }
+    document.addEventListener("open-prospero-analitic", handler);
+    return () => document.removeEventListener("open-prospero-analitic", handler);
+  }, []);
+
+  useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
@@ -112,21 +118,7 @@ export function ProsperoAnalitic() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  // FAB button when closed
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-        style={{ backgroundColor: BRAND }}
-        title="Próspero Analític"
-        aria-label="Obrir Próspero Analític"
-      >
-        <ChartIcon size={20} color="white" />
-        <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white" />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50">

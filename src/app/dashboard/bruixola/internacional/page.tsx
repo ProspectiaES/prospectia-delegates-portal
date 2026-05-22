@@ -70,16 +70,15 @@ export default async function InternacionalPage({
     { data: twoYearInvs },
     { data: pendingInvs },
   ] = await Promise.all([
-    // Factures cobrades del període
+    // Totes les factures del període (emeses, no notes de crèdit)
     admin
       .from("holded_invoices")
       .select("id, doc_number, contact_id, contact_name, date, date_paid, total, subtotal, status, is_credit_note, description, raw")
       .in("contact_id", intlIds)
-      .eq("status", 3)
       .eq("is_credit_note", false)
-      .gte("date_paid", periodStart)
-      .lt("date_paid", periodEnd)
-      .order("date_paid", { ascending: false }),
+      .gte("date", periodStart)
+      .lt("date", periodEnd)
+      .order("date", { ascending: false }),
 
     // Mes anterior
     admin
@@ -111,15 +110,14 @@ export default async function InternacionalPage({
       .gte("date_paid", hist13Start)
       .lt("date_paid", periodEnd),
 
-    // Taula dos anys
+    // Taula dos anys — totes les factures emeses (sense filtre d'estat)
     admin
       .from("holded_invoices")
-      .select("contact_id, date_paid, total, subtotal")
+      .select("contact_id, date, date_paid, total, subtotal, status")
       .in("contact_id", intlIds)
-      .eq("status", 3)
       .eq("is_credit_note", false)
-      .gte("date_paid", new Date(Date.UTC(selY - 1, 0, 1)).toISOString())
-      .lt("date_paid", new Date(Date.UTC(selY + 1, 0, 1)).toISOString()),
+      .gte("date", new Date(Date.UTC(selY - 1, 0, 1)).toISOString())
+      .lt("date", new Date(Date.UTC(selY + 1, 0, 1)).toISOString()),
 
     // Pendents
     admin
@@ -184,8 +182,8 @@ export default async function InternacionalPage({
     };
   }
   for (const inv of (twoYearInvs ?? [])) {
-    if (!inv.date_paid || !inv.contact_id) continue;
-    const d = new Date(inv.date_paid);
+    if (!inv.date || !inv.contact_id) continue;
+    const d = new Date(inv.date);
     const y = d.getUTCFullYear();
     const m = d.getUTCMonth();
     if (!byClientYear[inv.contact_id]?.[y]) continue;
@@ -402,14 +400,14 @@ export default async function InternacionalPage({
           </div>
         </div>
 
-        {/* ── Factures cobrades ── */}
+        {/* ── Totes les factures del mes ── */}
         <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-[#F3F4F6] bg-[#FAFAFA] flex items-center justify-between">
-            <p className="text-sm font-semibold text-[#111827]">Factures cobrades · {mesLabel}</p>
+            <p className="text-sm font-semibold text-[#111827]">Factures · {mesLabel}</p>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#F3F4F6] text-[#6B7280]">{invoiceCount}</span>
           </div>
           {(curInvs ?? []).length === 0 ? (
-            <p className="px-5 py-8 text-sm text-[#9CA3AF] text-center">Sense factures cobrades aquest mes.</p>
+            <p className="px-5 py-8 text-sm text-[#9CA3AF] text-center">Sense factures aquest mes.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -418,6 +416,7 @@ export default async function InternacionalPage({
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Factura</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Client</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Concepte</th>
+                    <th className="px-4 py-2.5 text-center text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Estat</th>
                     <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Base imp.</th>
                     <th className="px-4 py-2.5 text-center text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Moneda</th>
                   </tr>
@@ -426,6 +425,11 @@ export default async function InternacionalPage({
                   {(curInvs ?? []).map((inv) => {
                     const currency = getCurrency(inv.raw as Record<string, unknown> | null);
                     const isForeign = currency !== "EUR";
+                    const statusLabel =
+                      inv.status === 3 ? { text: "Cobrada", cls: "bg-green-100 text-green-700" } :
+                      inv.status === 2 ? { text: "Vençuda", cls: "bg-red-100 text-red-700" } :
+                      inv.status === 1 ? { text: "Pendent", cls: "bg-amber-100 text-amber-700" } :
+                                         { text: "Esborrany", cls: "bg-gray-100 text-gray-600" };
                     return (
                       <tr key={inv.id} className="hover:bg-[#FAFAFA] transition-colors">
                         <td className="px-4 py-3 font-mono text-[#6B7280]">{inv.doc_number ?? "—"}</td>
@@ -433,6 +437,9 @@ export default async function InternacionalPage({
                           <Link href={`/dashboard/clientes/${inv.contact_id}`} className="font-medium text-[#111827] hover:text-[#8E0E1A]">{inv.contact_name ?? "—"}</Link>
                         </td>
                         <td className="px-4 py-3 text-[#6B7280] max-w-[240px] truncate" title={inv.description ?? undefined}>{inv.description ?? "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusLabel.cls}`}>{statusLabel.text}</span>
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold text-[#111827]">{fmtDec(inv.subtotal ?? inv.total ?? 0)}</td>
                         <td className="px-4 py-3 text-center">
                           {isForeign
@@ -445,7 +452,7 @@ export default async function InternacionalPage({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-[#E5E7EB] bg-[#FAFAFA]">
-                    <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-[#111827]">Total</td>
+                    <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-[#111827]">Total</td>
                     <td className="px-4 py-3 text-right text-xs font-bold text-[#111827]">{fmtDec(curRevenue)}</td>
                     <td />
                   </tr>
