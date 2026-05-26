@@ -104,7 +104,18 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   if (!delegateData || (!DELEGATE_ROLES.includes(delegateData.role) && !delegateData.show_in_delegate_list)) notFound();
 
   const delegate = delegateData as DelegateProfile;
-  const isOwner  = profile?.role === "OWNER";
+  const role     = profile?.role ?? "";
+  const isOwner  = role === "OWNER" || role === "ADMIN";
+
+  // ── Viewer authorization: only OWNER/ADMIN, the delegate themselves,
+  //    their KOL, or their assigned coordinator may view this profile ──────────
+  if (!isOwner && profile?.id) {
+    const viewerId = profile.id;
+    const isOwnProfile      = viewerId === id;
+    const isKolOfDelegate   = delegate.kol_id === viewerId;
+    const isCoordOfDelegate = delegate.coordinator_id === viewerId;
+    if (!isOwnProfile && !isKolOfDelegate && !isCoordOfDelegate) notFound();
+  }
 
   // Load contact IDs assigned to this delegate — use admin to bypass RLS
   // (KOL/coordinator viewers are authorized at this point but can't read other delegates' assignments via RLS)

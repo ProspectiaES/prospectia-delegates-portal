@@ -17,23 +17,34 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   const typeStr = params.type ?? "";
 
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
-  const isOwner    = profile?.role === "OWNER";
-  const isDelegate = profile?.role === "DELEGATE";
+  const role    = profile?.role ?? "";
+  const isOwner = role === "OWNER" || role === "ADMIN";
 
   // Non-owners default to type=1 (clients only); OWNER can see all via ?type=all
   const effectiveType = isOwner
     ? (typeStr === "all" ? "" : typeStr || "")
     : "1";
 
-  // Delegates see only their assigned contacts
+  // Non-owners see only their ecosystem's contacts
   let delegateContactIds: string[] | null = null;
-  if (isDelegate && profile) {
+  if (!isOwner && profile?.id) {
     const admin = createAdminClient();
-    const { data: links } = await admin
-      .from("contact_delegates")
-      .select("contact_id")
-      .eq("delegate_id", profile.id);
-    delegateContactIds = (links ?? []).map(r => r.contact_id as string);
+    if (role === "DELEGATE") {
+      const { data: links } = await admin
+        .from("contact_delegates").select("contact_id").eq("delegate_id", profile.id);
+      delegateContactIds = (links ?? []).map(r => r.contact_id as string);
+    } else if (role === "KOL") {
+      const { data: myDelegates } = await admin
+        .from("profiles").select("id").eq("kol_id", profile.id);
+      const delegateIds = [profile.id, ...(myDelegates ?? []).map((d: { id: string }) => d.id)];
+      const { data: links } = await admin
+        .from("contact_delegates").select("contact_id").in("delegate_id", delegateIds);
+      delegateContactIds = (links ?? []).map(r => r.contact_id as string);
+    } else if (role === "COORDINATOR") {
+      const { data: contacts } = await admin
+        .from("holded_contacts").select("id").eq("assigned_coordinator_id", profile.id);
+      delegateContactIds = (contacts ?? []).map((c: { id: string }) => c.id);
+    }
   }
 
   // Early-exit: delegate with zero contacts
