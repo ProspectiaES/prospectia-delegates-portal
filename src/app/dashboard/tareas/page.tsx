@@ -28,16 +28,26 @@ export default async function TareasPage() {
 
   const admin = createAdminClient();
 
+  // Determine which tasks this user may see
+  const { data: profileData } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const role    = (profileData as { role: string } | null)?.role ?? "";
+  const isOwner = role === "OWNER" || role === "ADMIN";
+
+  // Non-owners only see tasks where they are the assignee
+  let taskQuery = admin
+    .from("tasks")
+    .select(`
+      id, title, status, priority, due_date, project_id, assignee_id, contact_id, salesorder_id,
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url),
+      project:task_projects(id, name, color),
+      task_comments(count)
+    `)
+    .order("position", { ascending: true });
+
+  if (!isOwner) taskQuery = taskQuery.eq("assignee_id", user.id);
+
   const [tasksRes, projectsRes, profilesRes] = await Promise.all([
-    admin
-      .from("tasks")
-      .select(`
-        id, title, status, priority, due_date, project_id, assignee_id, contact_id, salesorder_id,
-        assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url),
-        project:task_projects(id, name, color),
-        task_comments(count)
-      `)
-      .order("position", { ascending: true }),
+    taskQuery,
     admin
       .from("task_projects")
       .select("id, name, color")

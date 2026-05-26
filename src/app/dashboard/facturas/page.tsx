@@ -57,7 +57,30 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const statusStr = params.status ?? "";
 
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
-  const isOwner = profile?.role === "OWNER";
+  const role    = profile?.role ?? "";
+  const isOwner = role === "OWNER" || role === "ADMIN";
+
+  // For non-owners: restrict to their ecosystem's contact IDs
+  let allowedContactIds: string[] | null = null;
+  if (!isOwner && profile?.id) {
+    const admin = createAdminClient();
+    if (role === "DELEGATE") {
+      const { data: cdRows } = await admin.from("contact_delegates")
+        .select("contact_id").eq("delegate_id", profile.id);
+      allowedContactIds = (cdRows ?? []).map(r => r.contact_id);
+    } else if (role === "KOL") {
+      const { data: myDelegates } = await admin.from("profiles")
+        .select("id").eq("kol_id", profile.id);
+      const delegateIds = [profile.id, ...(myDelegates ?? []).map((d: { id: string }) => d.id)];
+      const { data: cdRows } = await admin.from("contact_delegates")
+        .select("contact_id").in("delegate_id", delegateIds);
+      allowedContactIds = (cdRows ?? []).map(r => r.contact_id);
+    } else if (role === "COORDINATOR") {
+      const { data: contacts } = await admin.from("holded_contacts")
+        .select("id").eq("assigned_coordinator_id", profile.id);
+      allowedContactIds = (contacts ?? []).map((c: { id: string }) => c.id);
+    }
+  }
 
   // Last status sync — admin client since sync_log is OWNER-only via RLS
   let lastSyncedAt: string | null = null;
@@ -76,7 +99,10 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const from     = (page - 1) * PAGE_SIZE;
   const to       = from + PAGE_SIZE - 1;
 
-  let query = supabase
+  const useAdmin = !isOwner && allowedContactIds !== null;
+  const db = useAdmin ? createAdminClient() : supabase;
+
+  let query = db
     .from("holded_invoices")
     .select(
       "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at",
@@ -85,6 +111,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
     .order("date", { ascending: false })
     .range(from, to);
 
+  if (allowedContactIds !== null) query = query.in("contact_id", allowedContactIds.length ? allowedContactIds : ["__none__"]);
   if (search)    query = query.or(`contact_name.ilike.%${search}%,doc_number.ilike.%${search}%,description.ilike.%${search}%`);
   if (statusStr) query = query.eq("status", parseInt(statusStr, 10));
 
@@ -98,7 +125,9 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const currentYear  = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
-  const { data: allRows } = await supabase.from("holded_invoices").select("total, status");
+  let statsQuery = db.from("holded_invoices").select("total, status");
+  if (allowedContactIds !== null) statsQuery = statsQuery.in("contact_id", allowedContactIds.length ? allowedContactIds : ["__none__"]);
+  const { data: allRows } = await statsQuery;
   const filtered    = statusStr ? (allRows ?? []).filter((r) => r.status === parseInt(statusStr, 10)) : (allRows ?? []);
   const sumTotal    = filtered.reduce((s, r) => s + (r.total ?? 0), 0);
   const sumCobradas = filtered.filter((r) => r.status === 3).reduce((s, r) => s + (r.total ?? 0), 0);

@@ -79,75 +79,97 @@ COMPORTAMIENTO DEL AGENTE
 - Si los datos no permiten calcular una métrica (campo ausente, simulación sin is_performance_reference=true), dilo antes de dar el resultado.
 - Ante preguntas fuera del scope de ventas/rendimiento, declina educadamente y recuerda tu función.`;
 
-// ─── Data fetcher ─────────────────────────────────────────────────────────────
+// ─── Data fetcher (filtered by ecosystem) ────────────────────────────────────
 
-async function fetchBusinessData() {
+async function fetchBusinessData(userId: string, role: string) {
   const admin = createAdminClient();
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - 14);
   const cutoffIso = cutoff.toISOString();
 
-  const [
-    invoicesRes,
-    profilesRes,
-    contactsRes,
-    delegatesRes,
-    expensesRes,
-    bixgrowRes,
-    simRes,
-  ] = await Promise.all([
-    admin.from("holded_invoices")
-      .select("id, contact_id, contact_name, status, date, date_paid, is_credit_note, from_invoice_id, raw")
-      .gte("date", cutoffIso)
-      .order("date", { ascending: false }),
-
-    admin.from("profiles")
-      .select("id, full_name, delegate_name, role, kol_id, coordinator_id")
-      .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "COM6", "CONSIGLIERE"]),
-
-    admin.from("holded_contacts")
-      .select("id, name, recommender_id, recommender_commission_pct, affiliate_id"),
-
-    admin.from("contact_delegates")
-      .select("contact_id, delegate_id"),
-
-    admin.from("delegate_expenses")
-      .select("delegate_id, category, amount, period")
-      .gte("period", cutoff.toISOString().slice(0, 7)),
-
-    admin.from("bixgrow_orders")
-      .select("invoice_id, affiliate_id, commission, status")
-      .gte("created_at", cutoffIso),
-
-    admin.from("economic_simulations")
-      .select("id, net_sale_price, estructura_pct, logistics_pct, production_cost_lines")
-      .eq("is_performance_reference", true)
-      .maybeSingle(),
-  ]);
-
   type RawInvoice = {
     id: string; contact_id: string; contact_name: string; status: number;
     date: string; date_paid: string | null; is_credit_note: boolean;
-    from_invoice_id: string | null;
-    raw: Record<string, unknown> | null;
+    from_invoice_id: string | null; raw: Record<string, unknown> | null;
+  };
+  type RawContact = {
+    id: string; name: string; recommender_id: string | null;
+    recommender_commission_pct: number | null; affiliate_id: string | null;
+    assigned_coordinator_id: string | null;
   };
 
-  // Compact invoices — only the fields the agent needs
-  const invoices = (invoicesRes.data as RawInvoice[] ?? []).map((inv) => {
+  const [invoicesRes, profilesRes, contactsRes, delegatesRes, expensesRes, bixgrowRes, simRes] =
+    await Promise.all([
+      admin.from("holded_invoices")
+        .select("id, contact_id, contact_name, status, date, date_paid, is_credit_note, from_invoice_id, raw")
+        .gte("date", cutoffIso).order("date", { ascending: false }),
+
+      admin.from("profiles")
+        .select("id, full_name, delegate_name, role, kol_id, coordinator_id")
+        .in("role", ["DELEGATE", "KOL", "COORDINATOR", "ADMIN", "COM6", "CONSIGLIERE"]),
+
+      admin.from("holded_contacts")
+        .select("id, name, recommender_id, recommender_commission_pct, affiliate_id, assigned_coordinator_id"),
+
+      admin.from("contact_delegates").select("contact_id, delegate_id"),
+
+      admin.from("delegate_expenses")
+        .select("delegate_id, category, amount, period")
+        .gte("period", cutoff.toISOString().slice(0, 7)),
+
+      admin.from("bixgrow_orders")
+        .select("invoice_id, affiliate_id, commission, status")
+        .gte("created_at", cutoffIso),
+
+      admin.from("economic_simulations")
+        .select("id, net_sale_price, estructura_pct, logistics_pct, production_cost_lines")
+        .eq("is_performance_reference", true).maybeSingle(),
+    ]);
+
+  let allProfiles   = (profilesRes.data  ?? []) as { id: string; full_name: string; delegate_name: string | null; role: string; kol_id: string | null; coordinator_id: string | null }[];
+  let allContacts   = (contactsRes.data  ?? []) as RawContact[];
+  let allDelegates  = (delegatesRes.data ?? []) as { contact_id: string; delegate_id: string }[];
+  let allExpenses   = (expensesRes.data  ?? []) as { delegate_id: string; category: string; amount: number; period: string }[];
+  let allBixgrow    = (bixgrowRes.data   ?? []) as { invoice_id: string; affiliate_id: string; commission: number; status: string }[];
+  let allRawInv     = (invoicesRes.data  ?? []) as RawInvoice[];
+
+  // ── Ecosystem filtering — never leak cross-ecosystem data ──────────────────
+  if (role === "KOL") {
+    // Network = own delegates (kol_id = me) + self
+    const networkIds = new Set([userId, ...allProfiles.filter(p => p.kol_id === userId).map(p => p.id)]);
+    const networkContactIds = new Set(allDelegates.filter(cd => networkIds.has(cd.delegate_id)).map(cd => cd.contact_id));
+    allProfiles  = allProfiles.filter(p => networkIds.has(p.id));
+    allDelegates = allDelegates.filter(cd => networkIds.has(cd.delegate_id));
+    allContacts  = allContacts.filter(c => networkContactIds.has(c.id));
+    allRawInv    = allRawInv.filter(inv => networkContactIds.has(inv.contact_id));
+    allExpenses  = allExpenses.filter(e => networkIds.has(e.delegate_id));
+    const invIds = new Set(allRawInv.map(i => i.id));
+    allBixgrow   = allBixgrow.filter(b => invIds.has(b.invoice_id));
+
+  } else if (role === "COORDINATOR") {
+    // Own contacts = assigned_coordinator_id = me
+    const myContactIds = new Set(allContacts.filter(c => c.assigned_coordinator_id === userId).map(c => c.id));
+    const myDelegateIds = new Set([userId, ...allDelegates.filter(cd => myContactIds.has(cd.contact_id)).map(cd => cd.delegate_id)]);
+    allContacts  = allContacts.filter(c => myContactIds.has(c.id));
+    allDelegates = allDelegates.filter(cd => myContactIds.has(cd.contact_id));
+    allProfiles  = allProfiles.filter(p => myDelegateIds.has(p.id));
+    allRawInv    = allRawInv.filter(inv => myContactIds.has(inv.contact_id));
+    allExpenses  = allExpenses.filter(e => myDelegateIds.has(e.delegate_id));
+    const invIds = new Set(allRawInv.map(i => i.id));
+    allBixgrow   = allBixgrow.filter(b => invIds.has(b.invoice_id));
+  }
+  // OWNER / ADMIN: no filter
+
+  // Compact invoices — strip raw JSON, keep only what the agent needs
+  const invoices = allRawInv.map((inv) => {
     const raw = inv.raw as Record<string, unknown> | null;
     const products = (raw?.products as { sku?: string; name?: string; units?: number }[] | null) ?? [];
     return {
-      id:              inv.id,
-      contact_id:      inv.contact_id,
-      contact_name:    inv.contact_name,
-      status:          inv.status,
-      date:            inv.date,
-      date_paid:       inv.date_paid,
-      is_credit_note:  inv.is_credit_note,
-      from_invoice_id: inv.from_invoice_id,
-      subtotal:        raw?.subtotal ?? null,
-      total:           raw?.total ?? null,
-      products:        products.map(p => ({ sku: p.sku, name: p.name, units: p.units })),
+      id: inv.id, contact_id: inv.contact_id, contact_name: inv.contact_name,
+      status: inv.status, date: inv.date, date_paid: inv.date_paid,
+      is_credit_note: inv.is_credit_note, from_invoice_id: inv.from_invoice_id,
+      subtotal: raw?.subtotal ?? null, total: raw?.total ?? null,
+      products: products.map(p => ({ sku: p.sku, name: p.name, units: p.units })),
     };
   });
 
@@ -156,19 +178,15 @@ async function fetchBusinessData() {
   const costPerUnit = costLines.reduce((s, l) => s + (l.unit_cost ?? 0), 0);
 
   return {
-    today:       new Date().toISOString().slice(0, 10),
+    today:            new Date().toISOString().slice(0, 10),
+    scope:            role === "OWNER" || role === "ADMIN" ? "global" : `ecosistema_${role.toLowerCase()}`,
     invoices,
-    profiles:    profilesRes.data ?? [],
-    contacts:    contactsRes.data ?? [],
-    contactDelegates: delegatesRes.data ?? [],
-    expenses:    expensesRes.data ?? [],
-    bixgrowOrders: bixgrowRes.data ?? [],
-    simulation:  sim ? {
-      net_sale_price: sim.net_sale_price,
-      estructura_pct: sim.estructura_pct,
-      logistics_pct:  sim.logistics_pct,
-      costPerUnit,
-    } : null,
+    profiles:         allProfiles,
+    contacts:         allContacts.map(({ assigned_coordinator_id: _, ...rest }) => rest),
+    contactDelegates: allDelegates,
+    expenses:         allExpenses,
+    bixgrowOrders:    allBixgrow,
+    simulation: sim ? { net_sale_price: sim.net_sale_price, estructura_pct: sim.estructura_pct, logistics_pct: sim.logistics_pct, costPerUnit } : null,
   };
 }
 
@@ -182,7 +200,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: profile } = await admin.from("profiles")
-    .select("role").eq("id", user.id).maybeSingle();
+    .select("id, role").eq("id", user.id).maybeSingle();
 
   if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
     return new Response("Acceso denegado", { status: 403 });
@@ -195,8 +213,8 @@ export async function POST(req: NextRequest) {
 
   if (!message?.trim()) return new Response("Mensaje vacío", { status: 400 });
 
-  // Fetch fresh business data
-  const data = await fetchBusinessData();
+  // Fetch fresh business data — filtered to this user's ecosystem
+  const data = await fetchBusinessData(user.id, profile.role);
   const dataContext = `A continuación los datos actuales del negocio (snapshot ${data.today}):\n\n\`\`\`json\n${JSON.stringify(data, null, 0)}\n\`\`\``;
 
   // Build messages: inject data as first user/assistant exchange so it's cached
