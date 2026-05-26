@@ -21,6 +21,8 @@ interface DbInvoice {
   status: number;
   description: string | null;
   last_synced_at: string;
+  is_credit_note: boolean;
+  from_invoice_id: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   let query = db
     .from("holded_invoices")
     .select(
-      "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at",
+      "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at, is_credit_note, from_invoice_id",
       { count: "exact" }
     )
     .order("date", { ascending: false })
@@ -120,6 +122,19 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const invoices   = (data ?? []) as DbInvoice[];
   const total      = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Build set of invoice IDs cancelled by a CN (all in scope, not just current page)
+  const cancelledIds = new Set<string>();
+  {
+    let cnQ = db.from("holded_invoices").select("from_invoice_id")
+      .eq("is_credit_note", true).not("from_invoice_id", "is", null);
+    if (allowedContactIds !== null)
+      cnQ = cnQ.in("contact_id", allowedContactIds.length ? allowedContactIds : ["__none__"]);
+    const { data: cnData } = await cnQ;
+    for (const r of cnData ?? []) {
+      if (r.from_invoice_id) cancelledIds.add(r.from_invoice_id as string);
+    }
+  }
 
   const now          = new Date();
   const currentYear  = now.getFullYear();
@@ -235,42 +250,57 @@ export default async function FacturasPage({ searchParams }: PageProps) {
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {invoices.map((inv) => {
+                  const isCN        = inv.is_credit_note;
+                  const isCancelled = !isCN && cancelledIds.has(inv.id);
+
                   const isOverdue =
-                    inv.status === 2 ||
-                    (inv.status === 1 && inv.due_date && new Date(inv.due_date) < new Date());
+                    !isCN && !isCancelled &&
+                    (inv.status === 2 || (inv.status === 1 && inv.due_date && new Date(inv.due_date) < new Date()));
 
                   const paidDate = inv.status === 3 && inv.date_paid ? new Date(inv.date_paid) : null;
-                  const isPaidThisMonth = paidDate != null
+                  const isPaidThisMonth = !isCN && !isCancelled && paidDate != null
                     && paidDate.getFullYear() === currentYear
                     && paidDate.getMonth() + 1 === currentMonth;
 
+                  const rowClass = isCN
+                    ? "bg-red-50 hover:bg-red-50/80"
+                    : isCancelled
+                      ? "bg-[#F3F4F6] opacity-60 hover:opacity-80"
+                      : isPaidThisMonth
+                        ? "bg-amber-50/50 hover:bg-amber-50"
+                        : "hover:bg-[#F9FAFB]";
+
+                  const textMuted = isCancelled ? "text-[#9CA3AF]" : undefined;
+
                   return (
-                    <tr
-                      key={inv.id}
-                      className={`transition-colors ${isPaidThisMonth ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-[#F9FAFB]"}`}
-                    >
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold text-[#0A0A0A] font-mono text-xs">
-                        <Link href={`/dashboard/facturas/${inv.id}`} className="hover:text-[#8E0E1A] transition-colors">
-                          {inv.doc_number ?? (
-                            <span className="font-normal">{inv.id.slice(0, 8)}…</span>
+                    <tr key={inv.id} className={`transition-colors ${rowClass}`}>
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap font-semibold font-mono text-xs">
+                        <div className="flex items-center gap-1.5">
+                          {isCN && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 uppercase tracking-wide">NC</span>
                           )}
-                        </Link>
+                          <Link href={`/dashboard/facturas/${inv.id}`} className={`hover:text-[#8E0E1A] transition-colors ${isCancelled ? "line-through text-[#9CA3AF]" : isCN ? "text-red-700" : "text-[#0A0A0A]"}`}>
+                            {inv.doc_number ?? (
+                              <span className="font-normal">{inv.id.slice(0, 8)}…</span>
+                            )}
+                          </Link>
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap max-w-[180px]">
-                        <span className="text-[#0A0A0A] font-medium truncate block">
+                        <span className={`font-medium truncate block ${textMuted ?? "text-[#0A0A0A]"}`}>
                           {inv.contact_name ?? <span className="text-[#9CA3AF]">—</span>}
                         </span>
                       </td>
                       <td className="px-4 py-3 max-w-[200px]">
-                        <span className="text-[#6B7280] truncate block text-xs">
+                        <span className={`truncate block text-xs ${textMuted ?? "text-[#6B7280]"}`}>
                           {inv.description ?? "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-[#6B7280]">
+                      <td className={`px-4 py-3 tabular-nums whitespace-nowrap ${textMuted ?? "text-[#6B7280]"}`}>
                         {fmtDate(inv.date)}
                       </td>
                       <td className="px-4 py-3 tabular-nums whitespace-nowrap">
-                        <span className={isOverdue ? "text-[#8E0E1A] font-medium" : "text-[#6B7280]"}>
+                        <span className={isCancelled ? "text-[#9CA3AF]" : isOverdue ? "text-[#8E0E1A] font-medium" : "text-[#6B7280]"}>
                           {fmtDate(inv.due_date)}
                         </span>
                       </td>
@@ -282,16 +312,22 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                             ★ {fmtDate(inv.date_paid)}
                           </span>
                         ) : (
-                          <span className="text-emerald-700 font-medium tabular-nums">{fmtDate(inv.date_paid)}</span>
+                          <span className={`font-medium tabular-nums ${isCancelled ? "text-[#9CA3AF]" : "text-emerald-700"}`}>{fmtDate(inv.date_paid)}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap text-right font-semibold text-[#0A0A0A]">
-                        {fmtCurrency(inv.total)}
+                      <td className={`px-4 py-3 tabular-nums whitespace-nowrap text-right font-semibold ${isCancelled ? "line-through text-[#9CA3AF]" : isCN ? "text-red-700" : "text-[#0A0A0A]"}`}>
+                        {isCN ? `−${fmtCurrency(Math.abs(inv.total))}` : fmtCurrency(inv.total)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Badge variant={statusVariant[inv.status] ?? "neutral"}>
-                          {statusLabel[inv.status] ?? `Estado ${inv.status}`}
-                        </Badge>
+                        {isCN ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">Nota crédito</span>
+                        ) : isCancelled ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-400">Anulada</span>
+                        ) : (
+                          <Badge variant={statusVariant[inv.status] ?? "neutral"}>
+                            {statusLabel[inv.status] ?? `Estado ${inv.status}`}
+                          </Badge>
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Link
