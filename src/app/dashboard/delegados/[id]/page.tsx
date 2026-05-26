@@ -161,7 +161,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   ]);
 
   const clients       = (clientsRes.data      ?? []) as DbContact[];
-  const invoices      = (invoicesRes.data     ?? []) as DelegateInvoice[];
+  const rawInvoices   = (invoicesRes.data     ?? []) as DelegateInvoice[];
   const allAffiliates = (allAffiliatesRes.data ?? []) as DbAffiliate[];
 
   // ── Dates & period ──────────────────────────────────────────────────────────
@@ -189,6 +189,39 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     if (typeof pp === "number" && pp > 0.02) return pp;
     return inv.total;
   }
+
+  const periodLabel = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+
+  // Commissions: load products + paid invoices this month (raw) + credit notes
+  const [allProductsRes, paidMonthInvRes, cnRes, contactsWithRecRes] = await Promise.all([
+    admin.from("holded_products").select(
+      "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
+    ),
+    contactIds.length > 0
+      ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
+          .in("contact_id", contactIds).eq("status", 3).eq("is_credit_note", false)
+          .gte("date_paid", periodStart).lte("date_paid", periodEnd)
+      : Promise.resolve({ data: [] }),
+    // Credit notes for any contact ever assigned to this delegate (not period-limited —
+    // a CN issued this month can cancel an invoice from a prior month)
+    contactIds.length > 0
+      ? admin.from("holded_invoices").select("from_invoice_id")
+          .in("contact_id", contactIds).eq("is_credit_note", true).not("from_invoice_id", "is", null)
+      : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? supabase.from("holded_contacts").select("id, recommender_id").in("id", contactIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  // Build set of invoice IDs cancelled by a CN — matched by Holded's own from.id pointer
+  const cancelledIds = new Set(
+    ((cnRes.data ?? []) as { from_invoice_id: string | null }[])
+      .map((r) => r.from_invoice_id)
+      .filter(Boolean) as string[]
+  );
+
+  // Exclude invoices cancelled by a CN from all billing and risk computations
+  const invoices = rawInvoices.filter(inv => !cancelledIds.has(inv.id));
 
   // Riesgo data
   const vencidas = invoices
@@ -270,36 +303,6 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
       return first && first >= periodStart && first <= periodEnd;
     })
     .map(c => ({ clientId: c.id, name: c.name, firstInvoiceDate: clientFirstInvoice[c.id] }));
-
-  const periodLabel = new Date(pYear, pMonth).toLocaleDateString("es-ES", { month: "long", year: "numeric" });
-
-  // Commissions: load products + paid invoices this month (raw) + credit notes
-  const [allProductsRes, paidMonthInvRes, cnRes, contactsWithRecRes] = await Promise.all([
-    admin.from("holded_products").select(
-      "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
-    ),
-    contactIds.length > 0
-      ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
-          .in("contact_id", contactIds).eq("status", 3).eq("is_credit_note", false)
-          .gte("date_paid", periodStart).lte("date_paid", periodEnd)
-      : Promise.resolve({ data: [] }),
-    // Credit notes for any contact ever assigned to this delegate (not period-limited —
-    // a CN issued this month can cancel an invoice from a prior month)
-    contactIds.length > 0
-      ? supabase.from("holded_invoices").select("from_invoice_id")
-          .in("contact_id", contactIds).eq("is_credit_note", true).not("from_invoice_id", "is", null)
-      : Promise.resolve({ data: [] }),
-    contactIds.length > 0
-      ? supabase.from("holded_contacts").select("id, recommender_id").in("id", contactIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  // Build set of invoice IDs cancelled by a CN — matched by Holded's own from.id pointer
-  const cancelledIds = new Set(
-    ((cnRes.data ?? []) as { from_invoice_id: string | null }[])
-      .map((r) => r.from_invoice_id)
-      .filter(Boolean) as string[]
-  );
 
   const productMap: Record<string, {
     id: string; name: string;
