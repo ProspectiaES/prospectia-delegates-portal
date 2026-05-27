@@ -488,7 +488,6 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/prospectos",  label: "Mis prospectos",   Icon: IconCRM,        exact: false },
         { href: "/dashboard/calendario",  label: "Calendario",       Icon: IconCalendario, exact: false },
-        { href: "/dashboard/emails",      label: "Tracking emails",  Icon: IconEmails,     exact: false },
         ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
       ],
     },
