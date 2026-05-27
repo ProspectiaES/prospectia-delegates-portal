@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ALLOWED_ROLES = ["OWNER", "ADMIN", "KOL", "COORDINATOR"];
+const ALLOWED_ROLES = ["OWNER"];
 
 const SYSTEM_PROMPT = `Eres un asistente especializado en análisis de ventas y rendimiento para una empresa de distribución directa (modelo delegados/KOL). Trabajas con los siguientes datos y métricas. Úsalos como fuente de verdad para cualquier análisis que te pidan.
 
