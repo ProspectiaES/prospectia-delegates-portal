@@ -1,6 +1,19 @@
 export const SKU_SPRAY = "VIHO-OBE-SPRAY-002";
 export const SKUS_PROMO = new Set(["VIHO-OBE-PROMO-002", "VIHO-OBE-PROMO-CP-12M"]);
 
+// SKUs visibles als pedidos — exclou duplicats de Shopify i SKUs obsolets
+export const PEDIDOS_ALLOWED_SKUS = [
+  "COF-03",
+  "EYE-BRP",
+  "GINSIX",
+  "MGPLX",
+  "NCK-CHN",
+  "T-ZN-AG",
+  "NCP_02",
+  "TTCP",
+  "OBE-SPRAY-04",
+];
+
 export type DelegateStatus = "sin-ventas" | "bajo" | "activo" | "top";
 
 export function delegateStatus(sprayUnits: number): DelegateStatus {

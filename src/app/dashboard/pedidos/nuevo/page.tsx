@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPaymentMethods } from "@/lib/holded/api";
+import { PEDIDOS_ALLOWED_SKUS } from "@/lib/skus";
 import { NewOrderForm } from "./NewOrderForm";
 
 export default async function NuevoPedidoPage({ searchParams }: { searchParams: Promise<{ contact?: string }> }) {
@@ -13,7 +14,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
 
   const [{ data: productsData }, { data: profileData }, paymentMethods] =
     await Promise.all([
-      admin.from("holded_products").select("id, name, sku, price, total, taxes, price_pvp, price_pvd, price_pvl").order("name"),
+      admin.from("holded_products").select("id, name, sku, price, total, taxes, price_pvp, price_pvd, price_pvl").in("sku", PEDIDOS_ALLOWED_SKUS).order("name"),
       user ? admin.from("profiles").select("id, role").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null }),
       getPaymentMethods(),
     ]);

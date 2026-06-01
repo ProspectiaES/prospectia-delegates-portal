@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
+import { PEDIDOS_ALLOWED_SKUS } from "@/lib/skus";
 import { EditOrderForm } from "./EditOrderForm";
 
 function extractTaxIds(taxes: unknown): string[] {
@@ -41,6 +42,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const { data: productsData } = await admin
     .from("holded_products")
     .select("id, name, sku, price, taxes, price_pvp")
+    .in("sku", PEDIDOS_ALLOWED_SKUS)
     .order("name");
 
   const products = (productsData ?? []) as {
