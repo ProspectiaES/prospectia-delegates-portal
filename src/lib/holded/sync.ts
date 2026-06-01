@@ -213,20 +213,55 @@ function toSalesOrderRow(d: HoldedDocument) {
   };
 }
 
-// ─── Full sync (contacts + invoices + salesorders + products) ─────────────────
+// ─── Purchase invoice mapper ──────────────────────────────────────────────────
+
+function toPurchaseRow(d: HoldedDocument) {
+  const raw = d as Record<string, unknown>;
+  const holdedStatus = typeof raw.status === "number" ? raw.status : 0;
+  // Purchase status: 0=pendent, 1=pagada, 3=anulada
+  const status: number = holdedStatus === 1 ? 1 : holdedStatus === 3 ? 3 : 0;
+
+  // Extract payment date (same logic as invoices)
+  const paymentsList = d.paymentsDetail ?? d.payments;
+  let datePaid: string | null = null;
+  if (paymentsList && paymentsList.length > 0) {
+    const maxTs = Math.max(...paymentsList.map(p => typeof p.date === "number" ? p.date : 0));
+    if (maxTs > 0) datePaid = new Date(maxTs * 1000).toISOString();
+  }
+
+  return {
+    id:             d.id,
+    doc_number:     d.docNumber    ?? null,
+    contact_id:     d.contact      ?? null,
+    contact_name:   d.contactName  ?? null,
+    date:           d.date ? new Date(d.date * 1000).toISOString() : null,
+    due_date:       d.dueDate ? new Date(d.dueDate * 1000).toISOString() : null,
+    total:          docAmount(d),
+    subtotal:       extractSubtotal(d),
+    status,
+    description:    d.desc ?? d.notes ?? null,
+    date_paid:      datePaid,
+    raw:            d,
+    last_synced_at: new Date().toISOString(),
+  };
+}
+
+// ─── Full sync (contacts + invoices + salesorders + products + purchases) ──────
 
 export async function runFullSync(db: SupabaseClient): Promise<{
   contacts: number;
   invoices: number;
   salesorders: number;
   products: number;
+  purchases: number;
 }> {
-  const [contacts, invoices, creditNotes, salesorders, products] = await Promise.all([
+  const [contacts, invoices, creditNotes, salesorders, products, purchases] = await Promise.all([
     getAllContacts(),
     getAllDocuments("invoice"),
     getAllDocuments("creditnote"),
     getAllDocuments("salesorder"),
     getAllProducts(),
+    getAllDocuments("purchase"),
   ]);
 
   const allInvoiceRows = [
@@ -234,12 +269,15 @@ export async function runFullSync(db: SupabaseClient): Promise<{
     ...creditNotes.map(d => toInvoiceRow(d, true)),
   ];
 
+  const purchaseRows = purchases.map(toPurchaseRow);
+
   // Contacts must be upserted before invoices (FK constraint on contact_id)
   await upsertBatched(db, "holded_contacts", contacts.map(toContactRow));
   await Promise.all([
     upsertBatched(db, "holded_invoices",    allInvoiceRows),
     upsertBatched(db, "holded_salesorders", salesorders.map(toSalesOrderRow)),
     upsertBatched(db, "holded_products",    products.map(toProductRow)),
+    upsertBatched(db, "holded_purchases",   purchaseRows),
   ]);
 
   return {
@@ -247,6 +285,7 @@ export async function runFullSync(db: SupabaseClient): Promise<{
     invoices:    invoices.length + creditNotes.length,
     salesorders: salesorders.length,
     products:    products.length,
+    purchases:   purchases.length,
   };
 }
 

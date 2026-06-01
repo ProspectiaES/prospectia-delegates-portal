@@ -69,3 +69,35 @@ export async function deleteCostLine(id: number): Promise<CostLineState> {
   revalidatePath("/dashboard/pressupost");
   return { success: true };
 }
+
+// ─── Supplier category (holded_purchases) ────────────────────────────────────
+
+export async function saveSupplierCategory(
+  contactId: string,
+  contactName: string,
+  category: string,
+  excludeFromPnl: boolean
+): Promise<CostLineState> {
+  if (!(await requireOwner())) return { error: "Sense permisos" };
+
+  const admin = createAdminClient();
+
+  // Upsert supplier category
+  const { error: e1 } = await admin.from("holded_supplier_categories").upsert({
+    contact_id: contactId,
+    contact_name: contactName,
+    category,
+    exclude_from_pnl: excludeFromPnl,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "contact_id" });
+  if (e1) return { error: e1.message };
+
+  // Update all purchase rows for this supplier
+  const { error: e2 } = await admin.from("holded_purchases")
+    .update({ category, exclude_from_pnl: excludeFromPnl })
+    .eq("contact_id", contactId);
+  if (e2) return { error: e2.message };
+
+  revalidatePath("/dashboard/pressupost");
+  return { success: true };
+}
