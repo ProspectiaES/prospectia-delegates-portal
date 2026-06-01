@@ -42,6 +42,10 @@ function calcLineCommission(
   return type === "amount" ? units * rate : (lineNet * rate) / 100;
 }
 
+function normalizeProdName(n: string): string {
+  return n.trim().toLowerCase().replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ");
+}
+
 export function buildCommissionBlock(
   roleName: string,
   paidInvoices: PaidInvoiceRaw[],
@@ -51,6 +55,13 @@ export function buildCommissionBlock(
   rateKey: "delegate" | "kol",
   recommenderRateMap: Record<string, number> = {}
 ): CommissionBlock {
+  // Secondary lookup by normalised name — covers invoices created without productId
+  const productByName: Record<string, ProductCommission> = {};
+  for (const p of Object.values(productMap)) {
+    const key = normalizeProdName(p.name);
+    if (key && !productByName[key]) productByName[key] = p;
+  }
+
   const invoiceCommissions: InvoiceCommission[] = [];
 
   for (const inv of paidInvoices) {
@@ -64,8 +75,8 @@ export function buildCommissionBlock(
 
     for (const rp of rawProducts) {
       const prodId = rp.productId ?? rp.id;
-      if (!prodId) continue;
-      const product = productMap[prodId];
+      let product: ProductCommission | undefined = prodId ? productMap[prodId] : undefined;
+      if (!product && rp.name) product = productByName[normalizeProdName(rp.name)];
       if (!product) continue;
 
       const units = Number(rp.units) || 0;
