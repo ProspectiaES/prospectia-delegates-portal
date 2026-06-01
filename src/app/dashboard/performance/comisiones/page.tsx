@@ -67,7 +67,7 @@ export default async function ComisionesPage({
     admin.from("contact_delegates").select("contact_id, delegate_id"),
 
     admin.from("holded_contacts")
-      .select("id, kol_id, recommender_id, recommender_commission_pct"),
+      .select("id, kol_id, recommender_id, recommender_rate"),
 
     // Cobrat: paid this month
     admin.from("holded_invoices")
@@ -92,7 +92,7 @@ export default async function ComisionesPage({
   ]);
 
   type Profile = { id: string; full_name: string; delegate_name: string | null; role: string; is_kol: boolean; contact_id: string | null };
-  type Contact = { id: string; kol_id: string | null; recommender_id: string | null; recommender_commission_pct: number | null };
+  type Contact = { id: string; kol_id: string | null; recommender_id: string | null; recommender_rate: number | null };
   type PaidInv  = { id: string; doc_number: string | null; contact_id: string | null; contact_name: string | null; date: string | null; total: number; raw: Record<string, unknown> };
   type CommType = "percent" | "amount";
   type ProductComm = {
@@ -196,8 +196,8 @@ export default async function ComisionesPage({
       const meta = contactMeta.get(cid);
       if (meta) {
         recMap[cid] = meta.recommender_id ?? null;
-        if (meta.recommender_id && meta.recommender_commission_pct != null) {
-          recRateMap[meta.recommender_id] = meta.recommender_commission_pct;
+        if (meta.recommender_id && meta.recommender_rate != null) {
+          recRateMap[meta.recommender_id] = meta.recommender_rate;
         }
       }
     }
