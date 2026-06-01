@@ -299,6 +299,28 @@ const s = StyleSheet.create({
   blockTotalLabel: { fontFamily: "Helvetica-Bold", fontSize: 9, color: DARK },
   blockTotalValue: { fontFamily: "Helvetica-Bold", fontSize: 11, color: BLACK },
 
+  // Fiscal breakdown
+  fiscalBox: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderStyle: "solid",
+    borderRadius: 4,
+    marginTop: 8,
+    marginBottom: 0,
+  },
+  fiscalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    borderBottomStyle: "solid",
+  },
+  fiscalLabel: { fontSize: 8.5, color: DARK },
+  fiscalValue: { fontSize: 8.5, color: DARK, fontFamily: "Helvetica-Bold" },
+  fiscalDeductionValue: { fontSize: 8.5, color: RED, fontFamily: "Helvetica-Bold" },
+
   // Grand total
   grandTotal: {
     backgroundColor: RED,
@@ -307,8 +329,9 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 0,
     marginBottom: 0,
+    borderRadius: 4,
   },
   grandTotalLabel: { fontFamily: "Helvetica-Bold", fontSize: 11, color: WHITE, letterSpacing: 0.5 },
   grandTotalNote: { fontSize: 7.5, color: WHITE, opacity: 0.8, marginTop: 3 },
@@ -532,12 +555,20 @@ interface Props {
   period: string;
   pendientes?: PendienteRow[];
   vencidas?: VencidaRow[];
+  ivaPct?: number;
+  ivaAmount?: number;
+  irpfPct?: number;
+  irpfAmount?: number;
+  totalPayable?: number;
   generatedAt?: string;
 }
 
-export function LiquidacionPDF({ delegate, blocks, period, pendientes = [], vencidas = [], generatedAt }: Props) {
-  const displayName = delegate.delegate_name ?? delegate.full_name;
-  const grandTotal  = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
+export function LiquidacionPDF({ delegate, blocks, period, pendientes = [], vencidas = [], ivaPct = 21, ivaAmount, irpfPct = 0, irpfAmount, totalPayable, generatedAt }: Props) {
+  const displayName   = delegate.delegate_name ?? delegate.full_name;
+  const grandTotal    = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
+  const computedIva   = ivaAmount   ?? Math.round(grandTotal * ivaPct / 100 * 100) / 100;
+  const computedIrpf  = irpfAmount  ?? Math.round(grandTotal * (irpfPct ?? 0) / 100 * 100) / 100;
+  const computedTotal = totalPayable ?? Math.round((grandTotal + computedIva - computedIrpf) * 100) / 100;
   const today       = generatedAt ?? new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
 
   const infoRows = [
@@ -589,17 +620,35 @@ export function LiquidacionPDF({ delegate, blocks, period, pendientes = [], venc
           <BlockSection key={block.role} block={block} />
         ))}
 
-        {/* Grand total */}
-        <View style={s.grandTotal}>
-          <View>
-            <Text style={s.grandTotalLabel}>TOTAL A LIQUIDAR</Text>
-            <Text style={s.grandTotalNote}>
-              {blocks.length > 1
-                ? `${blocks.map((b) => `${b.role}: ${fmtEuro(b.totalNetCommission)}`).join(" + ")}`
-                : `Período: ${period}`}
-            </Text>
+        {/* Fiscal breakdown */}
+        <View style={s.fiscalBox}>
+          <View style={s.fiscalRow}>
+            <Text style={s.fiscalLabel}>Base imponible (comisión neta)</Text>
+            <Text style={s.fiscalValue}>{fmtEuro(grandTotal)}</Text>
           </View>
-          <Text style={s.grandTotalValue}>{fmtEuro(grandTotal)}</Text>
+          <View style={s.fiscalRow}>
+            <Text style={s.fiscalLabel}>+ IVA {ivaPct}%</Text>
+            <Text style={s.fiscalValue}>+{fmtEuro(computedIva)}</Text>
+          </View>
+          {irpfPct > 0 && (
+            <View style={s.fiscalRow}>
+              <Text style={s.fiscalLabel}>− Retención IRPF {irpfPct}%</Text>
+              <Text style={s.fiscalDeductionValue}>−{fmtEuro(computedIrpf)}</Text>
+            </View>
+          )}
+
+          {/* Grand total */}
+          <View style={s.grandTotal}>
+            <View>
+              <Text style={s.grandTotalLabel}>TOTAL A PERCIBIR</Text>
+              <Text style={s.grandTotalNote}>
+                {irpfPct > 0
+                  ? `Base ${fmtEuro(grandTotal)} + IVA ${fmtEuro(computedIva)} − IRPF ${fmtEuro(computedIrpf)}`
+                  : `Base ${fmtEuro(grandTotal)} + IVA ${ivaPct}%`}
+              </Text>
+            </View>
+            <Text style={s.grandTotalValue}>{fmtEuro(computedTotal)}</Text>
+          </View>
         </View>
 
         {/* Pending invoices */}

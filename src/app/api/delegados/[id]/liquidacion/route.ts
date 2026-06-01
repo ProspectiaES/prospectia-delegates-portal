@@ -42,7 +42,7 @@ export async function GET(
   // Delegate profile
   const { data: delegateData } = await admin
     .from("profiles")
-    .select("id, full_name, delegate_name, role, is_kol, email, phone, nif, address, city, postal_code, iban, contact_id")
+    .select("id, full_name, delegate_name, role, is_kol, email, phone, nif, address, city, postal_code, iban, irpf_pct, contact_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -227,6 +227,14 @@ export async function GET(
     );
   }
 
+  // Fiscal totals
+  const grandTotal  = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
+  const ivaPct      = 21;
+  const ivaAmount   = Math.round(grandTotal * ivaPct / 100 * 100) / 100;
+  const irpfPct     = Number((delegateData as { irpf_pct?: number }).irpf_pct ?? 0);
+  const irpfAmount  = Math.round(grandTotal * irpfPct / 100 * 100) / 100;
+  const totalPayable = Math.round((grandTotal + ivaAmount - irpfAmount) * 100) / 100;
+
   // Generate PDF
   const element = React.createElement(LiquidacionPDF, {
     delegate: delegateData,
@@ -234,6 +242,11 @@ export async function GET(
     period,
     pendientes,
     vencidas,
+    ivaPct,
+    ivaAmount,
+    irpfPct,
+    irpfAmount,
+    totalPayable,
     generatedAt: now.toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" }),
   });
 

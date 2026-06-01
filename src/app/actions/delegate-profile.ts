@@ -34,6 +34,9 @@ export async function saveDelegateProfile(
   };
 
   const admin = createAdminClient();
+  const irpfRaw = parseFloat((formData.get("irpf_pct") as string) ?? "0");
+  const irpfPct = [0, 7, 15].includes(irpfRaw) ? irpfRaw : 0;
+
   const { error } = await admin
     .from("profiles")
     .update({
@@ -45,6 +48,7 @@ export async function saveDelegateProfile(
       city:        str("city"),
       postal_code: str("postal_code"),
       iban:        str("iban"),
+      irpf_pct:    irpfPct,
     })
     .eq("id", delegateId);
 

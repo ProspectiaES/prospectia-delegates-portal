@@ -35,6 +35,7 @@ interface DelegateProfile {
   city: string | null;
   postal_code: string | null;
   iban: string | null;
+  irpf_pct: number;
   kol_id: string | null;
   coordinator_id: string | null;
   contact_id: string | null;
@@ -95,7 +96,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   // Load delegate profile via admin (billing columns bypass RLS)
   const { data: delegateData } = await admin
     .from("profiles")
-    .select("id, full_name, delegate_name, role, is_kol, show_in_delegate_list, created_at, email, phone, nif, address, city, postal_code, iban, kol_id, coordinator_id, contact_id")
+    .select("id, full_name, delegate_name, role, is_kol, show_in_delegate_list, created_at, email, phone, nif, address, city, postal_code, iban, irpf_pct, kol_id, coordinator_id, contact_id")
     .eq("id", id)
     .maybeSingle();
 

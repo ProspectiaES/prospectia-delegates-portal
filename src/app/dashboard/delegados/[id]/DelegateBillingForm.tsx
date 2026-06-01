@@ -14,6 +14,7 @@ interface Props {
     city: string | null;
     postal_code: string | null;
     iban: string | null;
+    irpf_pct: number;
   };
 }
 
@@ -73,6 +74,14 @@ export function DelegateBillingForm({ delegate }: Props) {
         <div>
           <label className="block text-xs font-medium text-[#374151] mb-1.5">IBAN</label>
           <input name="iban" defaultValue={delegate.iban ?? ""} className={inputCls} placeholder="ES00 0000 0000…" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#374151] mb-1.5">Retención IRPF</label>
+          <select name="irpf_pct" defaultValue={String(delegate.irpf_pct)} className={inputCls}>
+            <option value="0">0% — Exento / Sin retención</option>
+            <option value="7">7% — Nuevos autónomos (primeros 2 años)</option>
+            <option value="15">15% — General</option>
+          </select>
         </div>
       </div>
 
