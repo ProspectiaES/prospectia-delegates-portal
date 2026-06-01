@@ -48,8 +48,28 @@ const statusVariant: Record<number, "neutral" | "warning" | "danger" | "success"
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Sorting ──────────────────────────────────────────────────────────────────
+
+const SORT_COLS = {
+  doc_number:   "doc_number",
+  contact_name: "contact_name",
+  description:  "description",
+  date:         "date",
+  due_date:     "due_date",
+  date_paid:    "date_paid",
+  total:        "total",
+  status:       "status",
+} as const;
+
+type SortCol = keyof typeof SORT_COLS;
+
+const DEFAULT_SORT: SortCol = "date";
+const DEFAULT_DIR            = "desc";
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 interface PageProps {
-  searchParams: Promise<{ page?: string; search?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; status?: string; sort?: string; dir?: string }>;
 }
 
 export default async function FacturasPage({ searchParams }: PageProps) {
@@ -57,6 +77,8 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const page      = Math.max(1, parseInt(params.page ?? "1", 10));
   const search    = (params.search ?? "").trim();
   const statusStr = params.status ?? "";
+  const sortCol   = (params.sort && params.sort in SORT_COLS ? params.sort : DEFAULT_SORT) as SortCol;
+  const sortDir   = params.dir === "asc" ? "asc" : "desc";
 
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
   const role    = profile?.role ?? "";
@@ -110,7 +132,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
       "id, doc_number, contact_id, contact_name, date, due_date, date_last_modified, date_paid, total, status, description, last_synced_at, is_credit_note, from_invoice_id",
       { count: "exact" }
     )
-    .order("date", { ascending: false })
+    .order(SORT_COLS[sortCol], { ascending: sortDir === "asc", nullsFirst: false })
     .range(from, to);
 
   if (allowedContactIds !== null) query = query.in("contact_id", allowedContactIds.length ? allowedContactIds : ["__none__"]);
@@ -151,10 +173,29 @@ export default async function FacturasPage({ searchParams }: PageProps) {
     const p = new URLSearchParams({
       ...(search    ? { search }            : {}),
       ...(statusStr ? { status: statusStr } : {}),
+      ...(sortCol !== DEFAULT_SORT ? { sort: sortCol } : {}),
+      ...(sortDir  !== DEFAULT_DIR  ? { dir:  sortDir  } : {}),
       page: String(page),
       ...overrides,
     });
     return `/dashboard/facturas?${p.toString()}`;
+  }
+
+  function buildSortHref(col: SortCol) {
+    const nextDir = sortCol === col && sortDir === "desc" ? "asc" : "desc";
+    const p = new URLSearchParams({
+      ...(search    ? { search }            : {}),
+      ...(statusStr ? { status: statusStr } : {}),
+      sort: col,
+      dir:  nextDir,
+      page: "1",
+    });
+    return `/dashboard/facturas?${p.toString()}`;
+  }
+
+  function SortIcon({ col }: { col: SortCol }) {
+    if (sortCol !== col) return <span className="ml-1 text-[#D1D5DB]">↕</span>;
+    return <span className="ml-1 text-[#0A0A0A]">{sortDir === "asc" ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -238,14 +279,25 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["N.º Factura", "Cliente", "Concepto", "Fecha", "Vencimiento", "F. Cobro", "Importe", "Estado", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
+                  {(
+                    [
+                      { label: "N.º Factura", col: "doc_number"   as SortCol },
+                      { label: "Cliente",     col: "contact_name" as SortCol },
+                      { label: "Concepto",    col: "description"  as SortCol },
+                      { label: "Fecha",       col: "date"         as SortCol },
+                      { label: "Vencimiento", col: "due_date"     as SortCol },
+                      { label: "F. Cobro",    col: "date_paid"    as SortCol },
+                      { label: "Importe",     col: "total"        as SortCol },
+                      { label: "Estado",      col: "status"       as SortCol },
+                    ] as { label: string; col: SortCol }[]
+                  ).map(({ label, col }) => (
+                    <th key={col} className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">
+                      <a href={buildSortHref(col)} className="inline-flex items-center hover:text-[#0A0A0A] transition-colors cursor-pointer select-none">
+                        {label}<SortIcon col={col} />
+                      </a>
                     </th>
                   ))}
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
