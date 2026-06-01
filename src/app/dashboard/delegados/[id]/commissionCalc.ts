@@ -15,6 +15,7 @@ interface ProductCommission {
 
 interface RawProduct {
   productId?: string;
+  id?: string;          // Holded uses "id" in some invoice types
   name?: string;
   sku?: string | null;
   units?: number | string;
@@ -53,7 +54,7 @@ export function buildCommissionBlock(
   const invoiceCommissions: InvoiceCommission[] = [];
 
   for (const inv of paidInvoices) {
-    const rawProducts = (inv.raw?.products ?? []) as RawProduct[];
+    const rawProducts = (inv.raw?.products ?? inv.raw?.items ?? []) as RawProduct[];
     const lines: CommissionLine[] = [];
     let subtotal = 0;
     let recommenderDeduction = 0;
@@ -62,8 +63,9 @@ export function buildCommissionBlock(
     const recommenderName = recommenderId ? (recommenderNameMap[recommenderId] ?? null) : null;
 
     for (const rp of rawProducts) {
-      if (!rp.productId) continue;
-      const product = productMap[rp.productId];
+      const prodId = rp.productId ?? rp.id;
+      if (!prodId) continue;
+      const product = productMap[prodId];
       if (!product) continue;
 
       const units = Number(rp.units) || 0;
