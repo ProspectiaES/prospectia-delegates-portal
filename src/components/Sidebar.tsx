@@ -115,6 +115,13 @@ const IconAutofacturas = () => (
   </svg>
 );
 
+const IconComissions = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <circle cx="8" cy="8" r="6"/>
+    <path d="M8 5v1.5m0 3V11m-1.5-5.5h2.25a1.25 1.25 0 010 2.5H7.5a1.25 1.25 0 010 2.5H10" strokeLinecap="round"/>
+  </svg>
+);
+
 const IconRendimiento = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <polyline points="1,12 5,7 8,9 12,4 15,6" strokeLinecap="round" strokeLinejoin="round"/>
@@ -526,12 +533,13 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Sistema",
       items: [
-        { href: "/dashboard/analitica",              label: "Analítica IA",      Icon: IconAnalitica,    exact: false },
-        { href: "/dashboard/performance",            label: "Performance",       Icon: IconRendimiento,  exact: true },
-        { href: "/dashboard/performance/pedidos",    label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
-        { href: "/dashboard/autofacturas",           label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
-        { href: "/dashboard/admin/asignaciones",     label: "Asignaciones",      Icon: IconDelegados,    exact: false },
-        { href: "/dashboard/admin",                  label: "Auditoría",         Icon: IconAdmin,        exact: true },
+        { href: "/dashboard/analitica",                  label: "Analítica IA",      Icon: IconAnalitica,    exact: false },
+        { href: "/dashboard/performance",              label: "Performance",       Icon: IconRendimiento,  exact: true },
+        { href: "/dashboard/performance/comisiones",   label: "Comissions",        Icon: IconComissions,   exact: false },
+        { href: "/dashboard/performance/pedidos",      label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
+        { href: "/dashboard/autofacturas",             label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
+        { href: "/dashboard/admin/asignaciones",       label: "Asignaciones",      Icon: IconDelegados,    exact: false },
+        { href: "/dashboard/admin",                    label: "Auditoría",         Icon: IconAdmin,        exact: true },
       ],
     }] : []),
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
