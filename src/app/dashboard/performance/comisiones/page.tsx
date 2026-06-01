@@ -33,8 +33,11 @@ export default async function ComisionesPage({
 
   const sp  = await searchParams;
   const now = new Date();
-  let pYear  = now.getFullYear();
-  let pMonth = now.getMonth();
+  // Default to previous month — current month is usually incomplete
+  const defaultYear  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const defaultMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  let pYear  = defaultYear;
+  let pMonth = defaultMonth;
 
   if (sp.mes && /^\d{4}-\d{2}$/.test(sp.mes)) {
     const [y, m] = sp.mes.split("-").map(Number);
