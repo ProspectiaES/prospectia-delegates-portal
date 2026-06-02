@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import RemesesClientPanel from "@/components/remeses/RemesesClientPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { orderStatus } from "@/lib/holded/api";
@@ -662,6 +663,14 @@ export default async function ClienteDetailPage({ params }: PageProps) {
           </CollapsibleCard>
         );
       })()}
+
+      {/* Remeses SEPA traceability — only shown to OWNER */}
+      {profile?.role === "OWNER" && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-[#0A0A0A]">Remeses SEPA</h3>
+          <RemesesClientPanel contactId={id} />
+        </div>
+      )}
 
     </div>
   );

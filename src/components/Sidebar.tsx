@@ -130,6 +130,14 @@ const IconPressupost = () => (
   </svg>
 );
 
+const IconRemeses = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+    <path d="M1 6h14" strokeLinecap="round"/>
+    <path d="M5 10h3M10 10h1" strokeLinecap="round"/>
+  </svg>
+);
+
 const IconRendimiento = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <polyline points="1,12 5,7 8,9 12,4 15,6" strokeLinecap="round" strokeLinejoin="round"/>
@@ -546,6 +554,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
         { href: "/dashboard/performance/comisiones",   label: "Comissions",        Icon: IconComissions,   exact: false },
         { href: "/dashboard/performance/pedidos",      label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
         { href: "/dashboard/pressupost",               label: "Pressupost",        Icon: IconPressupost,   exact: false },
+        { href: "/dashboard/remeses",                  label: "Remeses SEPA",      Icon: IconRemeses,      exact: false },
         { href: "/dashboard/autofacturas",             label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
         { href: "/dashboard/admin/asignaciones",       label: "Asignaciones",      Icon: IconDelegados,    exact: false },
         { href: "/dashboard/admin",                    label: "Auditoría",         Icon: IconAdmin,        exact: true },

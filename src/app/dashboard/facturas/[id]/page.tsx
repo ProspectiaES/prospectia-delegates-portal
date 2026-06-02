@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import RemesesFacturaPanel from "@/components/remeses/RemesesFacturaPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -278,6 +279,9 @@ export default async function FacturaDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* Remeses traceability */}
+      <RemesesFacturaPanel facturaId={id} />
     </div>
   );
 }
