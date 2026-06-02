@@ -3,7 +3,7 @@ export type SimStatus     = "draft" | "active" | "archived";
 export type CommType      = "percent" | "amount";
 export type CommBase      = "net_sale_price" | "post_production" | "post_previous_layers";
 export type PromoType     = "discount_pct" | "free_units" | "intro_offer" | "marketing_support" | "bonus_stock";
-export type CostType      = "packaging" | "labels" | "assembly" | "import" | "logistics" | "other";
+export type CostType      = "packaging" | "labels" | "assembly" | "fabricacio" | "import" | "logistics" | "other" | "custom";
 
 export interface CostLine {
   id?: string;

@@ -364,20 +364,45 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 function CostLineRow({ line, onChange, onRemove }: { line: CostLine; onChange: (l: CostLine) => void; onRemove: () => void }) {
   const si = "text-xs px-2 py-1.5 rounded-lg border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#8E0E1A] bg-white";
+  const isCustom = line.cost_type === "custom";
   return (
-    <div className="grid grid-cols-12 gap-1.5 items-center">
-      <input value={line.supplier_name} onChange={e => onChange({ ...line, supplier_name: e.target.value })} placeholder="Proveïdor" className={`${si} col-span-4`} />
-      <select value={line.cost_type} onChange={e => onChange({ ...line, cost_type: e.target.value as CostType })} className={`${si} col-span-3`}>
-        {[["packaging","Packaging"],["labels","Etiquetes"],["assembly","Assemblatge"],["import","Importació"],["logistics","Logística"],["other","Altres"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
-      </select>
-      <div className="col-span-3 relative">
-        <input type="number" step="0.01" min="0" value={line.unit_cost} onChange={e => onChange({ ...line, unit_cost: parseFloat(e.target.value) || 0 })} className={`${si} w-full pr-6 text-right`} />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#9CA3AF]">€</span>
+    <div className="space-y-1">
+      <div className="grid grid-cols-12 gap-1.5 items-center">
+        <input value={line.supplier_name} onChange={e => onChange({ ...line, supplier_name: e.target.value })} placeholder="Proveïdor" className={`${si} col-span-4`} />
+        <select value={line.cost_type} onChange={e => onChange({ ...line, cost_type: e.target.value as CostType, cost_label: e.target.value === "custom" ? (line.cost_label ?? "") : undefined })} className={`${si} col-span-3`}>
+          {[
+            ["packaging",   "Packaging"],
+            ["labels",      "Etiquetes"],
+            ["assembly",    "Assemblatge"],
+            ["fabricacio",  "Fabricació"],
+            ["import",      "Importació"],
+            ["logistics",   "Logística"],
+            ["other",       "Altres"],
+            ["custom",      "Lliure…"],
+          ].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <div className="col-span-3 relative">
+          <input type="number" step="0.01" min="0" value={line.unit_cost} onChange={e => onChange({ ...line, unit_cost: parseFloat(e.target.value) || 0 })} className={`${si} w-full pr-6 text-right`} />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#9CA3AF]">€</span>
+        </div>
+        {!isCustom && (
+          <input value={line.cost_label ?? ""} onChange={e => onChange({ ...line, cost_label: e.target.value })} placeholder="Nota" className={`${si} col-span-1`} />
+        )}
+        {isCustom && <div className="col-span-1" />}
+        <button onClick={onRemove} className="col-span-1 p-1.5 rounded-lg text-[#D1D5DB] hover:text-red-500 hover:bg-red-50 transition-colors">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h8M4.5 3V2h3v1M5 5.5v4M7 5.5v4M2.5 3l.5 7h6l.5-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
       </div>
-      <input value={line.cost_label ?? ""} onChange={e => onChange({ ...line, cost_label: e.target.value })} placeholder="Nota" className={`${si} col-span-1`} />
-      <button onClick={onRemove} className="col-span-1 p-1.5 rounded-lg text-[#D1D5DB] hover:text-red-500 hover:bg-red-50 transition-colors">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h8M4.5 3V2h3v1M5 5.5v4M7 5.5v4M2.5 3l.5 7h6l.5-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </button>
+      {/* Free-text title for custom type */}
+      {isCustom && (
+        <input
+          value={line.cost_label ?? ""}
+          onChange={e => onChange({ ...line, cost_label: e.target.value })}
+          placeholder="Escriu el títol de la categoria…"
+          className={`${si} w-full text-xs font-medium placeholder-[#D1D5DB]`}
+          autoFocus
+        />
+      )}
     </div>
   );
 }

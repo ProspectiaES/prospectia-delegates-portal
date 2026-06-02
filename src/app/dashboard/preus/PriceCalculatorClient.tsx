@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
+import Link from "next/link";
 import { saveConfig, saveLandingCost, deleteLandingCost, saveProductPrice } from "@/app/actions/price-calculator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -338,10 +339,17 @@ export default function PriceCalculatorClient({
 
                 return (
                   <tr key={p.id} className="hover:bg-[#FAFAFA] transition-colors group">
-                    {/* Producto */}
+                    {/* Producto — clickable */}
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-[#0A0A0A]">{p.name}</p>
-                      {p.sku && <p className="text-[10px] font-mono text-[#9CA3AF]">{p.sku}</p>}
+                      <Link href={`/dashboard/preus/${p.id}`} className="group/link">
+                        <p className="font-semibold text-[#0A0A0A] group-hover/link:text-[#8E0E1A] transition-colors flex items-center gap-1">
+                          {p.name}
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-0 group-hover/link:opacity-100 transition-opacity text-[#8E0E1A]">
+                            <path d="M2 8l6-6M4 2h4v4" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </p>
+                        {p.sku && <p className="text-[10px] font-mono text-[#9CA3AF]">{p.sku}</p>}
+                      </Link>
                     </td>
 
                     {/* Compra (editable) */}
