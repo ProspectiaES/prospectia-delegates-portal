@@ -35,6 +35,7 @@ interface PriceRow {
   product_id: string;
   pvp_sin_iva: number | null;
   purchase_cost_override: number | null;
+  landing_cost_override: number | null;  // null = usa genèric; 0 = sense landing (ja a Espanya); >0 = personalitzat
 }
 
 // ─── Pricing chain calculator ─────────────────────────────────────────────────
@@ -76,14 +77,22 @@ export default function PriceCalculatorClient({
   // ── State ───────────────────────────────────────────────────────────────────
   const [config, setConfig]               = useState<Config>(initialConfig);
   const [landingCosts, setLandingCosts]   = useState<LandingCost[]>(initialLandingCosts);
-  const [pvpOverrides, setPvpOverrides]   = useState<Record<string, number | null>>(() => {
+  const [pvpOverrides, setPvpOverrides]       = useState<Record<string, number | null>>(() => {
     const m: Record<string, number | null> = {};
     for (const [k, v] of Object.entries(initialPriceMap)) m[k] = v.pvp_sin_iva;
     return m;
   });
-  const [costOverrides, setCostOverrides] = useState<Record<string, number | null>>(() => {
+  const [costOverrides, setCostOverrides]     = useState<Record<string, number | null>>(() => {
     const m: Record<string, number | null> = {};
     for (const [k, v] of Object.entries(initialPriceMap)) m[k] = v.purchase_cost_override;
+    return m;
+  });
+  // null = usa landing genèric; 0 = sense landing (ja aquí); >0 = landing personalitzat
+  const [landingOverrides, setLandingOverrides] = useState<Record<string, number | null>>(() => {
+    const m: Record<string, number | null> = {};
+    for (const [k, v] of Object.entries(initialPriceMap)) {
+      if (v.landing_cost_override !== null) m[k] = v.landing_cost_override;
+    }
     return m;
   });
 
@@ -104,6 +113,16 @@ export default function PriceCalculatorClient({
     if (override != null) return override;
     return Number(p.cost ?? p.purchase_price ?? 0);
   }, [costOverrides]);
+
+  // Returns the effective landing cost for a product:
+  // - null override → use global landing cost
+  // - 0 override → 0 (product already in Spain, no import cost)
+  // - >0 override → custom landing cost per unit
+  const getProductLanding = useCallback((p: Product) => {
+    const override = landingOverrides[p.id];
+    if (override !== undefined && override !== null) return override;
+    return landingPerUnit;
+  }, [landingOverrides, landingPerUnit]);
 
   const getProductPvp = useCallback((p: Product) => {
     const override = pvpOverrides[p.id];
@@ -139,7 +158,12 @@ export default function PriceCalculatorClient({
 
   async function handleSaveProduct(productId: string) {
     setSavingProduct(productId);
-    await saveProductPrice(productId, pvpOverrides[productId] ?? null, costOverrides[productId] ?? null);
+    await saveProductPrice(
+      productId,
+      pvpOverrides[productId] ?? null,
+      costOverrides[productId] ?? null,
+      landingOverrides[productId] !== undefined ? landingOverrides[productId] : null,
+    );
     setSavingProduct(null);
   }
 
@@ -283,7 +307,7 @@ export default function PriceCalculatorClient({
                 {[
                   { h: "Producto",          cls: "text-left px-4",  w: "min-w-[180px]" },
                   { h: "Compra",            cls: "text-right px-3", w: "w-24", edit: true },
-                  { h: "Landing",           cls: "text-right px-3", w: "w-20" },
+                  { h: "Landing",           cls: "text-right px-3", w: "w-28", edit: true },
                   { h: "Coste total",       cls: "text-right px-3", w: "w-20", accent: "text-red-600" },
                   { h: "PVP sin IVA",       cls: "text-right px-3", w: "w-24", edit: true },
                   { h: "Margen tda.",       cls: "text-right px-3", w: "w-20" },
@@ -304,11 +328,13 @@ export default function PriceCalculatorClient({
             </thead>
             <tbody className="divide-y divide-[#F3F4F6]">
               {products.map(p => {
-                const purchaseCost = getProductCost(p);
-                const costTotal    = purchaseCost + landingPerUnit;
-                const pvp          = getProductPvp(p);
-                const chain        = calcChain(pvp, costTotal, config.margen_tienda_pct, config.margen_distribuidor_pct, config.iva_pct);
-                const isDirty      = pvpOverrides[p.id] !== undefined || costOverrides[p.id] !== undefined;
+                const purchaseCost     = getProductCost(p);
+                const effectiveLanding = getProductLanding(p);
+                const costTotal        = purchaseCost + effectiveLanding;
+                const pvp              = getProductPvp(p);
+                const chain            = calcChain(pvp, costTotal, config.margen_tienda_pct, config.margen_distribuidor_pct, config.iva_pct);
+                const hasCustomLanding = landingOverrides[p.id] !== undefined && landingOverrides[p.id] !== null;
+                const isDirty          = pvpOverrides[p.id] !== undefined || costOverrides[p.id] !== undefined || hasCustomLanding;
 
                 return (
                   <tr key={p.id} className="hover:bg-[#FAFAFA] transition-colors group">
@@ -326,8 +352,40 @@ export default function PriceCalculatorClient({
                         className="w-full text-xs text-right px-2 py-1 rounded-lg border border-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-emerald-50 tabular-nums" />
                     </td>
 
-                    {/* Landing */}
-                    <td className="px-3 py-2 text-right tabular-nums text-[#6B7280]">{fmtE(landingPerUnit)}</td>
+                    {/* Landing — toggle genèric/personalitzat */}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {hasCustomLanding ? (
+                          // Custom landing input
+                          <input type="number" step="0.01" min="0"
+                            value={landingOverrides[p.id] ?? 0}
+                            onChange={e => setLandingOverrides(prev => ({ ...prev, [p.id]: parseFloat(e.target.value) || 0 }))}
+                            className="w-16 text-xs text-right px-1.5 py-1 rounded-lg border border-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-amber-50 tabular-nums"
+                            title="Landing cost per unitat personalitzat (0 = ja a Espanya)"
+                          />
+                        ) : (
+                          <span className="text-xs text-[#9CA3AF] tabular-nums w-16 text-right">{fmtE(landingPerUnit)}</span>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (hasCustomLanding) {
+                              // Reset to generic
+                              setLandingOverrides(prev => { const n = { ...prev }; delete n[p.id]; return n; });
+                            } else {
+                              // Switch to custom (start with current generic value)
+                              setLandingOverrides(prev => ({ ...prev, [p.id]: landingPerUnit }));
+                            }
+                          }}
+                          title={hasCustomLanding ? "Usar landing genèric" : "Personalitzar landing per aquest SKU"}
+                          className={`shrink-0 p-1 rounded text-[9px] font-bold transition-colors ${hasCustomLanding ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "text-[#D1D5DB] hover:text-[#9CA3AF]"}`}
+                        >
+                          {hasCustomLanding ? "⚙" : "≡"}
+                        </button>
+                      </div>
+                      {hasCustomLanding && landingOverrides[p.id] === 0 && (
+                        <p className="text-[9px] text-emerald-600 font-semibold mt-0.5">ja aquí</p>
+                      )}
+                    </td>
 
                     {/* Coste total */}
                     <td className="px-3 py-2 text-right tabular-nums font-semibold text-red-600">{fmtE(costTotal)}</td>

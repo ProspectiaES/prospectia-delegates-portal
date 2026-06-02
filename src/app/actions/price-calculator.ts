@@ -68,7 +68,8 @@ export async function deleteLandingCost(id: number): Promise<{ error?: string }>
 export async function saveProductPrice(
   productId: string,
   pvpSinIva: number | null,
-  purchaseCostOverride: number | null
+  purchaseCostOverride: number | null,
+  landingCostOverride: number | null
 ): Promise<{ error?: string }> {
   if (!await requireOwner()) return { error: "Sin permisos" };
   const admin = createAdminClient();
@@ -77,6 +78,7 @@ export async function saveProductPrice(
       product_id:             productId,
       pvp_sin_iva:            pvpSinIva,
       purchase_cost_override: purchaseCostOverride,
+      landing_cost_override:  landingCostOverride,
       updated_at:             new Date().toISOString(),
     },
     { onConflict: "product_id" }

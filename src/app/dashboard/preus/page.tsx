@@ -38,7 +38,12 @@ export default async function PreusPage() {
   }[];
 
   // Build product price overrides map
-  type PriceRow = { product_id: string; pvp_sin_iva: number | null; purchase_cost_override: number | null };
+  type PriceRow = {
+    product_id: string;
+    pvp_sin_iva: number | null;
+    purchase_cost_override: number | null;
+    landing_cost_override: number | null;
+  };
   const priceMap = new Map<string, PriceRow>();
   for (const p of (productPricesRes.data ?? []) as PriceRow[]) {
     priceMap.set(p.product_id, p);
