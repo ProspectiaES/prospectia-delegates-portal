@@ -122,6 +122,17 @@ const IconComissions = () => (
   </svg>
 );
 
+const IconEconomicEngine = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+    <path d="M1 12l3-4 3 2 3-5 3 2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M13 5l2-2M1 15h14" strokeLinecap="round"/>
+    <circle cx="4" cy="8" r="1" fill="currentColor" stroke="none"/>
+    <circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/>
+    <circle cx="10" cy="5" r="1" fill="currentColor" stroke="none"/>
+    <circle cx="13" cy="7" r="1" fill="currentColor" stroke="none"/>
+  </svg>
+);
+
 const IconPressupost = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
     <rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/>
@@ -491,7 +502,10 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/pressupost",              label: "Presupuesto",      Icon: IconPressupost,  exact: false },
         { href: "/dashboard/bruixola/rendiment",      label: "Rendimiento",      Icon: IconBruixola,    exact: false },
-        ...(isOwner ? [{ href: "/dashboard/preus", label: "Cálculo Precios", Icon: IconPressupost, exact: false }] : []),
+        ...(isOwner ? [
+          { href: "/dashboard/preus",           label: "Cálculo Precios",  Icon: IconPressupost,       exact: false },
+          { href: "/dashboard/economic-engine", label: "Motor Econòmic",   Icon: IconEconomicEngine,   exact: false },
+        ] : []),
       ],
     }] : []),
 
