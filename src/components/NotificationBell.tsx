@@ -31,8 +31,10 @@ function relativeTime(iso: string) {
 
 export function NotificationBell({
   initialNotifications,
+  compact = false,
 }: {
   initialNotifications: NotificationItem[];
+  compact?: boolean;  // icon-only, no text, fits in brand bar
 }) {
   const [notifications, setNotifications] = useState(initialNotifications);
   const [open, setOpen] = useState(false);
@@ -63,25 +65,31 @@ export function NotificationBell({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors w-full"
+        className={compact
+          ? "relative p-1.5 rounded-md text-[#8E0E1A] bg-transparent hover:bg-[#FEF2F2] transition-colors"
+          : "relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors w-full"
+        }
         aria-label={`Notificaciones${unread > 0 ? ` (${unread} sin leer)` : ""}`}
       >
-        <span className="relative text-[#6B7280]">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <span className="relative">
+          <svg width={compact ? 15 : 16} height={compact ? 15 : 16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <path d="M8 2a5 5 0 00-5 5v2l-1.5 2.5h13L13 9V7a5 5 0 00-5-5z" strokeLinejoin="round"/>
             <path d="M6.5 13.5a1.5 1.5 0 003 0" strokeLinecap="round"/>
           </svg>
           {unread > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-[#8E0E1A] text-white text-[9px] font-bold flex items-center justify-center leading-none">
-              {unread > 9 ? "9+" : unread}
+            <span className={compact
+              ? "absolute top-0 right-0 w-2 h-2 rounded-full bg-[#8E0E1A] border border-white"
+              : "absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-[#8E0E1A] text-white text-[9px] font-bold flex items-center justify-center leading-none"
+            }>
+              {!compact && (unread > 9 ? "9+" : unread)}
             </span>
           )}
         </span>
-        Notificaciones
+        {!compact && <span>Notificaciones</span>}
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-1 w-80 bg-white rounded-xl border border-[#E5E7EB] shadow-xl z-50">
+        <div className={`absolute w-80 bg-white rounded-xl border border-[#E5E7EB] shadow-xl z-50 ${compact ? "top-full right-0 mt-1" : "bottom-full left-0 mb-1"}`}>
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#F3F4F6]">
             <span className="text-xs font-semibold text-[#374151]">
               Notificaciones

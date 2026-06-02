@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { saveProductPrice } from "@/app/actions/price-calculator";
 
@@ -237,23 +237,47 @@ function CommRow({ layer, pvp, pvpPro, pvd, onChange, onRemove }: {
 // ─── Scenario editor ──────────────────────────────────────────────────────────
 
 function ScenarioEditor({
-  scenario, costBase, globalLanding, targetMargin,
+  scenario, costBase, globalLanding, targetMargin, onTargetMarginChange,
   onChange,
 }: {
   scenario: PricingScenario;
   costBase: number;
   globalLanding: number;
   targetMargin: number;
+  onTargetMarginChange: (v: number) => void;
   onChange: (s: PricingScenario) => void;
 }) {
   const effectiveLanding = scenario.landing_override !== null ? scenario.landing_override : globalLanding;
   const costTotal        = costBase + effectiveLanding;
   const chain            = calcChain(scenario, costTotal);
   const pvpBreakEven     = calcBreakEven(scenario, costTotal);
-  const factor           = (1 - scenario.mt_pct / 100) * (1 - scenario.md_pct / 100);
-  const denomBE          = (factor > 0 ? factor : 1);
-  // simple target min approximation
-  const pvpTargetMin     = pvpBreakEven / (1 - targetMargin / 100) > pvpBreakEven ? pvpBreakEven / (1 - targetMargin / 100) : pvpBreakEven * 1.3;
+
+  // PVP target min: solve for net% given break-even denominator
+  // pvpTargetMin = fixedCost / (factor - targetMargin/100) where factor = effective revenue fraction
+  // We use the same denominator logic as calcBreakEven but leaving space for target margin
+  const activeLayers = scenario.layers.filter(l => l.active);
+  const pvlCommPct   = activeLayers.filter(l => l.base === "pvl" && l.type === "percent").reduce((s, l) => s + l.value, 0) / 100;
+  const pvpCommPct   = activeLayers.filter(l => l.base === "pvp" && l.type === "percent").reduce((s, l) => s + l.value, 0) / 100;
+  const pvdCommPct   = activeLayers.filter(l => l.base === "pvd" && l.type === "percent").reduce((s, l) => s + l.value, 0) / 100;
+  const fixedComm    = activeLayers.filter(l => l.type === "amount").reduce((s, l) => s + l.value, 0);
+  const f1 = 1 - scenario.mt_pct / 100;
+  const f2 = 1 - scenario.md_pct / 100;
+  const effectiveFactor = scenario.md_pct > 0 ? f1 * f2 : f1;
+  const denomFull = effectiveFactor - pvpCommPct - f1 * pvlCommPct - f1 * f2 * pvdCommPct;
+  const fixedCost = costTotal + fixedComm;
+
+  // pvpTargetMin = fixedCost / (denomFull - targetMargin/100)
+  const denomTarget = denomFull - targetMargin / 100;
+  const pvpTargetMin = denomTarget > 0.001 ? fixedCost / denomTarget : pvpBreakEven * 1.5;
+
+  // Inverse: given a manual price, compute what % margin it corresponds to
+  function priceToMarginPct(price: number): number {
+    if (price <= 0 || denomFull <= 0) return 0;
+    return (denomFull - fixedCost / price) * 100;
+  }
+
+  // State for direct price input in break-even box
+  const [targetPriceInput, setTargetPriceInput] = useState<string>("");
 
   const pvpPro = scenario.pvp * (1 - scenario.mt_pct / 100);
   const pvd    = pvpPro * (1 - scenario.md_pct / 100);
@@ -444,22 +468,72 @@ function ScenarioEditor({
       {/* Col 3: Break-even + sensitivity */}
       <div className="space-y-4">
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
-          <h3 className="text-sm font-bold text-[#0A0A0A]">Break-even</h3>
+          <h3 className="text-sm font-bold text-[#0A0A0A]">Break-even i preu mínim rentable</h3>
+
+          {/* Absolute minimum */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-red-50 border border-red-100">
             <div>
-              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Preu mínim (marge=0)</p>
+              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Preu mínim absolut</p>
+              <p className="text-[10px] text-red-400 mt-0.5">Marge net = 0€</p>
             </div>
             <p className="text-xl font-bold text-red-700 tabular-nums">{pvpBreakEven > 0 ? fmtE(pvpBreakEven) : "—"}</p>
           </div>
-          <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
-            <div>
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Preu mínim rentable ({targetMargin}%)</p>
+
+          {/* Target: bidireccional % ↔ € */}
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 space-y-2.5">
+            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Preu mínim rentable</p>
+
+            {/* Two inputs: % slider + numeric price */}
+            <div className="flex items-center gap-2">
+              {/* % slider + input */}
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <input type="range" min={1} max={60} step={1} value={targetMargin}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      onTargetMarginChange(v);
+                      setTargetPriceInput("");
+                    }}
+                    className="flex-1 accent-amber-500" />
+                  <div className="relative w-14 shrink-0">
+                    <input type="number" step="1" min="1" max="60" value={targetMargin}
+                      onChange={e => {
+                        const v = Math.max(1, Math.min(60, parseFloat(e.target.value) || 1));
+                        onTargetMarginChange(v);
+                        setTargetPriceInput("");
+                      }}
+                      className="w-full text-xs text-right pr-4 py-1.5 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold tabular-nums" />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-600">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <span className="text-[#D1D5DB] font-bold">→</span>
+
+              {/* Direct price input */}
+              <div className="relative w-28 shrink-0">
+                <input type="number" step="0.01" min="0"
+                  value={targetPriceInput !== "" ? targetPriceInput : (pvpTargetMin > 0 ? pvpTargetMin.toFixed(2) : "")}
+                  onChange={e => {
+                    setTargetPriceInput(e.target.value);
+                    const price = parseFloat(e.target.value);
+                    if (price > 0) {
+                      const newPct = priceToMarginPct(price);
+                      if (newPct > 0 && newPct < 100) onTargetMarginChange(Math.round(newPct * 10) / 10);
+                    }
+                  }}
+                  onBlur={() => setTargetPriceInput("")}
+                  className="w-full text-sm text-right pr-6 py-1.5 rounded-lg border border-amber-300 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold tabular-nums text-amber-700"
+                  placeholder="0.00" />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500">€</span>
+              </div>
             </div>
-            <p className="text-xl font-bold text-amber-700 tabular-nums">{pvpTargetMin > 0 ? fmtE(pvpTargetMin) : "—"}</p>
+            <p className="text-[10px] text-amber-600">← escriu el % o el preu, l'altre es calcula sol</p>
           </div>
+
           {scenario.pvp > 0 && (
             <div className={`p-2.5 rounded-xl text-xs font-semibold border ${scenario.pvp >= pvpTargetMin ? "bg-emerald-50 border-emerald-100 text-emerald-700" : scenario.pvp >= pvpBreakEven ? "bg-amber-50 border-amber-100 text-amber-700" : "bg-red-50 border-red-100 text-red-700"}`}>
-              {scenario.pvp >= pvpTargetMin ? "✓ Assoleix l'objectiu de rendibilitat" : scenario.pvp >= pvpBreakEven ? `⚠ Rendible però sota l'objectiu (${targetMargin}%)` : "⛔ Per sota del break-even"}
+              {scenario.pvp >= pvpTargetMin ? `✓ PVP actual assoleix l'objectiu (${targetMargin}%)` : scenario.pvp >= pvpBreakEven ? `⚠ Rendible però sota l'objectiu (${targetMargin}%)` : "⛔ Per sota del break-even"}
             </div>
           )}
         </div>
@@ -615,12 +689,7 @@ export default function ProductPricingClient({
             </button>
           </div>
           <span className="text-xs text-red-600 font-bold tabular-nums">Cost total: {fmtE(costBase)}</span>
-          <div className="flex items-center gap-2 bg-white rounded-xl border border-[#E5E7EB] px-3 py-1.5">
-            <span className="text-[10px] text-[#9CA3AF]">Marge obj.</span>
-            <input type="range" min={5} max={50} step={5} value={targetMargin}
-              onChange={e => setTargetMargin(Number(e.target.value))} className="w-20 accent-amber-500" />
-            <span className="text-[10px] font-bold text-amber-700">{targetMargin}%</span>
-          </div>
+          <span className="text-[10px] text-[#9CA3AF]">Marge obj.: <span className="font-bold text-amber-700">{targetMargin}%</span></span>
           <button onClick={handleSave} disabled={saving}
             className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-colors ${saved ? "bg-emerald-600 text-white" : "bg-[#8E0E1A] text-white hover:bg-[#7A0C17]"} disabled:opacity-50`}>
             {saving ? "Guardando…" : saved ? "✓ Guardado" : "Guardar tot"}
@@ -654,6 +723,7 @@ export default function ProductPricingClient({
           costBase={costBase}
           globalLanding={effectiveLanding}
           targetMargin={targetMargin}
+          onTargetMarginChange={setTargetMargin}
           onChange={s => updateScenario(activeTab, s)}
         />
       )}
