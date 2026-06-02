@@ -490,9 +490,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       activeClasses: "bg-emerald-50 text-emerald-700", activeBar: "bg-emerald-500",
       items: [
         { href: "/dashboard/pressupost",              label: "Presupuesto",      Icon: IconPressupost,  exact: false },
-        { href: "/dashboard/bruixola/rendiment",      label: "· Rendimiento",    Icon: IconBruixola,    exact: false },
-        { href: "/dashboard/bruixola/financier",      label: "· Motor Económico",Icon: IconBruixola,    exact: false },
-        { href: "/dashboard/bruixola/rendibilitat",   label: "· Rentabilidad",   Icon: IconBruixola,    exact: false },
+        { href: "/dashboard/bruixola/rendiment",      label: "Rendimiento",      Icon: IconBruixola,    exact: false },
       ],
     }] : []),
 
