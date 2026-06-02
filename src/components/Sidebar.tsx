@@ -416,106 +416,109 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       ],
     },
 
-    // ── Clients & Vendes ───────────────────────────────────────────────────
+    // ── Cuadro de Mando (2ª posició — OWNER/CONSIGLIERE) ──────────────────
+    ...((isOwner || isConsigliere) ? [{
+      label: "Cuadro de Mando",
+      dot: "bg-indigo-400", iconColor: "text-indigo-500",
+      labelColor: "text-indigo-500",
+      activeClasses: "bg-indigo-50 text-indigo-700", activeBar: "bg-indigo-500",
+      items: [
+        { href: "/dashboard/bruixola",               label: "Cuadro de Mando", Icon: IconBruixola, exact: true  },
+        { href: "/dashboard/bruixola/internacional", label: "· Internacional",  Icon: IconBruixola, exact: false },
+      ],
+    }] : []),
+
+    // ── Clientes & Ventas ──────────────────────────────────────────────────
     {
       label: "Clientes & Ventas",
       dot: "bg-blue-400", iconColor: "text-blue-500",
       labelColor: "text-blue-500",
       activeClasses: "bg-blue-50 text-blue-700", activeBar: "bg-blue-500",
       items: [
-        { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
-        { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
-        { href: "/dashboard/pedidos",   label: "Pedidos",   Icon: IconPedidos,   exact: false },
-        ...(isOwner ? [{ href: "/dashboard/productos", label: "Productos", Icon: IconProductos, exact: false }] : []),
-        ...(isAnyDelegate ? [{
-          href: `/dashboard/delegados/${userId}/riesgo`,
-          label: "Informe de riesgo", Icon: IconFacturas, exact: false,
-        }] : []),
+        { href: "/dashboard/clientes", label: "Clientes", Icon: IconClientes, exact: false },
+        { href: "/dashboard/facturas", label: "Facturas", Icon: IconFacturas, exact: false },
+        { href: "/dashboard/pedidos",  label: "Pedidos",  Icon: IconPedidos,  exact: false },
       ],
     },
 
-    // ── Delegats ───────────────────────────────────────────────────────────
+    // ── Delegados ──────────────────────────────────────────────────────────
     ...(!isDelegate || isKol || isCoordinator ? [{
       label: "Delegados",
       dot: "bg-violet-400", iconColor: "text-violet-500",
       labelColor: "text-violet-500",
       activeClasses: "bg-violet-50 text-violet-700", activeBar: "bg-violet-500",
       items: [
-        { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
+        { href: "/dashboard/delegados",                label: "Delegados",  Icon: IconDelegados,  exact: false },
         ...(isOwner ? [
-          { href: "/dashboard/performance/comisiones", label: "Comisiones",       Icon: IconComissions,   exact: false },
-          { href: "/dashboard/remeses",                label: "Remesas SEPA",     Icon: IconRemeses,      exact: false },
-          { href: "/dashboard/performance/pedidos",    label: "Pedidos delegados",Icon: IconPedidos,      exact: false },
-          { href: "/dashboard/autofacturas",           label: "Autofacturas",    Icon: IconAutofacturas, exact: false },
+          { href: "/dashboard/performance/comisiones", label: "Comisiones", Icon: IconComissions, exact: false },
         ] : []),
       ],
     }] : []),
 
-    // ── CRM & Equip ────────────────────────────────────────────────────────
+    // ── CRM & Equipo ───────────────────────────────────────────────────────
     {
       label: "CRM & Equipo",
       dot: "bg-teal-400", iconColor: "text-teal-500",
       labelColor: "text-teal-600",
       activeClasses: "bg-teal-50 text-teal-700", activeBar: "bg-teal-500",
       items: [
-        { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
-        { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
-        { href: "/dashboard/tareas",     label: "Tareas",      Icon: IconTasques,    exact: false },
+        { href: "/dashboard/prospectos", label: "Prospectos",      Icon: IconCRM,        exact: false },
+        { href: "/dashboard/calendario", label: "Calendario",      Icon: IconCalendario, exact: false },
+        { href: "/dashboard/tareas",     label: "Tareas",          Icon: IconTasques,    exact: false },
         ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
       ],
     },
 
-    // ── Afiliats ───────────────────────────────────────────────────────────
+    // ── Afiliados ──────────────────────────────────────────────────────────
     {
       label: "Afiliados",
       dot: "bg-amber-400", iconColor: "text-amber-500",
       labelColor: "text-amber-600",
       activeClasses: "bg-amber-50 text-amber-700", activeBar: "bg-amber-500",
       items: [
-        { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
+        { href: "/dashboard/afiliados",       label: "Afiliados",       Icon: IconAfiliados,       exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
       ],
     },
 
-    // ── Finances ───────────────────────────────────────────────────────────
+    // ── Finanzas ───────────────────────────────────────────────────────────
+    // Nota: Rendimiento + Rentabilidad pendents de fusionar amb Performance
     ...((isOwner || isConsigliere) ? [{
       label: "Finanzas",
       dot: "bg-emerald-400", iconColor: "text-emerald-500",
       labelColor: "text-emerald-600",
       activeClasses: "bg-emerald-50 text-emerald-700", activeBar: "bg-emerald-500",
       items: [
-        { href: "/dashboard/pressupost",                         label: "Presupuesto",      Icon: IconPressupost, exact: false },
-        { href: "/dashboard/bruixola",                           label: "Brújula",          Icon: IconBruixola,   exact: true  },
-        { href: "/dashboard/bruixola/objectius",                 label: "· Objetivos",      Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/rendiment",                 label: "· Rendimiento",    Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/internacional",             label: "· Internacional",  Icon: IconBruixola,   exact: true  },
-        { href: "/dashboard/bruixola/internacional/objectius",   label: "  · Obj. Intl.",   Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/financier",                 label: "· Motor Económico",Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/rendibilitat",              label: "· Rentabilidad",   Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/pressupost",              label: "Presupuesto",      Icon: IconPressupost,  exact: false },
+        { href: "/dashboard/bruixola/rendiment",      label: "· Rendimiento",    Icon: IconBruixola,    exact: false },
+        { href: "/dashboard/bruixola/financier",      label: "· Motor Económico",Icon: IconBruixola,    exact: false },
+        { href: "/dashboard/bruixola/rendibilitat",   label: "· Rentabilidad",   Icon: IconBruixola,    exact: false },
       ],
     }] : []),
 
-    // ── Administració ──────────────────────────────────────────────────────
+    // ── Administración ─────────────────────────────────────────────────────
     ...(isOwner ? [{
       label: "Administración",
       dot: "bg-rose-400", iconColor: "text-rose-500",
       labelColor: "text-rose-500",
       activeClasses: "bg-rose-50 text-rose-700", activeBar: "bg-rose-500",
       items: [
-        { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
-        { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
-        { href: "/dashboard/admin/asignaciones",  label: "Asignaciones",  Icon: IconDelegados,   exact: false },
-        { href: "/dashboard/admin",               label: "Auditoría",     Icon: IconAdmin,       exact: true  },
+        { href: "/dashboard/productos",             label: "Productos",        Icon: IconProductos,    exact: false },
+        { href: "/dashboard/remeses",               label: "Remesas SEPA",     Icon: IconRemeses,      exact: false },
+        { href: "/dashboard/performance/pedidos",   label: "Pedidos delegados",Icon: IconPedidos,      exact: false },
+        { href: "/dashboard/autofacturas",          label: "Autofacturas",     Icon: IconAutofacturas, exact: false },
       ],
     }] : []),
 
-    ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
-      label: "Administración",
-      dot: "bg-rose-400", iconColor: "text-rose-500",
-      labelColor: "text-rose-500",
-      activeClasses: "bg-rose-50 text-rose-700", activeBar: "bg-rose-500",
+    // ── Bloque Técnico ─────────────────────────────────────────────────────
+    ...(isOwner || isKol || isCoordinator || role === "KOL" || role === "COORDINATOR" ? [{
+      label: "Bloque Técnico",
+      dot: "bg-gray-400", iconColor: "text-gray-500",
+      labelColor: "text-gray-500",
+      activeClasses: "bg-gray-100 text-gray-700", activeBar: "bg-gray-500",
       items: [
         { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
+        ...(isOwner ? [{ href: "/dashboard/admin", label: "Auditoría", Icon: IconAdmin, exact: true }] : []),
       ],
     }] : []),
 
@@ -677,6 +680,7 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
           </div>
           <div className="flex items-center gap-0.5">
             <AIStrip initialUnread={initialUnread} />
+            <NotificationBell initialNotifications={notifications} />
           </div>
           {drawer && (
             <button onClick={onClose} aria-label="Cerrar menú"
@@ -748,16 +752,14 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
           })}
         </nav>
 
-        {/* Bottom */}
-        <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0 flex items-center gap-1">
-          <div className="flex-1">
-            <NotificationBell initialNotifications={notifications} />
-          </div>
-          <form action={logout} className="shrink-0">
-            <button type="submit" title="Cerrar sesión"
-              className="p-2 rounded-lg text-[#9CA3AF] hover:text-red-600 hover:bg-red-50 transition-colors"
+        {/* Bottom — solo logout */}
+        <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0">
+          <form action={logout}>
+            <button type="submit"
+              className="w-full flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[12px] font-medium text-[#9CA3AF] hover:text-red-600 hover:bg-red-50 transition-all duration-150"
             >
               <IconLogout />
+              <span>Cerrar sesión</span>
             </button>
           </form>
         </div>
