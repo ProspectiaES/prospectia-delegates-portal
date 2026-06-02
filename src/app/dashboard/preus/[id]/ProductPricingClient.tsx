@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { saveProductPrice } from "@/app/actions/price-calculator";
 
@@ -516,85 +516,42 @@ function ScenarioEditor({
         )}
       </div>
 
-      {/* Col 3: Break-even + sensitivity */}
+      {/* Col 3: Sensitivity only */}
       <div className="space-y-4">
-        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
-          <h3 className="text-sm font-bold text-[#0A0A0A]">Break-even i preu mínim rentable</h3>
-
-          {/* Absolute minimum */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-red-50 border border-red-100">
-            <div>
-              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Preu mínim absolut</p>
-              <p className="text-[10px] text-red-400 mt-0.5">Marge net = 0€</p>
-            </div>
-            <p className="text-xl font-bold text-red-700 tabular-nums">{pvpBreakEven > 0 ? fmtE(pvpBreakEven) : "—"}</p>
-          </div>
-
-          {/* Target: bidireccional % ↔ € */}
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 space-y-2.5">
-            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Preu mínim rentable</p>
-
-            {/* Two inputs: % slider + numeric price */}
+        {/* Break-even summary — compact, inline */}
+        {pvpBreakEven > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-[#E5E7EB] flex-wrap">
             <div className="flex items-center gap-2">
-              {/* % slider + input */}
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <input type="range" min={1} max={60} step={1} value={targetMargin}
-                    onChange={e => {
-                      const v = Number(e.target.value);
-                      onTargetMarginChange(v);
-                      setTargetPriceInput("");
-                    }}
-                    className="flex-1 accent-amber-500" />
-                  <div className="relative w-14 shrink-0">
-                    <input type="number" step="1" min="1" max="60" value={targetMargin}
-                      onChange={e => {
-                        const v = Math.max(1, Math.min(60, parseFloat(e.target.value) || 1));
-                        onTargetMarginChange(v);
-                        setTargetPriceInput("");
-                      }}
-                      className="w-full text-xs text-right pr-4 py-1.5 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold tabular-nums" />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-600">%</span>
-                  </div>
-                </div>
-              </div>
-
-              <span className="text-[#D1D5DB] font-bold">→</span>
-
-              {/* Direct price input */}
-              <div className="relative w-28 shrink-0">
-                <input type="number" step="0.01" min="0"
-                  value={targetPriceInput !== "" ? targetPriceInput : (pvpTargetMin > 0 ? pvpTargetMin.toFixed(2) : "")}
-                  onChange={e => {
-                    setTargetPriceInput(e.target.value);
-                    const price = parseFloat(e.target.value);
-                    if (price > 0) {
-                      const newPct = priceToMarginPct(price);
-                      if (newPct > 0 && newPct < 100) onTargetMarginChange(Math.round(newPct * 10) / 10);
-                    }
-                  }}
-                  onBlur={() => setTargetPriceInput("")}
-                  className="w-full text-sm text-right pr-6 py-1.5 rounded-lg border border-amber-300 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold tabular-nums text-amber-700"
-                  placeholder="0.00" />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500">€</span>
-              </div>
+              <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Preu mínim:</span>
+              <span className="text-sm font-bold text-red-700 tabular-nums">{fmtE(pvpBreakEven)}</span>
+              <span className="text-[10px] text-[#9CA3AF]">(marge = 0)</span>
             </div>
-            <p className="text-[10px] text-amber-600">← escriu el % o el preu, l'altre es calcula sol</p>
+            <div className="h-4 w-px bg-[#E5E7EB]" />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Objectiu</span>
+              <div className="relative w-14">
+                <input type="number" step="1" min="1" max="60" value={targetMargin}
+                  onChange={e => onTargetMarginChange(Math.max(1, Math.min(60, parseFloat(e.target.value) || 1)))}
+                  className="w-full text-xs text-right pr-4 py-1 rounded-lg border border-amber-200 bg-amber-50 focus:outline-none focus:ring-1 focus:ring-amber-400 font-bold tabular-nums" />
+                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-amber-600">%</span>
+              </div>
+              <span className="text-[10px] text-[#9CA3AF]">→</span>
+              <span className="text-sm font-bold text-amber-700 tabular-nums">{pvpTargetMin > 0 ? fmtE(pvpTargetMin) : "—"}</span>
+            </div>
+            {scenario.pvp > 0 && (
+              <span className={`ml-auto text-[11px] font-semibold ${scenario.pvp >= pvpTargetMin ? "text-emerald-600" : scenario.pvp >= pvpBreakEven ? "text-amber-600" : "text-red-600"}`}>
+                {scenario.pvp >= pvpTargetMin ? "✓ Assoleix l'objectiu" : scenario.pvp >= pvpBreakEven ? `⚠ Sota l'objectiu (${targetMargin}%)` : "⛔ Sota el mínim"}
+              </span>
+            )}
           </div>
-
-          {scenario.pvp > 0 && (
-            <div className={`p-2.5 rounded-xl text-xs font-semibold border ${scenario.pvp >= pvpTargetMin ? "bg-emerald-50 border-emerald-100 text-emerald-700" : scenario.pvp >= pvpBreakEven ? "bg-amber-50 border-amber-100 text-amber-700" : "bg-red-50 border-red-100 text-red-700"}`}>
-              {scenario.pvp >= pvpTargetMin ? `✓ PVP actual assoleix l'objectiu (${targetMargin}%)` : scenario.pvp >= pvpBreakEven ? `⚠ Rendible però sota l'objectiu (${targetMargin}%)` : "⛔ Per sota del break-even"}
-            </div>
-          )}
-        </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#F3F4F6]">
-            <h3 className="text-sm font-bold text-[#0A0A0A]">Sensibilitat</h3>
+            <h3 className="text-sm font-bold text-[#0A0A0A]">Taula de preus</h3>
             <p className="text-[10px] text-[#9CA3AF] mt-0.5">Clica una fila per simular aquell PVP</p>
           </div>
-          <div className="overflow-y-auto max-h-72">
+          <div className="overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-[#F9FAFB] border-b border-[#E5E7EB]">
                 <tr>
@@ -671,6 +628,25 @@ export default function ProductPricingClient({
   const [targetMargin,   setTargetMargin]   = useState(20);
   const [saving,         setSaving]         = useState(false);
   const [saved,          setSaved]          = useState(false);
+  const [autoSaving,     setAutoSaving]     = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstRender = useRef(true);
+
+  // Auto-save with 2s debounce whenever scenarios/purchase/landing changes
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setAutoSaving(true);
+      const pvpForRow = scenarios[0]?.pvp ?? null;
+      await saveProductPrice(product.id, pvpForRow, purchase || null, landingOvr, { scenarios });
+      setAutoSaving(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }, 2000);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(scenarios), purchase, landingOvr]);
 
   const effectiveLanding = landingOvr !== null ? landingOvr : globalLanding;
   const costBase         = purchase + effectiveLanding;
@@ -745,7 +721,7 @@ export default function ProductPricingClient({
           <span className="text-[10px] text-[#9CA3AF]">Marge obj.: <span className="font-bold text-amber-700">{targetMargin}%</span></span>
           <button onClick={handleSave} disabled={saving}
             className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-colors ${saved ? "bg-emerald-600 text-white" : "bg-[#8E0E1A] text-white hover:bg-[#7A0C17]"} disabled:opacity-50`}>
-            {saving ? "Guardando…" : saved ? "✓ Guardado" : "Guardar tot"}
+            {saving || autoSaving ? "Guardando…" : saved ? "✓ Guardado" : "Guardar tot"}
           </button>
         </div>
       </div>
