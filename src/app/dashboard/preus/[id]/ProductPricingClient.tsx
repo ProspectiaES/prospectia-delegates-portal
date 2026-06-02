@@ -23,12 +23,14 @@ export interface PricingScenario {
   id:             string;
   name:           string;
   channel_type:   ChannelType;
-  pvp:            number;       // consumer / list price
-  mt_pct:         number;       // % tienda margin
-  md_pct:         number;       // % distribuidor margin (0 if not applicable)
+  pvp:            number;             // preu consumidor sin IVA
+  mt_pct:         number;             // % marge tienda → PVP Professional
+  md_pct:         number;             // % marge distribuïdor → PVD
   iva_pct:        number;
-  landing_override: number | null; // null = use global
-  layers:         CommLayer[];
+  landing_override: number | null;
+  estructura_pct: number;             // % overhead empresa sobre PVP sin IVA
+  logistica_pct:  number;             // % logística sobre PVP sin IVA
+  layers:         CommLayer[];        // comissions per actor
   notes:          string;
 }
 
@@ -36,22 +38,24 @@ export interface PricingScenario {
 
 interface ChainResult {
   pvp: number;
-  pvpPro:     number;   // PVP Professional = PVP − tienda%
-  pvd:        number;   // PVD = PVP Pro − dist%
+  pvpPro:     number;
+  pvd:        number;
   pvpConIva:  number;
   layerBreakdown: { name: string; base: string; amount: number; pctOfPvp: number }[];
   totalComm:  number;
-  netMargin:  number;
-  netMarginPct: number;
+  estructuraCost: number;
+  logisticaCost:  number;
+  netMargin:  number;       // el que et queda a tu (Prospectia), sin IVA
+  netMarginPct: number;     // % sobre PVP sin IVA
   costTotal:  number;
 }
 
 function calcChain(s: PricingScenario, costTotal: number): ChainResult | null {
-  const { pvp, mt_pct, md_pct, iva_pct, layers } = s;
+  const { pvp, mt_pct, md_pct, iva_pct, layers, estructura_pct = 0, logistica_pct = 0 } = s;
   if (pvp <= 0) return null;
 
-  const pvpPro   = pvp * (1 - mt_pct / 100);
-  const pvd      = pvpPro * (1 - md_pct / 100);
+  const pvpPro    = pvp * (1 - mt_pct / 100);
+  const pvd       = pvpPro * (1 - md_pct / 100);
   const pvpConIva = pvp * (1 + iva_pct / 100);
 
   const activeLayers = layers.filter(l => l.active);
@@ -62,44 +66,44 @@ function calcChain(s: PricingScenario, costTotal: number): ChainResult | null {
   });
   const totalComm = layerBreakdown.reduce((s, l) => s + l.amount, 0);
 
-  // Net = the effective price after channel margins − cost − commissions
-  const effectiveNet = md_pct > 0 ? pvd : pvpPro;
-  const netMargin    = effectiveNet - costTotal - totalComm;
+  // Estructura i logística com a % del PVP sin IVA
+  const estructuraCost = pvp * (estructura_pct / 100);
+  const logisticaCost  = pvp * (logistica_pct / 100);
+
+  // El que rep Prospectia del canal (PVD si hi ha dist., PVP Pro si professional, PVP si online)
+  const efectiuRebut = md_pct > 0 ? pvd : pvpPro;
+
+  // Marge net = el que et queda a TU (Prospectia), sin IVA
+  const netMargin    = efectiuRebut - costTotal - totalComm - estructuraCost - logisticaCost;
   const netMarginPct = pvp > 0 ? netMargin / pvp * 100 : 0;
 
-  return { pvp, pvpPro, pvd, pvpConIva, layerBreakdown, totalComm, netMargin, netMarginPct, costTotal };
+  return { pvp, pvpPro, pvd, pvpConIva, layerBreakdown, totalComm, estructuraCost, logisticaCost, netMargin, netMarginPct, costTotal };
 }
 
 function calcBreakEven(s: PricingScenario, costTotal: number) {
-  const { mt_pct, md_pct, layers } = s;
+  const { mt_pct, md_pct, layers, estructura_pct = 0, logistica_pct = 0 } = s;
   const activeLayers = layers.filter(l => l.active);
 
-  // Commissions as fraction of their respective base
-  // For PVP: P × (layer.value/100 if %)
-  // For PVL: P × (1-mt%) × (layer.value/100 if %)
-  // For PVD: P × (1-mt%) × (1-md%) × (layer.value/100 if %)
-
-  let pvpCommPct  = 0, pvlCommPct  = 0, pvdCommPct  = 0;
-  let fixedComm   = 0;
+  let pvpCommPct = 0, pvlCommPct = 0, pvdCommPct = 0, fixedComm = 0;
   for (const l of activeLayers) {
     if (l.type === "percent") {
-      if (l.base === "pvp") pvpCommPct  += l.value / 100;
-      if (l.base === "pvl") pvlCommPct  += l.value / 100;
-      if (l.base === "pvd") pvdCommPct  += l.value / 100;
+      if (l.base === "pvp") pvpCommPct += l.value / 100;
+      if (l.base === "pvl") pvlCommPct += l.value / 100;
+      if (l.base === "pvd") pvdCommPct += l.value / 100;
     } else {
       fixedComm += l.value;
     }
   }
 
-  const f1 = 1 - mt_pct / 100;                // factor tienda
-  const f2 = 1 - md_pct / 100;                // factor dist
-  const effective = md_pct > 0 ? f1 * f2 : f1; // effective revenue fraction from PVP
+  const f1 = 1 - mt_pct / 100;
+  const f2 = 1 - md_pct / 100;
+  const effective = md_pct > 0 ? f1 * f2 : f1;
 
-  // net = P × effective - P × pvpCommPct - P × f1 × pvlCommPct - P × f1 × f2 × pvdCommPct - fixedComm - cost = 0
-  const denominator = effective - pvpCommPct - f1 * pvlCommPct - f1 * f2 * pvdCommPct;
+  // net = P × effective − P × commPcts − P × (estructura + logistica) − fixedComm − cost = 0
+  const denominator = effective - pvpCommPct - f1 * pvlCommPct - f1 * f2 * pvdCommPct
+                      - (estructura_pct + logistica_pct) / 100;
   const numerator   = costTotal + fixedComm;
-  const pvpMin = denominator > 0.01 ? numerator / denominator : 0;
-  return pvpMin;
+  return denominator > 0.01 ? numerator / denominator : 0;
 }
 
 // ─── Default scenarios ────────────────────────────────────────────────────────
@@ -109,7 +113,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number, pr
     {
       id: "online", name: "Online (Shopify)", channel_type: "online",
       pvp: initPvp, mt_pct: 0, md_pct: 0, iva_pct: productIvaPct,
-      landing_override: null,
+      landing_override: null, estructura_pct: 0, logistica_pct: 0,
       layers: [
         { name: "KOL",      type: "percent", value: 3, base: "pvp", active: false },
         { name: "Afiliado", type: "percent", value: 5, base: "pvp", active: false },
@@ -119,7 +123,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number, pr
     {
       id: "professional", name: "Professional", channel_type: "professional",
       pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: 0, iva_pct: productIvaPct,
-      landing_override: null,
+      landing_override: null, estructura_pct: 0, logistica_pct: 0,
       layers: [
         { name: "Delegado",     type: "percent", value: config.margen_distribuidor_pct, base: "pvl", active: true },
         { name: "Recomendador", type: "percent", value: 3,  base: "pvp", active: false },
@@ -129,7 +133,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number, pr
     {
       id: "distribuidor", name: "Distribuïdor", channel_type: "distribuidor",
       pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: config.margen_distribuidor_pct, iva_pct: productIvaPct,
-      landing_override: null,
+      landing_override: null, estructura_pct: 0, logistica_pct: 0,
       layers: [
         { name: "Delegado", type: "percent", value: config.margen_distribuidor_pct, base: "pvl", active: true },
         { name: "KOL",      type: "percent", value: 3, base: "pvp", active: false },
@@ -139,7 +143,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number, pr
     {
       id: "internacional", name: "Internacional", channel_type: "internacional",
       pvp: initPvp, mt_pct: 0, md_pct: 0, iva_pct: 0,
-      landing_override: 0,  // no import cost if already international
+      landing_override: 0, estructura_pct: 0, logistica_pct: 0,
       layers: [
         { name: "Distribuïdor Local", type: "percent", value: 30, base: "pvp", active: true },
       ],
@@ -266,7 +270,8 @@ function ScenarioEditor({
   const f1 = 1 - scenario.mt_pct / 100;
   const f2 = 1 - scenario.md_pct / 100;
   const effectiveFactor = scenario.md_pct > 0 ? f1 * f2 : f1;
-  const denomFull = effectiveFactor - pvpCommPct - f1 * pvlCommPct - f1 * f2 * pvdCommPct;
+  const denomFull = effectiveFactor - pvpCommPct - f1 * pvlCommPct - f1 * f2 * pvdCommPct
+                    - (scenario.estructura_pct ?? 0) / 100 - (scenario.logistica_pct ?? 0) / 100;
   const fixedCost = costTotal + fixedComm;
 
   // pvpTargetMin = fixedCost / (denomFull - targetMargin/100)
@@ -352,9 +357,11 @@ function ScenarioEditor({
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
           <h3 className="text-sm font-bold text-[#0A0A0A]">Marges del canal</h3>
           {[
-            { label: "Marge tienda / canal", field: "mt_pct" as const, note: "→ PVP Professional", isIva: false },
-            { label: "Marge distribuïdor",   field: "md_pct" as const, note: "→ PVD",              isIva: false },
-            { label: "IVA",                  field: "iva_pct" as const, note: "",                  isIva: true  },
+            { label: "Marge tienda / canal",  field: "mt_pct" as const,       note: "→ PVP Professional", isIva: false },
+            { label: "Marge distribuïdor",    field: "md_pct" as const,       note: "→ PVD",              isIva: false },
+            { label: "IVA",                   field: "iva_pct" as const,      note: "",                   isIva: true  },
+            { label: "Estructura / overhead", field: "estructura_pct" as const, note: "% del PVP sin IVA", isIva: false },
+            { label: "Logística",             field: "logistica_pct" as const,  note: "% del PVP sin IVA", isIva: false },
           ].map(({ label, field, note, isIva }) => (
             <div key={field}>
               <div className="flex items-center justify-between mb-1">
@@ -479,8 +486,10 @@ function ScenarioEditor({
                   { label: "= PVD",                val: chain.pvd,     cls: "text-violet-700 font-semibold", bar: "bg-violet-400", w: chain.pvd / scenario.pvp * 100 },
                 ] : []),
                 ...chain.layerBreakdown.map(l => ({ label: `− ${l.name} (${l.base})`, val: -l.amount, cls: "text-violet-500", bar: "bg-violet-200", w: l.pctOfPvp })),
-                { label: "− Coste total",     val: -costTotal,    cls: "text-red-600",    bar: "bg-red-200",    w: costTotal / scenario.pvp * 100 },
-                { label: "= Marge net",        val: chain.netMargin, cls: chain.netMargin >= 0 ? "text-emerald-600 font-bold" : "text-red-600 font-bold", bar: chain.netMargin >= 0 ? "bg-emerald-500" : "bg-red-500", w: Math.abs(chain.netMargin) / scenario.pvp * 100 },
+                { label: "− Coste total (compra+landing)", val: -costTotal, cls: "text-red-600", bar: "bg-red-200", w: costTotal / scenario.pvp * 100 },
+                ...(chain.estructuraCost > 0 ? [{ label: `− Estructura (${scenario.estructura_pct}% PVP)`, val: -chain.estructuraCost, cls: "text-orange-600", bar: "bg-orange-200", w: scenario.estructura_pct }] : []),
+                ...(chain.logisticaCost  > 0 ? [{ label: `− Logística (${scenario.logistica_pct}% PVP)`,  val: -chain.logisticaCost,  cls: "text-orange-500", bar: "bg-orange-100", w: scenario.logistica_pct  }] : []),
+                { label: "= Marge net (el que et queda a tu)", val: chain.netMargin, cls: chain.netMargin >= 0 ? "text-emerald-600 font-bold" : "text-red-600 font-bold", bar: chain.netMargin >= 0 ? "bg-emerald-500" : "bg-red-500", w: Math.abs(chain.netMargin) / scenario.pvp * 100 },
               ].map(({ label, val, cls, bar, w }, i) => (
                 <div key={i}>
                   <div className="flex justify-between text-xs py-0.5">
@@ -676,7 +685,7 @@ export default function ProductPricingClient({
       name: "Nou canal",
       channel_type: "custom",
       pvp:  0, mt_pct: 0, md_pct: 0, iva_pct: productIvaPct,
-      landing_override: null, layers: [], notes: "",
+      landing_override: null, estructura_pct: 0, logistica_pct: 0, layers: [], notes: "",
     };
     setScenarios(prev => [...prev, newS]);
     setActiveTab(scenarios.length);
