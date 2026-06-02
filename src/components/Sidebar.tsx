@@ -432,6 +432,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     {
       label: "Clientes & Ventas",
       dot: "bg-blue-400",
+      iconColor: "text-blue-500",
       items: [
         { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
         { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
@@ -448,6 +449,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(!isDelegate || isKol || isCoordinator ? [{
       label: "Delegados",
       dot: "bg-violet-400",
+      iconColor: "text-violet-500",
       items: [
         { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
         ...(isOwner ? [
@@ -463,6 +465,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     {
       label: "CRM & Equipo",
       dot: "bg-teal-400",
+      iconColor: "text-teal-500",
       items: [
         { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
         { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
@@ -475,6 +478,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     {
       label: "Afiliados",
       dot: "bg-amber-400",
+      iconColor: "text-amber-500",
       items: [
         { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
@@ -485,6 +489,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...((isOwner || isConsigliere) ? [{
       label: "Finanzas",
       dot: "bg-emerald-400",
+      iconColor: "text-emerald-500",
       items: [
         { href: "/dashboard/pressupost",                         label: "Presupuesto",      Icon: IconPressupost, exact: false },
         { href: "/dashboard/bruixola",                           label: "Brújula",          Icon: IconBruixola,   exact: true  },
@@ -501,6 +506,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(isOwner ? [{
       label: "Administración",
       dot: "bg-rose-400",
+      iconColor: "text-rose-500",
       items: [
         { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
         { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
@@ -512,6 +518,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
       label: "Administración",
       dot: "bg-rose-400",
+      iconColor: "text-rose-500",
       items: [
         { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
       ],
@@ -521,6 +528,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     {
       label: "Cuenta",
       dot: "bg-slate-300",
+      iconColor: "text-slate-400",
       items: [
         { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
@@ -690,7 +698,8 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
         {/* Navigation — scrollable */}
         <nav className="flex-1 py-2 px-2 overflow-y-auto min-h-0 space-y-0.5" aria-label="Navegación principal">
           {sections.map(({ label, items, ...sectionRest }) => {
-            const dot = (sectionRest as { dot?: string }).dot;
+            const dot       = (sectionRest as { dot?: string; iconColor?: string }).dot;
+            const iconColor = (sectionRest as { dot?: string; iconColor?: string }).iconColor ?? "text-[#9CA3AF]";
             if (items.length === 0) return null;
             return (
               <div key={label || "_root"} className={label ? "pt-3 first:pt-1" : ""}>
@@ -723,7 +732,7 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
                           {isActive && (
                             <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]" aria-hidden />
                           )}
-                          <span className={`shrink-0 ${isActive ? "text-[#8E0E1A]" : "text-[#9CA3AF]"}`}>
+                          <span className={`shrink-0 ${isActive ? "text-[#8E0E1A]" : iconColor}`}>
                             <Icon />
                           </span>
                           {itemLabel}
