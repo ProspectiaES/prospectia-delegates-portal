@@ -41,6 +41,7 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
     pvp_sin_iva: number | null;
     purchase_cost_override: number | null;
     landing_cost_override: number | null;
+    commission_layers_json: unknown | null;
   } | null;
 
   return (

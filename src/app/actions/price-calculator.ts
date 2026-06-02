@@ -69,21 +69,24 @@ export async function saveProductPrice(
   productId: string,
   pvpSinIva: number | null,
   purchaseCostOverride: number | null,
-  landingCostOverride: number | null
+  landingCostOverride: number | null,
+  commissionLayersJson?: unknown
 ): Promise<{ error?: string }> {
   if (!await requireOwner()) return { error: "Sin permisos" };
   const admin = createAdminClient();
   const { error } = await admin.from("product_prices").upsert(
     {
-      product_id:             productId,
-      pvp_sin_iva:            pvpSinIva,
-      purchase_cost_override: purchaseCostOverride,
-      landing_cost_override:  landingCostOverride,
-      updated_at:             new Date().toISOString(),
+      product_id:              productId,
+      pvp_sin_iva:             pvpSinIva,
+      purchase_cost_override:  purchaseCostOverride,
+      landing_cost_override:   landingCostOverride,
+      commission_layers_json:  commissionLayersJson ?? null,
+      updated_at:              new Date().toISOString(),
     },
     { onConflict: "product_id" }
   );
   if (error) return { error: error.message };
   revalidatePath("/dashboard/preus");
+  revalidatePath(`/dashboard/preus/${productId}`);
   return {};
 }
