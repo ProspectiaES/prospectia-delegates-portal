@@ -11,7 +11,7 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
   const admin   = createAdminClient();
 
   const [productRes, configRes, landingRes, priceRowRes] = await Promise.all([
-    admin.from("holded_products").select("id, name, sku, price, cost, purchase_price, price_pvp, price_pvd, price_pvl").eq("id", id).maybeSingle(),
+    admin.from("holded_products").select("id, name, sku, price, cost, purchase_price, taxes, raw").eq("id", id).maybeSingle(),
     admin.from("price_config").select("*").eq("id", 1).maybeSingle(),
     admin.from("price_landing_costs").select("*").order("sort_order"),
     admin.from("product_prices").select("*").eq("product_id", id).maybeSingle(),
@@ -19,9 +19,26 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
 
   if (!productRes.data) notFound();
 
-  const product = productRes.data as {
+  const productRaw = productRes.data as {
     id: string; name: string; sku: string | null;
     price: number | null; cost: number | null; purchase_price: number | null;
+    taxes: string[] | null; raw: Record<string, unknown> | null;
+  };
+
+  // Detect IVA from product taxes (e.g. "s_iva_10" → 10, "s_iva_21" → 21)
+  function parseIvaPct(taxes: string[] | null): number {
+    if (!taxes) return config.iva_pct;
+    for (const t of taxes) {
+      const m = t.match(/iva[_-]?(\d+)/i);
+      if (m) return parseInt(m[1]);
+    }
+    return config.iva_pct;
+  }
+  const productIvaPct = parseIvaPct(productRaw.taxes);
+
+  const product = {
+    id: productRaw.id, name: productRaw.name, sku: productRaw.sku,
+    price: productRaw.price, cost: productRaw.cost, purchase_price: productRaw.purchase_price,
   };
 
   const config = configRes.data ?? {
@@ -48,6 +65,7 @@ export default async function ProductPricingPage({ params }: { params: Promise<{
     <ProductPricingClient
       product={product}
       config={config}
+      productIvaPct={productIvaPct}
       globalLanding={globalLanding}
       savedRow={savedRow}
     />

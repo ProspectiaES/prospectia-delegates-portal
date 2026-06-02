@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { saveProductPrice } from "@/app/actions/price-calculator";
 
@@ -104,11 +104,11 @@ function calcBreakEven(s: PricingScenario, costTotal: number) {
 
 // ─── Default scenarios ────────────────────────────────────────────────────────
 
-function makeDefaults(config: Config, globalLanding: number, initPvp: number): PricingScenario[] {
+function makeDefaults(config: Config, globalLanding: number, initPvp: number, productIvaPct: number): PricingScenario[] {
   return [
     {
       id: "online", name: "Online (Shopify)", channel_type: "online",
-      pvp: initPvp, mt_pct: 0, md_pct: 0, iva_pct: config.iva_pct,
+      pvp: initPvp, mt_pct: 0, md_pct: 0, iva_pct: productIvaPct,
       landing_override: null,
       layers: [
         { name: "KOL",      type: "percent", value: 3, base: "pvp", active: false },
@@ -118,7 +118,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number): P
     },
     {
       id: "professional", name: "Professional", channel_type: "professional",
-      pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: 0, iva_pct: config.iva_pct,
+      pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: 0, iva_pct: productIvaPct,
       landing_override: null,
       layers: [
         { name: "Delegado",     type: "percent", value: config.margen_distribuidor_pct, base: "pvl", active: true },
@@ -128,7 +128,7 @@ function makeDefaults(config: Config, globalLanding: number, initPvp: number): P
     },
     {
       id: "distribuidor", name: "Distribuïdor", channel_type: "distribuidor",
-      pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: config.margen_distribuidor_pct, iva_pct: config.iva_pct,
+      pvp: initPvp, mt_pct: config.margen_tienda_pct, md_pct: config.margen_distribuidor_pct, iva_pct: productIvaPct,
       landing_override: null,
       layers: [
         { name: "Delegado", type: "percent", value: config.margen_distribuidor_pct, base: "pvl", active: true },
@@ -247,6 +247,9 @@ function ScenarioEditor({
   onTargetMarginChange: (v: number) => void;
   onChange: (s: PricingScenario) => void;
 }) {
+  // ── Hooks FIRST (before any calculations) ─────────────────────────────────
+  const [targetPriceInput, setTargetPriceInput] = useState<string>("");
+
   const effectiveLanding = scenario.landing_override !== null ? scenario.landing_override : globalLanding;
   const costTotal        = costBase + effectiveLanding;
   const chain            = calcChain(scenario, costTotal);
@@ -276,8 +279,7 @@ function ScenarioEditor({
     return (denomFull - fixedCost / price) * 100;
   }
 
-  // State for direct price input in break-even box
-  const [targetPriceInput, setTargetPriceInput] = useState<string>("");
+  // (targetPriceInput useState is declared at the top of the component)
 
   const pvpPro = scenario.pvp * (1 - scenario.mt_pct / 100);
   const pvd    = pvpPro * (1 - scenario.md_pct / 100);
@@ -331,15 +333,35 @@ function ScenarioEditor({
         <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
           <h3 className="text-sm font-bold text-[#0A0A0A]">Marges del canal</h3>
           {[
-            { label: "Marge tienda / canal", field: "mt_pct" as const, note: "→ PVP Professional" },
-            { label: "Marge distribuïdor",   field: "md_pct" as const, note: "→ PVD" },
-            { label: "IVA",                  field: "iva_pct" as const, note: "" },
-          ].map(({ label, field, note }) => (
+            { label: "Marge tienda / canal", field: "mt_pct" as const, note: "→ PVP Professional", isIva: false },
+            { label: "Marge distribuïdor",   field: "md_pct" as const, note: "→ PVD",              isIva: false },
+            { label: "IVA",                  field: "iva_pct" as const, note: "",                  isIva: true  },
+          ].map(({ label, field, note, isIva }) => (
             <div key={field}>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">{label}</label>
                 {note && <span className="text-[10px] text-[#9CA3AF]">{note}</span>}
               </div>
+              {isIva ? (
+                /* IVA: quick selector + manual input */
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-xl border border-[#E5E7EB] overflow-hidden shrink-0">
+                    {[0, 4, 10, 21].map(v => (
+                      <button key={v} onClick={() => onChange({ ...scenario, iva_pct: v })}
+                        className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${scenario.iva_pct === v ? "bg-[#8E0E1A] text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"}`}>
+                        {v}%
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1">
+                    <input type="number" step="1" min="0" max="100"
+                      value={scenario.iva_pct}
+                      onChange={e => onChange({ ...scenario, iva_pct: parseFloat(e.target.value) || 0 })}
+                      className={`${si} w-full pr-7`} />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-[#9CA3AF]">%</span>
+                  </div>
+                </div>
+              ) : (
               <div className="relative">
                 <input type="number" step="0.5" min="0" max="100"
                   value={scenario[field]}
@@ -347,6 +369,7 @@ function ScenarioEditor({
                   className={`${si} w-full pr-7`} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#9CA3AF]">%</span>
               </div>
+              )}
             </div>
           ))}
           {/* Landing override for this scenario */}
@@ -590,10 +613,11 @@ function ScenarioEditor({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ProductPricingClient({
-  product, config, globalLanding, savedRow,
+  product, config, productIvaPct, globalLanding, savedRow,
 }: {
   product: Product;
   config: Config;
+  productIvaPct: number;
   globalLanding: number;
   savedRow: { pvp_sin_iva: number | null; purchase_cost_override: number | null; landing_cost_override: number | null; commission_layers_json: unknown | null; } | null;
 }) {
@@ -608,7 +632,7 @@ export default function ProductPricingClient({
       const s = (raw as { scenarios: unknown }).scenarios;
       if (Array.isArray(s) && s.length > 0) return s as PricingScenario[];
     }
-    return makeDefaults(config, globalLanding, initPvp);
+    return makeDefaults(config, globalLanding, initPvp, productIvaPct);
   })();
 
   const [purchase,       setPurchase]       = useState(initPurchase);
@@ -631,7 +655,7 @@ export default function ProductPricingClient({
       id:   `custom-${Date.now()}`,
       name: "Nou canal",
       channel_type: "custom",
-      pvp:  0, mt_pct: 0, md_pct: 0, iva_pct: config.iva_pct,
+      pvp:  0, mt_pct: 0, md_pct: 0, iva_pct: productIvaPct,
       landing_override: null, layers: [], notes: "",
     };
     setScenarios(prev => [...prev, newS]);
