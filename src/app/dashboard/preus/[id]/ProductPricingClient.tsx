@@ -288,13 +288,32 @@ function ScenarioEditor({
 
   // Sensitivity
   const sensRows = useMemo(() => {
-    if (pvpBreakEven <= 0 || scenario.pvp <= 0) return [];
-    const lo = pvpBreakEven * 0.85, hi = Math.max(pvpBreakEven * 2.2, scenario.pvp * 1.4, 50);
-    return Array.from({ length: 12 }, (_, i) => {
-      const p = lo + (hi - lo) * i / 11;
-      const s2 = { ...scenario, pvp: p };
-      return { pvp: p, chain: calcChain(s2, costTotal) };
-    });
+    if (pvpBreakEven <= 0 && scenario.pvp <= 0) return [];
+    const anchor = pvpBreakEven > 0 ? pvpBreakEven : scenario.pvp;
+    const lo = Math.max(anchor * 0.7, 1);
+    const hi = Math.max(anchor * 2.5, scenario.pvp * 1.5, lo + 20);
+    const range = hi - lo;
+
+    // Step size: round to sensible increment
+    const rawStep = range / 12;
+    const step = rawStep <= 1   ? 1 :
+                 rawStep <= 2.5 ? 2.5 :
+                 rawStep <= 5   ? 5 :
+                 rawStep <= 10  ? 10 : 25;
+
+    // Build list of round-number PVPs
+    const startRound = Math.ceil(lo / step) * step;
+    const points = new Set<number>();
+    for (let p = startRound; p <= hi + step * 0.1; p += step) {
+      points.add(Math.round(p * 100) / 100);
+    }
+    // Always include the actual current PVP and break-even (rounded to cents)
+    if (scenario.pvp > 0) points.add(Math.round(scenario.pvp * 100) / 100);
+    if (pvpBreakEven > 0) points.add(Math.round(pvpBreakEven * 100) / 100);
+
+    return [...points]
+      .sort((a, b) => a - b)
+      .map(p => ({ pvp: p, chain: calcChain({ ...scenario, pvp: p }, costTotal) }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pvpBreakEven, scenario.pvp, costTotal, scenario.mt_pct, scenario.md_pct, JSON.stringify(scenario.layers)]);
 
@@ -580,8 +599,9 @@ function ScenarioEditor({
               <tbody className="divide-y divide-[#F3F4F6]">
                 {sensRows.map(({ pvp: p, chain: c }, i) => {
                   if (!c) return null;
-                  const isCurrent  = scenario.pvp > 0 && Math.abs(p - scenario.pvp) < 0.5;
-                  const isBreakEven = Math.abs(p - pvpBreakEven) < 0.5;
+                  // Exact match since we round values when building sensRows
+                  const isCurrent   = scenario.pvp > 0 && Math.abs(p - scenario.pvp) < 0.01;
+                  const isBreakEven = pvpBreakEven > 0 && Math.abs(p - pvpBreakEven) < 0.01;
                   return (
                     <tr key={i} onClick={() => onChange({ ...scenario, pvp: Math.round(p * 100) / 100 })}
                       className={`cursor-pointer hover:bg-[#F9FAFB] transition-colors ${isCurrent ? "bg-[#FEF2F2]" : isBreakEven ? "bg-red-50" : ""}`}>
