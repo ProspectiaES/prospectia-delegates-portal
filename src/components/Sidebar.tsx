@@ -431,6 +431,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Clients & Vendes ───────────────────────────────────────────────────
     {
       label: "Clientes & Ventas",
+      dot: "bg-blue-400",
       items: [
         { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
         { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
@@ -446,6 +447,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Delegats ───────────────────────────────────────────────────────────
     ...(!isDelegate || isKol || isCoordinator ? [{
       label: "Delegados",
+      dot: "bg-violet-400",
       items: [
         { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
         ...(isOwner ? [
@@ -460,6 +462,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── CRM & Equip ────────────────────────────────────────────────────────
     {
       label: "CRM & Equipo",
+      dot: "bg-teal-400",
       items: [
         { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
         { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
@@ -471,6 +474,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Afiliats ───────────────────────────────────────────────────────────
     {
       label: "Afiliados",
+      dot: "bg-amber-400",
       items: [
         { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
@@ -480,6 +484,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Finances ───────────────────────────────────────────────────────────
     ...((isOwner || isConsigliere) ? [{
       label: "Finanzas",
+      dot: "bg-emerald-400",
       items: [
         { href: "/dashboard/pressupost",                         label: "Presupuesto",      Icon: IconPressupost, exact: false },
         { href: "/dashboard/bruixola",                           label: "Brújula",          Icon: IconBruixola,   exact: true  },
@@ -495,6 +500,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Administració ──────────────────────────────────────────────────────
     ...(isOwner ? [{
       label: "Administración",
+      dot: "bg-rose-400",
       items: [
         { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
         { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
@@ -513,6 +519,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Compte ─────────────────────────────────────────────────────────────
     {
       label: "Cuenta",
+      dot: "bg-slate-300",
       items: [
         { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
@@ -681,14 +688,18 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
 
         {/* Navigation — scrollable */}
         <nav className="flex-1 py-2 px-2 overflow-y-auto min-h-0 space-y-0.5" aria-label="Navegación principal">
-          {sections.map(({ label, items }) => {
+          {sections.map(({ label, items, ...sectionRest }) => {
+            const dot = (sectionRest as { dot?: string }).dot;
             if (items.length === 0) return null;
             return (
               <div key={label || "_root"} className={label ? "pt-3 first:pt-1" : ""}>
                 {label && (
-                  <p className="px-3 mb-1 text-[9px] font-bold text-[#C4C9D4] uppercase tracking-[0.12em]">
-                    {label}
-                  </p>
+                  <div className="px-3 mb-1.5 flex items-center gap-1.5">
+                    {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />}
+                    <p className="text-[9px] font-bold text-[#8A8F9A] uppercase tracking-[0.12em]">
+                      {label}
+                    </p>
+                  </div>
                 )}
                 <ul className="space-y-0.5">
                   {items.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
