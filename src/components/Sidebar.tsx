@@ -454,14 +454,15 @@ function IdentityPanel({ user, open, onToggle }: {
 // ─── Navigation tree ──────────────────────────────────────────────────────────
 
 function buildSections(role: string, userId: string, isKol = false, isCoordinator = false) {
-  const isDelegate      = role === "DELEGATE";
-  const isOwner         = role === "OWNER";
-  const isConsigliere   = role === "CONSIGLIERE";
-  const isAnyDelegate   = isDelegate || isKol || isCoordinator || role === "KOL" || role === "COORDINATOR";
-  const canSeeTeam      = !isDelegate || isKol || isCoordinator;
+  const isDelegate    = role === "DELEGATE";
+  const isOwner       = role === "OWNER";
+  const isConsigliere = role === "CONSIGLIERE";
+  const isAnyDelegate = isDelegate || isKol || isCoordinator || role === "KOL" || role === "COORDINATOR";
+
   return [
+    // ── Principal ──────────────────────────────────────────────────────────
     {
-      label: "General",
+      label: "",
       items: [
         {
           href:  (isDelegate && !isKol && !isCoordinator) ? `/dashboard/delegados/${userId}` : "/dashboard",
@@ -470,114 +471,111 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
           exact: !(isDelegate && !isKol && !isCoordinator),
           startsWith: (isDelegate && !isKol && !isCoordinator) ? `/dashboard/delegados/${userId}` : undefined,
         },
-        // KOL / COORDINATOR also need a direct link to their own delegate page
         ...(isAnyDelegate && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
-          href:  `/dashboard/delegados/${userId}`,
-          label: "Mi cartera",
-          Icon:  IconClientes,
-          exact: false,
-          startsWith: `/dashboard/delegados/${userId}`,
+          href: `/dashboard/delegados/${userId}`, label: "Mi cartera",
+          Icon: IconClientes, exact: false, startsWith: `/dashboard/delegados/${userId}`,
         }] : []),
       ],
     },
+
+    // ── Clients & Vendes ───────────────────────────────────────────────────
     {
-      label: "Holded",
+      label: "Clients & Vendes",
       items: [
-        { href: "/dashboard/clientes",  label: "Clientes",   Icon: IconClientes,  exact: false },
-        { href: "/dashboard/facturas",  label: "Facturas",   Icon: IconFacturas,  exact: false },
-        { href: "/dashboard/productos", label: "Productos",  Icon: IconProductos, exact: false },
-      ],
-    },
-    {
-      label: "Ventas",
-      items: [
-        { href: "/dashboard/pedidos", label: "Pedidos", Icon: IconPedidos, exact: false },
+        { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
+        { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
+        { href: "/dashboard/pedidos",   label: "Pedidos",   Icon: IconPedidos,   exact: false },
+        ...(isOwner ? [{ href: "/dashboard/productos", label: "Productos", Icon: IconProductos, exact: false }] : []),
         ...(isAnyDelegate ? [{
-          href:  `/dashboard/delegados/${userId}/riesgo`,
-          label: "Informe de riesgo",
-          Icon:  IconFacturas,
-          exact: false,
+          href: `/dashboard/delegados/${userId}/riesgo`,
+          label: "Informe de riesgo", Icon: IconFacturas, exact: false,
         }] : []),
       ],
     },
-    ...(canSeeTeam ? [{
-      label: "Delegados",
+
+    // ── Delegats ───────────────────────────────────────────────────────────
+    ...(!isDelegate || isKol || isCoordinator ? [{
+      label: "Delegats",
       items: [
-        { href: "/dashboard/delegados", label: "Delegados", Icon: IconDelegados, exact: false },
+        { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
+        ...(isOwner ? [
+          { href: "/dashboard/performance/comisiones", label: "Comissions",      Icon: IconComissions,   exact: false },
+          { href: "/dashboard/remeses",                label: "Remeses SEPA",    Icon: IconRemeses,      exact: false },
+          { href: "/dashboard/performance/pedidos",    label: "Pedidos delegats",Icon: IconPedidos,      exact: false },
+          { href: "/dashboard/autofacturas",           label: "Autofacturas",    Icon: IconAutofacturas, exact: false },
+        ] : []),
       ],
     }] : []),
+
+    // ── CRM & Equip ────────────────────────────────────────────────────────
     {
-      label: "CRM",
+      label: "CRM & Equip",
       items: [
-        { href: "/dashboard/prospectos",  label: "Mis prospectos",   Icon: IconCRM,        exact: false },
-        { href: "/dashboard/calendario",  label: "Calendario",       Icon: IconCalendario, exact: false },
+        { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
+        { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
+        { href: "/dashboard/tareas",     label: "Tareas",      Icon: IconTasques,    exact: false },
         ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
       ],
     },
+
+    // ── Afiliats ───────────────────────────────────────────────────────────
     {
-      label: "Equipo",
+      label: "Afiliats",
       items: [
-        { href: "/dashboard/tareas", label: "Tareas", Icon: IconTasques, exact: false },
-      ],
-    },
-    {
-      label: "Afiliados",
-      items: [
-        { href: "/dashboard/afiliados",       label: "Afiliados",       Icon: IconAfiliados,       exact: false },
+        { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
       ],
     },
-    {
-      label: "Cuenta",
-      items: [
-        { href: "/dashboard/perfil", label: "Mi Perfil", Icon: IconPerfil, exact: false },
-        { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
-      ],
-    },
+
+    // ── Finances ───────────────────────────────────────────────────────────
     ...((isOwner || isConsigliere) ? [{
       label: "Finances",
       items: [
-        { href: "/dashboard/bruixola",                  label: "Brúixola",       Icon: IconBruixola, exact: true },
-        { href: "/dashboard/bruixola/objectius",        label: "Objectius",      Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/rendiment",        label: "Rendiment",      Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/internacional",        label: "Internacional",     Icon: IconBruixola, exact: true },
-        { href: "/dashboard/bruixola/internacional/objectius", label: "· Obj. Intl.",  Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/financier",        label: "Motor Econòmic", Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/rendibilitat",     label: "Rendibilitat",   Icon: IconBruixola, exact: false },
+        { href: "/dashboard/pressupost",                         label: "Pressupost",     Icon: IconPressupost, exact: false },
+        { href: "/dashboard/bruixola",                           label: "Brúixola",       Icon: IconBruixola,   exact: true  },
+        { href: "/dashboard/bruixola/objectius",                 label: "· Objectius",    Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/rendiment",                 label: "· Rendiment",    Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/internacional",             label: "· Internacional",Icon: IconBruixola,   exact: true  },
+        { href: "/dashboard/bruixola/internacional/objectius",   label: "  · Obj. Intl.", Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/financier",                 label: "· Motor Econòmic",Icon: IconBruixola,  exact: false },
+        { href: "/dashboard/bruixola/rendibilitat",              label: "· Rendibilitat", Icon: IconBruixola,   exact: false },
       ],
     }] : []),
+
+    // ── Administració ──────────────────────────────────────────────────────
     ...(isOwner ? [{
-      label: "Sistema",
+      label: "Administració",
       items: [
-        { href: "/dashboard/analitica",                  label: "Analítica IA",      Icon: IconAnalitica,    exact: false },
-        { href: "/dashboard/performance",              label: "Performance",       Icon: IconRendimiento,  exact: true },
-        { href: "/dashboard/performance/comisiones",   label: "Comissions",        Icon: IconComissions,   exact: false },
-        { href: "/dashboard/performance/pedidos",      label: "Pedidos delegats",  Icon: IconPedidos,      exact: false },
-        { href: "/dashboard/pressupost",               label: "Pressupost",        Icon: IconPressupost,   exact: false },
-        { href: "/dashboard/remeses",                  label: "Remeses SEPA",      Icon: IconRemeses,      exact: false },
-        { href: "/dashboard/autofacturas",             label: "Autofacturas",      Icon: IconAutofacturas, exact: false },
-        { href: "/dashboard/admin/asignaciones",       label: "Asignaciones",      Icon: IconDelegados,    exact: false },
-        { href: "/dashboard/admin",                    label: "Auditoría",         Icon: IconAdmin,        exact: true },
+        { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
+        { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
+        { href: "/dashboard/admin/asignaciones",  label: "Asignaciones",  Icon: IconDelegados,   exact: false },
+        { href: "/dashboard/admin",               label: "Auditoría",     Icon: IconAdmin,       exact: true  },
       ],
     }] : []),
+
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
-      label: "Sistema",
+      label: "Administració",
       items: [
-        { href: "/dashboard/admin/asignaciones", label: "Asignaciones",  Icon: IconDelegados, exact: false },
+        { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
       ],
     }] : []),
+
+    // ── Compte ─────────────────────────────────────────────────────────────
+    {
+      label: "Compte",
+      items: [
+        { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
+        { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
+      ],
+    },
   ];
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Compact AI strip (Próspero + Analytics + Mensajería) ────────────────────
 
-// ─── Featured cards (Próspero + Mensajería) ───────────────────────────────────
-
-function FeaturedCards({ initialUnread = 0 }: { initialUnread?: number }) {
-  const [collapsed, setCollapsed] = useState(false);
+function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   const [unread, setUnread] = useState(initialUnread);
 
-  // Listen for unread count updates from ChatWidget
   useEffect(() => {
     function handler(e: Event) {
       setUnread((e as CustomEvent<number>).detail ?? 0);
@@ -586,98 +584,153 @@ function FeaturedCards({ initialUnread = 0 }: { initialUnread?: number }) {
     return () => document.removeEventListener("chat-unread", handler);
   }, []);
 
-  function openProspero() {
-    document.dispatchEvent(new CustomEvent("open-prospero"));
-  }
-
-  function openMensajeria() {
-    document.dispatchEvent(new CustomEvent("open-mensajeria"));
-  }
+  const btns = [
+    {
+      label: "Próspero",
+      title: "Próspero · Asistente IA",
+      event: "open-prospero",
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8c0 1.16.3 2.25.82 3.19L1.5 14.5l3.31-.82A6.5 6.5 0 1 0 8 1.5z" strokeLinejoin="round"/>
+          <circle cx="5.5" cy="8" r="0.75" fill="currentColor" stroke="none"/>
+          <circle cx="8" cy="8" r="0.75" fill="currentColor" stroke="none"/>
+          <circle cx="10.5" cy="8" r="0.75" fill="currentColor" stroke="none"/>
+        </svg>
+      ),
+      badge: null as number | null,
+    },
+    {
+      label: "Analytics",
+      title: "Próspero Analytics · Inteligencia financiera",
+      event: "open-prospero-analitic",
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path d="M2 13L6 8l3 3 3-4 2-2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 2v12h12" strokeLinecap="round"/>
+        </svg>
+      ),
+      badge: null as number | null,
+    },
+    {
+      label: "Missatgeria",
+      title: "Mensajería instantánea",
+      event: "open-mensajeria",
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
+        </svg>
+      ),
+      badge: unread || null,
+    },
+  ];
 
   return (
-    <div className="px-2 pt-1 pb-0 shrink-0">
-      {!collapsed && (
-        <div className="space-y-1.5 mb-1.5">
-          {/* Próspero */}
+    <div className="px-2 py-1.5 shrink-0">
+      <div className="flex items-center gap-1 rounded-xl bg-[#FEF2F2] border border-[#FECACA] p-1">
+        {btns.map((btn) => (
           <button
-            onClick={openProspero}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
-            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
+            key={btn.label}
+            title={btn.title}
+            onClick={() => document.dispatchEvent(new CustomEvent(btn.event))}
+            className="relative flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[#8E0E1A] hover:bg-white hover:shadow-sm transition-all text-[11px] font-semibold"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "#8E0E1A" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
-                <path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8c0 1.16.3 2.25.82 3.19L1.5 14.5l3.31-.82A6.5 6.5 0 1 0 8 1.5z" strokeLinejoin="round"/>
-                <circle cx="5.5" cy="8" r="0.75" fill="white" stroke="none"/>
-                <circle cx="8" cy="8" r="0.75" fill="white" stroke="none"/>
-                <circle cx="10.5" cy="8" r="0.75" fill="white" stroke="none"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Próspero</p>
-              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Tu asistente IA</p>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            {btn.icon}
+            <span className="hidden sm:inline">{btn.label}</span>
+            {btn.badge != null && btn.badge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#8E0E1A] text-white text-[8px] font-bold flex items-center justify-center leading-none">
+                {btn.badge > 99 ? "99+" : btn.badge}
+              </span>
+            )}
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-          {/* Próspero Analytics */}
-          <button
-            onClick={() => document.dispatchEvent(new CustomEvent("open-prospero-analitic"))}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
-            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
-          >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "#8E0E1A" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
-                <path d="M2 13L6 8l3 3 3-4 2-2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M2 2v12h12" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Próspero Analytics</p>
-              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Inteligencia financiera IA</p>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          </button>
+// ─── Bottom identity strip ────────────────────────────────────────────────────
 
-          {/* Mensajería */}
-          <button
-            onClick={openMensajeria}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] text-left"
-            style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA" }}
-          >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: "#8E0E1A" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5" aria-hidden>
-                <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold leading-none text-[#8E0E1A]">Mensajería</p>
-              <p className="text-[10px] text-[#9CA3AF] mt-0.5 leading-none">Mensajería instantánea</p>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {unread > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#8E0E1A] text-white text-[9px] font-bold flex items-center justify-center leading-none">
-                  {unread > 99 ? "99+" : unread}
-                </span>
+function IdentityStrip({ user, open, onToggle }: {
+  user: NonNullable<UserProps>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { weather } = useWeather();
+  const weatherInfo = weather ? wmoLookup(weather.code) : null;
+  const { dayStr, timeStr, saludo, nombre } = MiniClock(user.full_name);
+
+  return (
+    <div className="border-t border-[#E5E7EB] shrink-0">
+      {/* Expanded panel — slides up */}
+      {open && (
+        <div className="px-4 py-3 bg-[#FAFAFA] border-b border-[#E5E7EB] space-y-3">
+          {/* Greeting */}
+          <p className="text-[12px] text-[#6B7280]">
+            {saludo}, <span className="font-semibold text-[#8E0E1A]">{nombre}</span>
+          </p>
+
+          {/* Date + time + weather */}
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-[#6B7280] capitalize">{dayStr}</span>
+            <div className="flex items-center gap-2">
+              {weatherInfo && weather && (
+                <span className="text-[#9CA3AF]">{weather.temp}° {weatherInfo.label}</span>
               )}
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-bold text-[#0A0A0A] tabular-nums">{timeStr}</span>
             </div>
-          </button>
+          </div>
+
+          {/* Profile link */}
+          <Link href="/dashboard/perfil" className="flex items-center gap-2 group">
+            {user.avatar_url ? (
+              <Image src={user.avatar_url} alt={user.full_name} width={28} height={28}
+                className="w-7 h-7 rounded-lg object-cover ring-1 ring-[#E5E7EB]" />
+            ) : (
+              <div className="w-7 h-7 rounded-lg bg-[#8E0E1A] flex items-center justify-center shrink-0">
+                <span className="text-[11px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-[#0A0A0A] truncate group-hover:text-[#8E0E1A] transition-colors">{user.full_name}</p>
+              <span className={[
+                "inline-flex items-center mt-0 px-1.5 py-0 rounded-full text-[9px] font-bold leading-4",
+                ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
+              ].join(" ")}>
+                {ROLE_LABEL[user.role] ?? user.role}
+              </span>
+            </div>
+          </Link>
+
+          {/* ID */}
+          <div className="flex items-center gap-1">
+            <p className="text-[10px] font-mono text-[#9CA3AF] truncate flex-1">{user.id}</p>
+            <CopyButton text={user.id} />
+          </div>
         </div>
       )}
 
-      {/* Collapse toggle */}
+      {/* Strip — always visible */}
       <button
-        onClick={() => setCollapsed(v => !v)}
-        className="w-full flex items-center justify-center py-0.5 rounded-lg hover:bg-[#F3F4F6] transition-colors"
+        onClick={onToggle}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#FEF9F9] transition-colors duration-150 group"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
-          {collapsed
-            ? <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
-            : <path d="M2 8l4-4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-          }
+        {user.avatar_url ? (
+          <Image src={user.avatar_url} alt={user.full_name} width={24} height={24}
+            className="w-6 h-6 rounded-full object-cover ring-1 ring-[#E5E7EB] shrink-0" />
+        ) : (
+          <div className="w-6 h-6 rounded-full bg-[#8E0E1A] flex items-center justify-center shrink-0">
+            <span className="text-[9px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
+          </div>
+        )}
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-[11px] font-semibold text-[#374151] truncate leading-tight">{user.full_name}</p>
+          <p className="text-[9px] text-[#9CA3AF] leading-tight">{ROLE_LABEL[user.role] ?? user.role}</p>
+        </div>
+        <svg
+          width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#9CA3AF" strokeWidth="1.5"
+          className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M2 7l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
     </div>
@@ -691,16 +744,15 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
   notifications?: NotificationItem[];
   initialUnread?: number;
 }) {
-  const pathname  = usePathname();
-  const [panelOpen, setPanelOpen] = useState(false);
-  const togglePanel = useCallback(() => setPanelOpen(o => !o), []);
+  const pathname   = usePathname();
+  const [stripOpen, setStripOpen] = useState(false);
 
   const sections = user
     ? buildSections(user.role, user.id, user.is_kol ?? false, user.is_coordinator ?? false)
     : buildSections("", "");
 
   const asideClass = drawer
-    ? "fixed inset-y-0 left-0 w-72 z-50 flex flex-col bg-white border-r border-[#E5E7EB] shadow-2xl"
+    ? "fixed inset-y-0 left-0 w-64 z-50 flex flex-col bg-white border-r border-[#E5E7EB] shadow-2xl"
     : "sidebar-desktop w-56 h-full flex-col bg-white border-r border-[#E5E7EB] shrink-0";
 
   return (
@@ -712,104 +764,93 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
       <aside className={asideClass}>
 
         {/* Brand */}
-        <div className="h-14 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
+        <div className="h-12 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
           <div className="flex items-center gap-2.5">
-            <Image
-              src="/OwlICO.png"
-              alt="Prospectia"
-              width={28}
-              height={28}
-              className="w-7 h-7 shrink-0 object-contain"
-            />
+            <Image src="/OwlICO.png" alt="Prospectia" width={24} height={24} className="w-6 h-6 shrink-0 object-contain" />
             <div>
-              <p className="text-[12px] font-bold text-[#0A0A0A] tracking-wider leading-none uppercase">
-                Prospectia
-              </p>
-              <p className="text-[10px] text-[#9CA3AF] leading-none mt-0.5">Delegates Portal</p>
+              <p className="text-[11px] font-bold text-[#0A0A0A] tracking-widest leading-none uppercase">Prospectia</p>
+              <p className="text-[9px] text-[#9CA3AF] leading-none mt-0.5 tracking-wide">Delegates Portal</p>
             </div>
           </div>
           {drawer && (
             <button onClick={onClose} aria-label="Cerrar menú"
               className="p-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] transition-colors">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round"/>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M2 2l10 10M12 2L2 12" strokeLinecap="round"/>
               </svg>
             </button>
           )}
         </div>
 
-        {/* Identity panel */}
-        {user && (
-          <IdentityPanel user={user} open={panelOpen} onToggle={togglePanel} />
-        )}
+        {/* AI strip — compact */}
+        <AIStrip initialUnread={initialUnread} />
 
-        {/* Featured: Próspero + Mensajería */}
-        <FeaturedCards initialUnread={initialUnread} />
-
-        {/* Navigation */}
-        <nav className="flex-1 py-2 px-2 space-y-4 overflow-y-auto min-h-0" aria-label="Navegación principal">
+        {/* Navigation — scrollable */}
+        <nav className="flex-1 py-2 px-2 overflow-y-auto min-h-0 space-y-0.5" aria-label="Navegación principal">
           {sections.map(({ label, items }) => {
-            const visibleItems = items.filter(item => {
-              if (item.href === "/dashboard/productos") return user?.role === "OWNER";
-              return true;
-            });
-            if (visibleItems.length === 0) return null;
+            if (items.length === 0) return null;
             return (
-            <div key={label}>
-              <p className="px-3 mb-1 text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-widest">
-                {label}
-              </p>
-              <ul className="space-y-0.5">
-                {visibleItems.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
-                  const startsWith = (rest as { startsWith?: string }).startsWith;
-                  const isActive = exact
-                    ? pathname === href
-                    : pathname.startsWith(startsWith ?? href);
-                  return (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        onClick={onClose}
-                        className={[
-                          "relative flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium transition-colors duration-150",
-                          isActive
-                            ? "text-[#8E0E1A] bg-[#FEF2F2]"
-                            : "text-[#374151] hover:text-[#0A0A0A] hover:bg-[#F3F4F6]",
-                        ].join(" ")}
-                      >
-                        {isActive && (
-                          <span
-                            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]"
-                            aria-hidden
-                          />
-                        )}
-                        <span className={isActive ? "text-[#8E0E1A]" : "text-[#6B7280]"}>
-                          <Icon />
-                        </span>
-                        {itemLabel}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+              <div key={label || "_root"} className={label ? "pt-3 first:pt-1" : ""}>
+                {label && (
+                  <p className="px-3 mb-1 text-[9px] font-bold text-[#C4C9D4] uppercase tracking-[0.12em]">
+                    {label}
+                  </p>
+                )}
+                <ul className="space-y-0.5">
+                  {items.map(({ href, label: itemLabel, Icon, exact, ...rest }) => {
+                    const startsWith = (rest as { startsWith?: string }).startsWith;
+                    const isActive   = exact
+                      ? pathname === href
+                      : pathname.startsWith(startsWith ?? href);
+                    return (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          onClick={onClose}
+                          className={[
+                            "relative flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[12px] font-medium transition-all duration-100",
+                            isActive
+                              ? "text-[#8E0E1A] bg-[#FEF2F2] font-semibold"
+                              : "text-[#4B5563] hover:text-[#111827] hover:bg-[#F3F4F6]",
+                          ].join(" ")}
+                        >
+                          {isActive && (
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]" aria-hidden />
+                          )}
+                          <span className={`shrink-0 ${isActive ? "text-[#8E0E1A]" : "text-[#9CA3AF]"}`}>
+                            <Icon />
+                          </span>
+                          {itemLabel}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
         </nav>
 
-        {/* Notifications + Logout */}
-        <div className="px-2 py-2 border-t border-[#E5E7EB] shrink-0 space-y-0.5">
-          <NotificationBell initialNotifications={notifications} />
-          <form action={logout}>
+        {/* Bottom: identity strip + actions */}
+        {user && (
+          <IdentityStrip user={user} open={stripOpen} onToggle={() => setStripOpen(o => !o)} />
+        )}
+
+        <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0 flex items-center gap-1">
+          <div className="flex-1">
+            <NotificationBell initialNotifications={notifications} />
+          </div>
+          <form action={logout} className="shrink-0">
             <button
               type="submit"
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[6px] text-sm font-medium text-[#6B7280] hover:text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors duration-150"
+              title="Cerrar sesión"
+              className="p-2 rounded-lg text-[#9CA3AF] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors"
             >
               <IconLogout />
-              Cerrar sesión
             </button>
           </form>
         </div>
+
       </aside>
     </>
   );
