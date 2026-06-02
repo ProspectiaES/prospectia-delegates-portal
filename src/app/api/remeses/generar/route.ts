@@ -11,13 +11,17 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json() as { setmanaInici?: string; facturaIds?: string[] };
-    const { setmanaInici, facturaIds } = body;
-    if (!setmanaInici || !/^\d{4}-\d{2}-\d{2}$/.test(setmanaInici)) {
-      return Response.json({ error: "setmanaInici requerida (YYYY-MM-DD)" }, { status: 400 });
+    const body = await req.json() as { dataRemesa?: string; facturaIds?: string[] };
+    const { dataRemesa, facturaIds } = body;
+
+    if (!dataRemesa || !/^\d{4}-\d{2}-\d{2}$/.test(dataRemesa)) {
+      return Response.json({ error: "dataRemesa requerida (YYYY-MM-DD)" }, { status: 400 });
+    }
+    if (!facturaIds || facturaIds.length === 0) {
+      return Response.json({ error: "Cal seleccionar almenys una factura" }, { status: 400 });
     }
 
-    const remesa = await generarRemesa(parseDate(setmanaInici), profile.id, facturaIds);
+    const remesa = await generarRemesa(parseDate(dataRemesa), profile.id, facturaIds);
     return Response.json(remesa, { status: 201 });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 422 });

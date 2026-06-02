@@ -151,50 +151,27 @@ export async function getRemesaDetall(remesaId: string): Promise<RemesaDetall> {
 // ─── generarRemesa ────────────────────────────────────────────────────────────
 
 export async function generarRemesa(
-  setmanaInici: Date,
+  dataRemesaInput: Date,       // the Monday on which the file will be generated
   userId: string,
-  facturaIdsSeleccionades?: string[]   // if provided, only include these invoices
+  facturaIdsSeleccionades: string[]  // required: explicit list of invoice IDs
 ): Promise<Remesa> {
   const admin = createAdminClient();
 
-  const { inici, fi } = getSetmanaBounds(setmanaInici);
-  const dataRemesa     = getDataRemesa(fi);
-  const cobramentEst   = getCobramentEstandard(dataRemesa);
-
-  const setmanaIniciStr = toISODate(inici);
-  const setmanaFiStr    = toISODate(fi);
-
-  // Guard: no active remesa for the same week
-  const { data: existing } = await admin
-    .from("remeses")
-    .select("id, estat")
-    .eq("setmana_inici", setmanaIniciStr)
-    .not("estat", "in", '("cobrada","retornada")')
-    .maybeSingle();
-
-  if (existing) {
-    throw new Error(
-      `Ja existeix una remesa activa per la setmana del ${setmanaIniciStr} (estat: ${existing.estat})`
-    );
+  if (!facturaIdsSeleccionades || facturaIdsSeleccionades.length === 0) {
+    throw new Error("Cal seleccionar almenys una factura.");
   }
 
-  // Find invoices for the week: status 1 (pendent) or 2 (vencida), not credit notes
-  const periodStart = `${setmanaIniciStr}T00:00:00.000Z`;
-  const periodEnd   = `${setmanaFiStr}T23:59:59.999Z`;
+  // Snap dataRemesa to Monday
+  const { fi: fiRef } = getSetmanaBounds(dataRemesaInput);
+  const dataRemesa  = getDataRemesa(fiRef);
+  const cobramentEst = getCobramentEstandard(dataRemesa);
 
-  let invQuery = admin
+  const { data: invoices, error: invErr } = await admin
     .from("holded_invoices")
     .select("id, doc_number, contact_id, date, total, due_date")
+    .in("id", facturaIdsSeleccionades)
     .in("status", [1, 2])
-    .eq("is_credit_note", false)
-    .gte("date", periodStart)
-    .lte("date", periodEnd);
-
-  if (facturaIdsSeleccionades && facturaIdsSeleccionades.length > 0) {
-    invQuery = invQuery.in("id", facturaIdsSeleccionades);
-  }
-
-  const { data: invoices, error: invErr } = await invQuery;
+    .eq("is_credit_note", false);
 
   if (invErr) throw new Error(`Invoices query: ${invErr.message}`);
   if (!invoices || invoices.length === 0) {
@@ -228,8 +205,19 @@ export async function generarRemesa(
   }[];
 
   if (elegibles.length === 0) {
-    throw new Error("Totes les factures de la setmana ja estan incloses en una remesa activa.");
+    throw new Error("Totes les factures seleccionades ja estan incloses en una remesa activa.");
   }
+
+  // Derive setmana bounds from the actual invoice dates
+  const invDates = elegibles
+    .map((i) => i.date ? parseDate(i.date.slice(0, 10)) : null)
+    .filter(Boolean) as Date[];
+  const minDate = invDates.length > 0 ? new Date(Math.min(...invDates.map((d) => d.getTime()))) : dataRemesaInput;
+  const maxDate = invDates.length > 0 ? new Date(Math.max(...invDates.map((d) => d.getTime()))) : dataRemesaInput;
+  const { inici } = getSetmanaBounds(minDate);
+  const { fi }    = getSetmanaBounds(maxDate);
+  const setmanaIniciStr = toISODate(inici);
+  const setmanaFiStr    = toISODate(fi);
 
   // Fetch contacts with IBAN
   const contactIds = [...new Set(elegibles.map((i) => i.contact_id).filter(Boolean) as string[])];

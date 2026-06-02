@@ -1,19 +1,24 @@
 /**
- * GET /api/remeses/factures-pendents?setmanaInici=YYYY-MM-DD
+ * GET /api/remeses/factures-pendents
  *
- * Returns invoices eligible for the given week's remesa:
+ * Returns ALL invoices eligible (or not) for a remesa:
  *   - status 1 (pendent) or 2 (vencida), not credit notes
- *   - emitted within the week bounds
  *   - not already in an active (non-done) remesa
- *   - contact has IBAN + active mandate
  *
- * Also returns invoices that lack IBAN or mandate (so the user sees
- * them as ineligible and knows why).
+ * For each invoice returns:
+ *   - proposed collection date (based on mandate's termes_pagament)
+ *   - eligibility + reason if not eligible
+ *
+ * Optional: ?dataRemesa=YYYY-MM-DD to base collection date on a specific remesa date
+ *   Defaults to next Monday from today.
  */
 
 import { getProfile } from "@/lib/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSetmanaBounds, getDataRemesa, getCobramentEstandard, getDataCobrament, toISODate, parseDate } from "@/lib/remeses/calculs";
+import {
+  getDataRemesa, getCobramentEstandard, getDataCobrament,
+  toISODate, parseDate,
+} from "@/lib/remeses/calculs";
 
 export const runtime = "nodejs";
 
@@ -25,12 +30,14 @@ export interface FacturaPendent {
   date: string | null;
   due_date: string | null;
   total: number;
+  status: number;              // 1=pendent, 2=vencida
   iban_deutor: string | null;
   referencia_mandat: string | null;
   sequencia_adeut: string | null;
   termes_pagament: string | null;
   data_cobrament_estandard: string | null;
   data_cobrament_ampliat: string | null;
+  data_cobrament_proposada: string | null;  // based on termes_pagament
   elegible: boolean;
   motiu_no_elegible: string | null;
 }
@@ -42,32 +49,35 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const setmanaIniciStr = url.searchParams.get("setmanaInici");
-  if (!setmanaIniciStr || !/^\d{4}-\d{2}-\d{2}$/.test(setmanaIniciStr)) {
-    return Response.json({ error: "setmanaInici requerida (YYYY-MM-DD)" }, { status: 400 });
-  }
+  const dataRemesaParam = url.searchParams.get("dataRemesa");
 
   const admin = createAdminClient();
-  const { inici, fi } = getSetmanaBounds(parseDate(setmanaIniciStr));
-  const dataRemesa   = getDataRemesa(fi);
+
+  // Determine remesa date (next Monday by default)
+  let dataRemesa: Date;
+  if (dataRemesaParam && /^\d{4}-\d{2}-\d{2}$/.test(dataRemesaParam)) {
+    dataRemesa = parseDate(dataRemesaParam);
+  } else {
+    // Next Monday from today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const syntheticFi = new Date(today);
+    syntheticFi.setDate(today.getDate() - 1); // "yesterday" as fi → next Monday = today or next Mon
+    dataRemesa = getDataRemesa(syntheticFi);
+  }
   const cobramentEst = getCobramentEstandard(dataRemesa);
 
-  const periodStart = `${toISODate(inici)}T00:00:00.000Z`;
-  const periodEnd   = `${toISODate(fi)}T23:59:59.999Z`;
-
-  // Fetch invoices for the week
+  // Fetch ALL pending/overdue invoices
   const { data: invoices, error: invErr } = await admin
     .from("holded_invoices")
-    .select("id, doc_number, contact_id, contact_name, date, due_date, total")
+    .select("id, doc_number, contact_id, contact_name, date, due_date, total, status")
     .in("status", [1, 2])
     .eq("is_credit_note", false)
-    .gte("date", periodStart)
-    .lte("date", periodEnd)
     .order("date", { ascending: true });
 
   if (invErr) return Response.json({ error: invErr.message }, { status: 500 });
   if (!invoices || invoices.length === 0) {
-    return Response.json({ factures: [], setmana: { inici: toISODate(inici), fi: toISODate(fi), cobramentEstandard: toISODate(cobramentEst) } });
+    return Response.json({ factures: [], dataRemesa: toISODate(dataRemesa), cobramentEstandard: toISODate(cobramentEst) });
   }
 
   // Invoices already in an active remesa
@@ -84,10 +94,21 @@ export async function GET(req: Request) {
   );
 
   // Contacts + mandates
-  const contactIds = [...new Set(invoices.map((i: { contact_id: string | null }) => i.contact_id).filter(Boolean) as string[])];
+  const contactIds = [...new Set(
+    invoices.map((i: { contact_id: string | null }) => i.contact_id).filter(Boolean) as string[]
+  )];
+
   const [contactsRes, mandatesRes] = await Promise.all([
-    admin.from("holded_contacts").select("id, name, iban").in("id", contactIds),
-    admin.from("contact_mandates").select("contact_id, referencia_mandat, sequencia_adeut, termes_pagament, data_firma_mandat").in("contact_id", contactIds).eq("actiu", true).order("created_at", { ascending: false }),
+    contactIds.length > 0
+      ? admin.from("holded_contacts").select("id, name, iban").in("id", contactIds)
+      : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? admin.from("contact_mandates")
+          .select("contact_id, referencia_mandat, sequencia_adeut, termes_pagament")
+          .in("contact_id", contactIds)
+          .eq("actiu", true)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
 
   const contactMap = new Map(
@@ -98,43 +119,47 @@ export async function GET(req: Request) {
     if (!mandateMap.has(m.contact_id)) mandateMap.set(m.contact_id, m);
   }
 
-  const factures: FacturaPendent[] = invoices.map((inv: { id: string; doc_number: string | null; contact_id: string | null; contact_name: string | null; date: string | null; due_date: string | null; total: number }) => {
+  const factures: FacturaPendent[] = invoices.map((inv: {
+    id: string; doc_number: string | null; contact_id: string | null;
+    contact_name: string | null; date: string | null; due_date: string | null;
+    total: number; status: number;
+  }) => {
     if (alreadyInRemesa.has(inv.id)) {
-      return { ...inv, iban_deutor: null, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, elegible: false, motiu_no_elegible: "Ja inclosa en una remesa activa" };
+      return { ...inv, iban_deutor: null, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, data_cobrament_proposada: null, elegible: false, motiu_no_elegible: "Ja inclosa en una remesa activa" };
     }
+
     const contact = inv.contact_id ? contactMap.get(inv.contact_id) : null;
     const mandat  = inv.contact_id ? mandateMap.get(inv.contact_id) : null;
 
     if (!contact?.iban) {
-      return { ...inv, iban_deutor: null, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, elegible: false, motiu_no_elegible: "Client sense IBAN configurat" };
+      return { ...inv, iban_deutor: null, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, data_cobrament_proposada: null, elegible: false, motiu_no_elegible: "Client sense IBAN configurat" };
     }
     if (!mandat) {
-      return { ...inv, iban_deutor: contact.iban, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, elegible: false, motiu_no_elegible: "Client sense mandat SEPA actiu" };
+      return { ...inv, iban_deutor: contact.iban, referencia_mandat: null, sequencia_adeut: null, termes_pagament: null, data_cobrament_estandard: null, data_cobrament_ampliat: null, data_cobrament_proposada: null, elegible: false, motiu_no_elegible: "Client sense mandat SEPA actiu" };
     }
 
     const dataEmissio = inv.date ? parseDate(inv.date.slice(0, 10)) : new Date();
-    const dcEst  = getDataCobrament(dataEmissio, "estandard", cobramentEst);
-    const dcAmpl = getDataCobrament(dataEmissio, "ampliat", cobramentEst);
+    const dcEst   = getDataCobrament(dataEmissio, "estandard", cobramentEst);
+    const dcAmpl  = getDataCobrament(dataEmissio, "ampliat", cobramentEst);
+    const dcProp  = getDataCobrament(dataEmissio, mandat.termes_pagament as "estandard" | "ampliat", cobramentEst);
 
     return {
       ...inv,
-      iban_deutor: contact.iban,
-      referencia_mandat: mandat.referencia_mandat,
-      sequencia_adeut: mandat.sequencia_adeut,
-      termes_pagament: mandat.termes_pagament,
+      iban_deutor:              contact.iban,
+      referencia_mandat:        mandat.referencia_mandat,
+      sequencia_adeut:          mandat.sequencia_adeut,
+      termes_pagament:          mandat.termes_pagament,
       data_cobrament_estandard: toISODate(dcEst),
-      data_cobrament_ampliat: toISODate(dcAmpl),
-      elegible: true,
-      motiu_no_elegible: null,
+      data_cobrament_ampliat:   toISODate(dcAmpl),
+      data_cobrament_proposada: toISODate(dcProp),
+      elegible:                 true,
+      motiu_no_elegible:        null,
     };
   });
 
   return Response.json({
     factures,
-    setmana: {
-      inici: toISODate(inici),
-      fi: toISODate(fi),
-      cobramentEstandard: toISODate(cobramentEst),
-    },
+    dataRemesa:          toISODate(dataRemesa),
+    cobramentEstandard:  toISODate(cobramentEst),
   });
 }
