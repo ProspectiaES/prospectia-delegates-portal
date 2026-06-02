@@ -306,9 +306,9 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
   const { weather } = useWeather();
   const weatherInfo  = weather ? wmoLookup(weather.code) : null;
 
-  const hhmm   = now.toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" });
+  const hhmm   = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   const ss     = String(now.getSeconds()).padStart(2, "0");
-  const dateStr = now.toLocaleDateString("ca-ES", {
+  const dateStr = now.toLocaleDateString("es-ES", {
     weekday: "short", day: "numeric", month: "short",
   });
 
@@ -386,7 +386,7 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
       {/* Antiguitat + ID */}
       <div className="px-3 py-2 flex items-center gap-2">
         <div className="shrink-0">
-          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">Antiguitat</p>
+          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">Antigüedad</p>
           <p className="text-[10px] font-semibold text-[#8C7070]">{antigüedad(user.member_since ?? user.created_at)}</p>
         </div>
         <div className="flex-1 min-w-0 border-l border-[#EDD5D5]/70 pl-2">
@@ -430,7 +430,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── Clients & Vendes ───────────────────────────────────────────────────
     {
-      label: "Clients & Vendes",
+      label: "Clientes & Ventas",
       items: [
         { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
         { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
@@ -445,13 +445,13 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── Delegats ───────────────────────────────────────────────────────────
     ...(!isDelegate || isKol || isCoordinator ? [{
-      label: "Delegats",
+      label: "Delegados",
       items: [
         { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
         ...(isOwner ? [
-          { href: "/dashboard/performance/comisiones", label: "Comissions",      Icon: IconComissions,   exact: false },
-          { href: "/dashboard/remeses",                label: "Remeses SEPA",    Icon: IconRemeses,      exact: false },
-          { href: "/dashboard/performance/pedidos",    label: "Pedidos delegats",Icon: IconPedidos,      exact: false },
+          { href: "/dashboard/performance/comisiones", label: "Comisiones",       Icon: IconComissions,   exact: false },
+          { href: "/dashboard/remeses",                label: "Remesas SEPA",     Icon: IconRemeses,      exact: false },
+          { href: "/dashboard/performance/pedidos",    label: "Pedidos delegados",Icon: IconPedidos,      exact: false },
           { href: "/dashboard/autofacturas",           label: "Autofacturas",    Icon: IconAutofacturas, exact: false },
         ] : []),
       ],
@@ -459,7 +459,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── CRM & Equip ────────────────────────────────────────────────────────
     {
-      label: "CRM & Equip",
+      label: "CRM & Equipo",
       items: [
         { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
         { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
@@ -470,7 +470,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── Afiliats ───────────────────────────────────────────────────────────
     {
-      label: "Afiliats",
+      label: "Afiliados",
       items: [
         { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
@@ -479,22 +479,22 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── Finances ───────────────────────────────────────────────────────────
     ...((isOwner || isConsigliere) ? [{
-      label: "Finances",
+      label: "Finanzas",
       items: [
-        { href: "/dashboard/pressupost",                         label: "Pressupost",     Icon: IconPressupost, exact: false },
-        { href: "/dashboard/bruixola",                           label: "Brúixola",       Icon: IconBruixola,   exact: true  },
-        { href: "/dashboard/bruixola/objectius",                 label: "· Objectius",    Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/rendiment",                 label: "· Rendiment",    Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/internacional",             label: "· Internacional",Icon: IconBruixola,   exact: true  },
-        { href: "/dashboard/bruixola/internacional/objectius",   label: "  · Obj. Intl.", Icon: IconBruixola,   exact: false },
-        { href: "/dashboard/bruixola/financier",                 label: "· Motor Econòmic",Icon: IconBruixola,  exact: false },
-        { href: "/dashboard/bruixola/rendibilitat",              label: "· Rendibilitat", Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/pressupost",                         label: "Presupuesto",      Icon: IconPressupost, exact: false },
+        { href: "/dashboard/bruixola",                           label: "Brújula",          Icon: IconBruixola,   exact: true  },
+        { href: "/dashboard/bruixola/objectius",                 label: "· Objetivos",      Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/rendiment",                 label: "· Rendimiento",    Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/internacional",             label: "· Internacional",  Icon: IconBruixola,   exact: true  },
+        { href: "/dashboard/bruixola/internacional/objectius",   label: "  · Obj. Intl.",   Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/financier",                 label: "· Motor Económico",Icon: IconBruixola,   exact: false },
+        { href: "/dashboard/bruixola/rendibilitat",              label: "· Rentabilidad",   Icon: IconBruixola,   exact: false },
       ],
     }] : []),
 
     // ── Administració ──────────────────────────────────────────────────────
     ...(isOwner ? [{
-      label: "Administració",
+      label: "Administración",
       items: [
         { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
         { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
@@ -504,7 +504,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     }] : []),
 
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
-      label: "Administració",
+      label: "Administración",
       items: [
         { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
       ],
@@ -512,7 +512,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     // ── Compte ─────────────────────────────────────────────────────────────
     {
-      label: "Compte",
+      label: "Cuenta",
       items: [
         { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
@@ -575,7 +575,7 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   const btns = [
     {
       label: "Próspero",
-      title: "Próspero · Assistent IA",
+      title: "Próspero · Asistente IA",
       event: "open-prospero",
       icon: (
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -589,7 +589,7 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
     },
     {
       label: "Analytics",
-      title: "Próspero Analytics · Intel·ligència financera",
+      title: "Próspero Analytics · Inteligencia financiera",
       event: "open-prospero-analitic",
       icon: (
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -600,8 +600,8 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
       badge: null as number | null,
     },
     {
-      label: "Missatgeria",
-      title: "Missatgeria instantània",
+      label: "Mensajería",
+      title: "Mensajería instantánea",
       event: "open-mensajeria",
       icon: (
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
