@@ -234,18 +234,47 @@ export default function SimulationEditor({
           </Section>
 
           {/* Comissions */}
-          <Section title="Capes de comissió" subtitle={`Total: ${fmtE((result?.totalCommissions ?? 0))}`}>
-            <div className="space-y-2">
+          <Section title="Comissions per actor" subtitle={`Total: ${fmtE(result?.totalCommissions ?? 0)} · ${price > 0 ? fmtP((result?.totalCommissions ?? 0) / price * 100) : "—"} del preu`}>
+            <div className="space-y-3">
               {(sim.commission_layers ?? []).map((l, idx) => (
-                <CommLayerRow key={idx} layer={l}
+                <CommLayerRow key={idx} layer={l} price={sim.net_sale_price ?? 0}
                   onChange={layer => dispatch({ type: "UPDATE_COMM_LAYER", idx, layer })}
                   onRemove={() => dispatch({ type: "REMOVE_COMM_LAYER", idx })}
                 />
               ))}
-              <button onClick={() => dispatch({ type: "ADD_COMM_LAYER", layer: { layer_order: (sim.commission_layers?.length ?? 0) + 1, layer_name: "Delegado", commission_type: "percent", value: 20, base: "net_sale_price", active: true } })}
-                className="w-full text-xs font-semibold py-2 rounded-lg border border-dashed border-[#D1D5DB] text-[#6B7280] hover:border-[#8E0E1A] hover:text-[#8E0E1A] transition-colors">
-                + Afegir capa de comissió
-              </button>
+
+              {/* Quick-add actor presets */}
+              <div>
+                <p className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">Afegir actor</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { name: "Delegado",     pct: 20 },
+                    { name: "KOL",          pct: 3  },
+                    { name: "Coordinador",  pct: 3  },
+                    { name: "Recomendador", pct: 3  },
+                    { name: "Afiliado",     pct: 5  },
+                  ].map(actor => (
+                    <button key={actor.name}
+                      onClick={() => dispatch({ type: "ADD_COMM_LAYER", layer: {
+                        layer_order: (sim.commission_layers?.length ?? 0) + 1,
+                        layer_name: actor.name, commission_type: "percent",
+                        value: actor.pct, base: "net_sale_price", active: true,
+                      }})}
+                      className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-[#F3F4F6] text-[#374151] hover:bg-violet-50 hover:text-violet-700 transition-colors">
+                      + {actor.name} <span className="text-[#9CA3AF]">({actor.pct}%)</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => dispatch({ type: "ADD_COMM_LAYER", layer: {
+                      layer_order: (sim.commission_layers?.length ?? 0) + 1,
+                      layer_name: "", commission_type: "percent",
+                      value: 0, base: "net_sale_price", active: true,
+                    }})}
+                    className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-dashed border-[#D1D5DB] text-[#9CA3AF] hover:border-violet-400 hover:text-violet-600 transition-colors">
+                    + Altre…
+                  </button>
+                </div>
+              </div>
             </div>
           </Section>
 
@@ -407,30 +436,103 @@ function CostLineRow({ line, onChange, onRemove }: { line: CostLine; onChange: (
   );
 }
 
-function CommLayerRow({ layer, onChange, onRemove }: { layer: CommissionLayer; onChange: (l: CommissionLayer) => void; onRemove: () => void }) {
-  const si = "text-xs px-2 py-1.5 rounded-lg border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#8E0E1A] bg-white";
+function CommLayerRow({
+  layer, price, onChange, onRemove,
+}: {
+  layer: CommissionLayer;
+  price: number;
+  onChange: (l: CommissionLayer) => void;
+  onRemove: () => void;
+}) {
+  const si = "text-xs px-2.5 py-1.5 rounded-lg border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white";
+
+  // Calculate the € amount for this layer given current price
+  const baseAmount =
+    layer.base === "net_sale_price" ? price :
+    layer.base === "post_production" ? price : // simplified preview
+    price;
+  const commAmount = layer.active && price > 0
+    ? (layer.commission_type === "percent" ? baseAmount * layer.value / 100 : layer.value)
+    : null;
+
   return (
-    <div className="grid grid-cols-12 gap-1.5 items-center">
-      <input value={layer.layer_name} onChange={e => onChange({ ...layer, layer_name: e.target.value })} placeholder="Nom capa" className={`${si} col-span-3`} />
-      <select value={layer.commission_type} onChange={e => onChange({ ...layer, commission_type: e.target.value as CommType })} className={`${si} col-span-2`}>
-        <option value="percent">%</option>
-        <option value="amount">€ fix</option>
-      </select>
-      <div className="col-span-2 relative">
-        <input type="number" step="0.5" min="0" value={layer.value} onChange={e => onChange({ ...layer, value: parseFloat(e.target.value) || 0 })} className={`${si} w-full pr-5 text-right`} />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#9CA3AF]">{layer.commission_type === "percent" ? "%" : "€"}</span>
+    <div className={`rounded-xl border p-3 space-y-2.5 transition-colors ${layer.active ? "border-violet-100 bg-violet-50/30" : "border-[#F3F4F6] bg-[#FAFAFA] opacity-60"}`}>
+      {/* Row 1: Name + Active toggle + Remove */}
+      <div className="flex items-center gap-2">
+        <input
+          value={layer.layer_name}
+          onChange={e => onChange({ ...layer, layer_name: e.target.value })}
+          placeholder="Nom de l'actor (ex: Delegado)"
+          className={`${si} flex-1 font-semibold`}
+        />
+        {/* Calculated amount preview */}
+        {commAmount !== null && (
+          <span className="text-xs font-bold tabular-nums text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1.5 rounded-lg shrink-0">
+            = {fmtE(commAmount)}
+          </span>
+        )}
+        {/* Active toggle */}
+        <button
+          onClick={() => onChange({ ...layer, active: !layer.active })}
+          className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${layer.active ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
+          {layer.active ? "Actiu" : "Inactiu"}
+        </button>
+        {/* Remove */}
+        <button onClick={onRemove} className="shrink-0 p-1.5 rounded-lg text-[#D1D5DB] hover:text-red-500 hover:bg-red-50 transition-colors">
+          <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2 3h8M4.5 3V2h3v1M5 5.5v4M7 5.5v4M2.5 3l.5 7h6l.5-7" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
-      <select value={layer.base} onChange={e => onChange({ ...layer, base: e.target.value as CommBase })} className={`${si} col-span-3`}>
-        <option value="net_sale_price">Sobre preu net</option>
-        <option value="post_production">Post-producció</option>
-        <option value="post_previous_layers">Post-capes ant.</option>
-      </select>
-      <button onClick={() => onChange({ ...layer, active: !layer.active })} className={`col-span-1 p-1.5 rounded-lg text-[10px] font-bold transition-colors ${layer.active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-400"}`}>
-        {layer.active ? "ON" : "OFF"}
-      </button>
-      <button onClick={onRemove} className="col-span-1 p-1.5 rounded-lg text-[#D1D5DB] hover:text-red-500 hover:bg-red-50 transition-colors">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h8M4.5 3V2h3v1M5 5.5v4M7 5.5v4M2.5 3l.5 7h6l.5-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </button>
+
+      {/* Row 2: % / € toggle + value + base */}
+      <div className="flex items-center gap-2">
+        {/* % / € visual toggle */}
+        <div className="flex rounded-lg border border-[#E5E7EB] overflow-hidden shrink-0">
+          <button
+            onClick={() => onChange({ ...layer, commission_type: "percent" })}
+            className={`px-3 py-1.5 text-xs font-bold transition-colors ${layer.commission_type === "percent" ? "bg-violet-600 text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"}`}>
+            %
+          </button>
+          <button
+            onClick={() => onChange({ ...layer, commission_type: "amount" })}
+            className={`px-3 py-1.5 text-xs font-bold transition-colors ${layer.commission_type === "amount" ? "bg-violet-600 text-white" : "bg-white text-[#6B7280] hover:bg-[#F3F4F6]"}`}>
+            €
+          </button>
+        </div>
+
+        {/* Value */}
+        <div className="relative w-28">
+          <input
+            type="number" step={layer.commission_type === "percent" ? "0.5" : "0.01"} min="0"
+            max={layer.commission_type === "percent" ? 100 : undefined}
+            value={layer.value}
+            onChange={e => onChange({ ...layer, value: parseFloat(e.target.value) || 0 })}
+            className={`${si} w-full text-right pr-6 font-semibold`}
+          />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-[#9CA3AF] font-medium">
+            {layer.commission_type === "percent" ? "%" : "€"}
+          </span>
+        </div>
+
+        {/* Base */}
+        <select
+          value={layer.base}
+          onChange={e => onChange({ ...layer, base: e.target.value as CommBase })}
+          className={`${si} flex-1 text-[11px]`}>
+          <option value="net_sale_price">Sobre el preu net de venda</option>
+          <option value="post_production">Sobre preu − costos producció</option>
+          <option value="post_previous_layers">Sobre el que queda (post-capes anteriors)</option>
+        </select>
+      </div>
+
+      {/* Notes */}
+      <input
+        value={layer.notes ?? ""}
+        onChange={e => onChange({ ...layer, notes: e.target.value })}
+        placeholder="Notes opcionals (ex: condicions, acord especial…)"
+        className={`${si} w-full text-[11px] text-[#6B7280]`}
+      />
     </div>
   );
 }
