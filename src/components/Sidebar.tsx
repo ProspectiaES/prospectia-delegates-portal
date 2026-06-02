@@ -292,161 +292,104 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function MiniClock(fullName: string) {
+// ─── Identity card — always visible, no collapse ──────────────────────────────
+// Design: cockpit HUD. Clock as the hero. Weather + identity + ID always present.
+
+function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const dayStr  = now.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
-  const timeStr = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-  const { saludo, nombre } = greeting(fullName, now.getHours());
-
-  return { dayStr, timeStr, saludo, nombre };
-}
-
-function IdentityPanel({ user, open, onToggle }: {
-  user: NonNullable<UserProps>;
-  open: boolean;
-  onToggle: () => void;
-}) {
   const { weather } = useWeather();
-  const { dayStr, timeStr, saludo, nombre } = MiniClock(user.full_name);
+  const weatherInfo  = weather ? wmoLookup(weather.code) : null;
 
-  const weatherInfo = weather ? wmoLookup(weather.code) : null;
+  const hhmm   = now.toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" });
+  const ss     = String(now.getSeconds()).padStart(2, "0");
+  const dateStr = now.toLocaleDateString("ca-ES", {
+    weekday: "short", day: "numeric", month: "short",
+  });
+
+  const divider = <div className="h-px bg-[#EDD5D5]/70 mx-3" />;
 
   return (
-    <div className="border-b border-[#E5E7EB] shrink-0">
-      {/* Panel header — always visible */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-2 hover:bg-[#FEF9F9] transition-colors duration-150"
+    <div
+      className="mx-2 my-2 rounded-xl border border-[#EDD5D5]/80 overflow-hidden shrink-0"
+      style={{ background: "linear-gradient(160deg, #FEF2F2 0%, #F9F5F5 50%, #FAFAFA 100%)" }}
+    >
+      {/* User */}
+      <Link
+        href="/dashboard/perfil"
+        className="flex items-center gap-2.5 px-3 pt-3 pb-2.5 group"
       >
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* Tiny avatar */}
+        <div className="relative shrink-0">
           {user.avatar_url ? (
             <Image
-              src={user.avatar_url}
-              alt={user.full_name}
-              width={20}
-              height={20}
-              className="w-5 h-5 rounded-full object-cover shrink-0"
+              src={user.avatar_url} alt={user.full_name}
+              width={30} height={30}
+              className="w-[30px] h-[30px] rounded-full object-cover ring-1 ring-[#EDD5D5]"
             />
           ) : (
-            <div className="w-5 h-5 rounded-full bg-[#8E0E1A] flex items-center justify-center shrink-0">
-              <span className="text-[9px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
+            <div className="w-[30px] h-[30px] rounded-full bg-[#8E0E1A] flex items-center justify-center">
+              <span className="text-[12px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
             </div>
           )}
-          <span className="text-[11px] font-semibold text-[#374151] truncate">{user.full_name}</span>
+          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-[1.5px] border-white" />
         </div>
-        <svg
-          width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
-          strokeWidth="1.5" className={`shrink-0 text-[#9CA3AF] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M2 4.5l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      {/* Expanded panel */}
-      {open && (
-        <div className="px-4 pb-4 space-y-3 bg-[#FAFAFA]">
-
-          {/* Date + time */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#8E0E1A" strokeWidth="1.5">
-                <rect x="1" y="2" width="10" height="9" rx="1.5" />
-                <path d="M4 1v2M8 1v2M1 5h10" strokeLinecap="round" />
-              </svg>
-              <span className="text-[11px] text-[#6B7280] capitalize">{dayStr}</span>
-            </div>
-            <span className="text-[12px] font-bold text-[#0A0A0A] tabular-nums">{timeStr}</span>
-          </div>
-
-          {/* Weather */}
-          {weatherInfo && weather && (
-            <div className="flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#6B7280" strokeWidth="1.5">
-                <path d="M9 7a3 3 0 10-5.83 1H3a2 2 0 000 4h6a2 2 0 100-4h-.17z" />
-              </svg>
-              <span className="text-[12px] font-bold text-[#374151]">{weather.temp}°</span>
-              {weather.city && (
-                <span className="text-[11px] text-[#9CA3AF] truncate">{weather.city}</span>
-              )}
-              <span className="text-[11px] text-[#6B7280] truncate">{weatherInfo.label}</span>
-            </div>
-          )}
-
-          {/* Divider */}
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-widest">Identidad</span>
-            <div className="flex-1 h-px bg-[#E5E7EB]" />
-          </div>
-
-          {/* Greeting */}
-          <p className="text-[12px] text-[#6B7280]">
-            {saludo},{" "}
-            <span className="font-semibold text-[#8E0E1A]">{nombre}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-bold text-[#1A1A1A] truncate leading-tight group-hover:text-[#8E0E1A] transition-colors">
+            {user.full_name}
           </p>
-
-          {/* Avatar + name + role */}
-          <Link href="/dashboard/perfil" className="flex items-center gap-2.5 group">
-            <div className="relative shrink-0">
-              {user.avatar_url ? (
-                <Image
-                  src={user.avatar_url}
-                  alt={user.full_name}
-                  width={36}
-                  height={36}
-                  className="w-9 h-9 rounded-lg object-cover ring-1 ring-[#E5E7EB]"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-lg bg-[#8E0E1A] flex items-center justify-center">
-                  <span className="text-sm font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
-                </div>
-              )}
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-[#0A0A0A] truncate group-hover:text-[#8E0E1A] transition-colors leading-tight">
-                {user.full_name}
-              </p>
-              <span className={[
-                "inline-flex items-center mt-0.5 px-1.5 py-0 rounded-full text-[9px] font-bold leading-4",
-                ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
-              ].join(" ")}>
-                {ROLE_LABEL[user.role] ?? user.role}
-              </span>
-            </div>
-          </Link>
-
-          {/* Alta + Antigüedad */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Alta</p>
-              <p className="text-[11px] font-medium text-[#374151] mt-0.5">{fmtDate(user.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider">Antigüedad</p>
-              <p className="text-[11px] font-medium text-[#374151] mt-0.5">{antigüedad(user.created_at)}</p>
-            </div>
-          </div>
-
-          {/* Prospectia ID */}
-          <div>
-            <p className="text-[9px] font-semibold text-[#9CA3AF] uppercase tracking-wider mb-1">
-              Prospectia ID
-            </p>
-            <div className="flex items-start gap-1">
-              <p className="text-[10px] font-mono text-[#6B7280] break-all leading-tight flex-1">
-                {user.id}
-              </p>
-              <CopyButton text={user.id} />
-            </div>
-          </div>
+          <span className={[
+            "inline-flex items-center px-1.5 py-0 rounded-full text-[9px] font-bold leading-[14px] mt-0.5",
+            ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
+          ].join(" ")}>
+            {ROLE_LABEL[user.role] ?? user.role}
+          </span>
         </div>
+      </Link>
+
+      {divider}
+
+      {/* Clock — hero element */}
+      <div className="px-3 py-3 text-center select-none">
+        <div className="flex items-baseline justify-center gap-0.5">
+          <span className="text-[28px] font-bold tabular-nums tracking-tight text-[#0A0A0A] leading-none">
+            {hhmm}
+          </span>
+          <span className="text-[14px] font-semibold tabular-nums text-[#B0A0A0] leading-none ml-0.5">
+            :{ss}
+          </span>
+        </div>
+        <p className="text-[10px] text-[#8C7070] mt-1.5 capitalize tracking-wide">{dateStr}</p>
+      </div>
+
+      {/* Weather */}
+      {weather && weatherInfo && (
+        <>
+          {divider}
+          <div className="px-3 py-2 flex items-center gap-2 text-[10px]">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8C7070" strokeWidth="1.4">
+              <path d="M9 7a3 3 0 10-5.83 1H3a2 2 0 000 4h6a2 2 0 100-4h-.17z" />
+            </svg>
+            <span className="font-bold text-[#374151]">{weather.temp}°</span>
+            {weather.city && <span className="text-[#9CA3AF] truncate">{weather.city}</span>}
+            <span className="text-[#9CA3AF] truncate flex-1">{weatherInfo.label}</span>
+          </div>
+        </>
       )}
+
+      {divider}
+
+      {/* Prospectia ID */}
+      <div className="px-3 py-2 flex items-center gap-1.5">
+        <div className="flex-1 min-w-0">
+          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">ID</p>
+          <p className="text-[9px] font-mono text-[#9C8686] truncate leading-none">{user.id}</p>
+        </div>
+        <CopyButton text={user.id} />
+      </div>
     </div>
   );
 }
@@ -648,94 +591,6 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   );
 }
 
-// ─── Bottom identity strip ────────────────────────────────────────────────────
-
-function IdentityStrip({ user, open, onToggle }: {
-  user: NonNullable<UserProps>;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const { weather } = useWeather();
-  const weatherInfo = weather ? wmoLookup(weather.code) : null;
-  const { dayStr, timeStr, saludo, nombre } = MiniClock(user.full_name);
-
-  return (
-    <div className="border-t border-[#E5E7EB] shrink-0">
-      {/* Expanded panel — slides up */}
-      {open && (
-        <div className="px-4 py-3 bg-[#FAFAFA] border-b border-[#E5E7EB] space-y-3">
-          {/* Greeting */}
-          <p className="text-[12px] text-[#6B7280]">
-            {saludo}, <span className="font-semibold text-[#8E0E1A]">{nombre}</span>
-          </p>
-
-          {/* Date + time + weather */}
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#6B7280] capitalize">{dayStr}</span>
-            <div className="flex items-center gap-2">
-              {weatherInfo && weather && (
-                <span className="text-[#9CA3AF]">{weather.temp}° {weatherInfo.label}</span>
-              )}
-              <span className="font-bold text-[#0A0A0A] tabular-nums">{timeStr}</span>
-            </div>
-          </div>
-
-          {/* Profile link */}
-          <Link href="/dashboard/perfil" className="flex items-center gap-2 group">
-            {user.avatar_url ? (
-              <Image src={user.avatar_url} alt={user.full_name} width={28} height={28}
-                className="w-7 h-7 rounded-lg object-cover ring-1 ring-[#E5E7EB]" />
-            ) : (
-              <div className="w-7 h-7 rounded-lg bg-[#8E0E1A] flex items-center justify-center shrink-0">
-                <span className="text-[11px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-[#0A0A0A] truncate group-hover:text-[#8E0E1A] transition-colors">{user.full_name}</p>
-              <span className={[
-                "inline-flex items-center mt-0 px-1.5 py-0 rounded-full text-[9px] font-bold leading-4",
-                ROLE_COLOR[user.role] ?? "bg-[#F3F4F6] text-[#6B7280]",
-              ].join(" ")}>
-                {ROLE_LABEL[user.role] ?? user.role}
-              </span>
-            </div>
-          </Link>
-
-          {/* ID */}
-          <div className="flex items-center gap-1">
-            <p className="text-[10px] font-mono text-[#9CA3AF] truncate flex-1">{user.id}</p>
-            <CopyButton text={user.id} />
-          </div>
-        </div>
-      )}
-
-      {/* Strip — always visible */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#FEF9F9] transition-colors duration-150 group"
-      >
-        {user.avatar_url ? (
-          <Image src={user.avatar_url} alt={user.full_name} width={24} height={24}
-            className="w-6 h-6 rounded-full object-cover ring-1 ring-[#E5E7EB] shrink-0" />
-        ) : (
-          <div className="w-6 h-6 rounded-full bg-[#8E0E1A] flex items-center justify-center shrink-0">
-            <span className="text-[9px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
-          </div>
-        )}
-        <div className="flex-1 min-w-0 text-left">
-          <p className="text-[11px] font-semibold text-[#374151] truncate leading-tight">{user.full_name}</p>
-          <p className="text-[9px] text-[#9CA3AF] leading-tight">{ROLE_LABEL[user.role] ?? user.role}</p>
-        </div>
-        <svg
-          width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#9CA3AF" strokeWidth="1.5"
-          className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M2 7l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 export function Sidebar({ user, drawer = false, onClose, notifications = [], initialUnread = 0 }: {
   user?: UserProps;
@@ -744,8 +599,7 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
   notifications?: NotificationItem[];
   initialUnread?: number;
 }) {
-  const pathname   = usePathname();
-  const [stripOpen, setStripOpen] = useState(false);
+  const pathname = usePathname();
 
   const sections = user
     ? buildSections(user.role, user.id, user.is_kol ?? false, user.is_coordinator ?? false)
@@ -781,6 +635,9 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
             </button>
           )}
         </div>
+
+        {/* Identity card — always visible cockpit HUD */}
+        {user && <IdentityCard user={user} />}
 
         {/* AI strip — compact */}
         <AIStrip initialUnread={initialUnread} />
@@ -830,11 +687,6 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
             );
           })}
         </nav>
-
-        {/* Bottom: identity strip + actions */}
-        {user && (
-          <IdentityStrip user={user} open={stripOpen} onToggle={() => setStripOpen(o => !o)} />
-        )}
 
         <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0 flex items-center gap-1">
           <div className="flex-1">
