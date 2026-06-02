@@ -516,15 +516,6 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       ],
     }] : []),
 
-    // ── Compte ─────────────────────────────────────────────────────────────
-    {
-      label: "Cuenta",
-      dot: "bg-slate-300",
-      items: [
-        { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
-        { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
-      ],
-    },
   ];
 }
 
@@ -736,19 +727,53 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
           })}
         </nav>
 
-        <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0 flex items-center gap-1">
-          <div className="flex-1">
-            <NotificationBell initialNotifications={notifications} />
+        {/* ── Cuenta card ─────────────────────────────────────────────────── */}
+        <div className="px-2 pb-1 shrink-0">
+          <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] overflow-hidden">
+            <div className="px-3 pt-2.5 pb-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
+              <p className="text-[9px] font-bold text-[#8A8F9A] uppercase tracking-[0.12em]">Cuenta</p>
+            </div>
+            <ul className="px-1 pb-1.5 space-y-0.5">
+              {[
+                { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil },
+                { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual },
+              ].map(({ href, label: lbl, Icon }) => {
+                const isActive = pathname.startsWith(href);
+                return (
+                  <li key={href}>
+                    <Link href={href} onClick={onClose}
+                      className={[
+                        "relative flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[12px] font-medium transition-all duration-100",
+                        isActive
+                          ? "text-[#8E0E1A] bg-[#FEF2F2] font-semibold"
+                          : "text-[#4B5563] hover:text-[#111827] hover:bg-white",
+                      ].join(" ")}
+                    >
+                      {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]" />}
+                      <span className={`shrink-0 ${isActive ? "text-[#8E0E1A]" : "text-[#9CA3AF]"}`}><Icon /></span>
+                      {lbl}
+                    </Link>
+                  </li>
+                );
+              })}
+              <li>
+                <form action={logout}>
+                  <button type="submit"
+                    className="w-full flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[12px] font-medium text-[#6B7280] hover:text-red-600 hover:bg-red-50 transition-all duration-100"
+                  >
+                    <span className="shrink-0 text-[#9CA3AF] group-hover:text-red-500"><IconLogout /></span>
+                    Cerrar sesión
+                  </button>
+                </form>
+              </li>
+            </ul>
           </div>
-          <form action={logout} className="shrink-0">
-            <button
-              type="submit"
-              title="Cerrar sesión"
-              className="p-2 rounded-lg text-[#9CA3AF] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-colors"
-            >
-              <IconLogout />
-            </button>
-          </form>
+        </div>
+
+        {/* Bottom: only notifications */}
+        <div className="px-2 py-1.5 border-t border-[#F3F4F6] shrink-0">
+          <NotificationBell initialNotifications={notifications} />
         </div>
 
       </aside>
