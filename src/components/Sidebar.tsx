@@ -491,6 +491,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/pressupost",              label: "Presupuesto",      Icon: IconPressupost,  exact: false },
         { href: "/dashboard/bruixola/rendiment",      label: "Rendimiento",      Icon: IconBruixola,    exact: false },
+        ...(isOwner ? [{ href: "/dashboard/preus", label: "Cálculo Precios", Icon: IconPressupost, exact: false }] : []),
       ],
     }] : []),
 
