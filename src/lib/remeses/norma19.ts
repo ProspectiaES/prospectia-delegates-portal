@@ -51,7 +51,8 @@ const BANK_BIC: Record<string, string> = {
   "0128": "BACAESMM",
   "2038": "CAHMESMMXXX",
   "0030": "CRESESMMXXX",
-  "3025": "CAIXAGUI2XXX",  // CaixaGuissona
+  "3025": "CAIXAGUI2XXX",  // CaixaGuissona (codi antic)
+  "3140": "CAIXAGUI2XXX",  // Banc Guissona (codi actual)
   "0073": "OPENESMMXXX",
   "0065": "CIABESMMXXX",
   "2085": "INGDESMM",
