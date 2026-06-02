@@ -382,13 +382,19 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
 
       {divider}
 
-      {/* Prospectia ID */}
-      <div className="px-3 py-2 flex items-center gap-1.5">
-        <div className="flex-1 min-w-0">
-          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">ID</p>
-          <p className="text-[9px] font-mono text-[#9C8686] truncate leading-none">{user.id}</p>
+      {/* Antiguitat + ID */}
+      <div className="px-3 py-2 flex items-center gap-2">
+        <div className="shrink-0">
+          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">Antiguitat</p>
+          <p className="text-[10px] font-semibold text-[#8C7070]">{antigüedad(user.created_at)}</p>
         </div>
-        <CopyButton text={user.id} />
+        <div className="flex-1 min-w-0 border-l border-[#EDD5D5]/70 pl-2">
+          <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">ID</p>
+          <div className="flex items-center gap-1">
+            <p className="text-[9px] font-mono text-[#9C8686] truncate leading-none flex-1">{user.id}</p>
+            <CopyButton text={user.id} />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -568,26 +574,21 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   ];
 
   return (
-    <div className="px-2 py-1.5 shrink-0">
-      <div className="flex items-center gap-1 rounded-xl bg-[#FEF2F2] border border-[#FECACA] p-1">
-        {btns.map((btn) => (
-          <button
-            key={btn.label}
-            title={btn.title}
-            onClick={() => document.dispatchEvent(new CustomEvent(btn.event))}
-            className="relative flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[#8E0E1A] hover:bg-white hover:shadow-sm transition-all text-[11px] font-semibold"
-          >
-            {btn.icon}
-            <span className="hidden sm:inline">{btn.label}</span>
-            {btn.badge != null && btn.badge > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#8E0E1A] text-white text-[8px] font-bold flex items-center justify-center leading-none">
-                {btn.badge > 99 ? "99+" : btn.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
+    <>
+      {btns.map((btn) => (
+        <button
+          key={btn.label}
+          title={btn.title}
+          onClick={() => document.dispatchEvent(new CustomEvent(btn.event))}
+          className="relative p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-all"
+        >
+          {btn.icon}
+          {btn.badge != null && btn.badge > 0 && (
+            <span className="absolute top-0.5 right-0.5 min-w-[8px] h-[8px] rounded-full bg-[#8E0E1A]" />
+          )}
+        </button>
+      ))}
+    </>
   );
 }
 
@@ -617,14 +618,17 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
 
       <aside className={asideClass}>
 
-        {/* Brand */}
-        <div className="h-12 flex items-center justify-between px-4 border-b border-[#E5E7EB] shrink-0">
-          <div className="flex items-center gap-2.5">
-            <Image src="/OwlICO.png" alt="Prospectia" width={24} height={24} className="w-6 h-6 shrink-0 object-contain" />
+        {/* Brand + AI icon buttons */}
+        <div className="h-12 flex items-center justify-between px-3 border-b border-[#E5E7EB] shrink-0">
+          <div className="flex items-center gap-2">
+            <Image src="/OwlICO.png" alt="Prospectia" width={22} height={22} className="w-[22px] h-[22px] shrink-0 object-contain" />
             <div>
               <p className="text-[11px] font-bold text-[#0A0A0A] tracking-widest leading-none uppercase">Prospectia</p>
               <p className="text-[9px] text-[#9CA3AF] leading-none mt-0.5 tracking-wide">Delegates Portal</p>
             </div>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <AIStrip initialUnread={initialUnread} />
           </div>
           {drawer && (
             <button onClick={onClose} aria-label="Cerrar menú"
@@ -638,9 +642,6 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
 
         {/* Identity card — always visible cockpit HUD */}
         {user && <IdentityCard user={user} />}
-
-        {/* AI strip — compact */}
-        <AIStrip initialUnread={initialUnread} />
 
         {/* Navigation — scrollable */}
         <nav className="flex-1 py-2 px-2 overflow-y-auto min-h-0 space-y-0.5" aria-label="Navegación principal">
