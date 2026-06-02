@@ -152,7 +152,8 @@ export async function getRemesaDetall(remesaId: string): Promise<RemesaDetall> {
 
 export async function generarRemesa(
   setmanaInici: Date,
-  userId: string
+  userId: string,
+  facturaIdsSeleccionades?: string[]   // if provided, only include these invoices
 ): Promise<Remesa> {
   const admin = createAdminClient();
 
@@ -181,7 +182,7 @@ export async function generarRemesa(
   const periodStart = `${setmanaIniciStr}T00:00:00.000Z`;
   const periodEnd   = `${setmanaFiStr}T23:59:59.999Z`;
 
-  const { data: invoices, error: invErr } = await admin
+  let invQuery = admin
     .from("holded_invoices")
     .select("id, doc_number, contact_id, date, total, due_date")
     .in("status", [1, 2])
@@ -189,9 +190,15 @@ export async function generarRemesa(
     .gte("date", periodStart)
     .lte("date", periodEnd);
 
+  if (facturaIdsSeleccionades && facturaIdsSeleccionades.length > 0) {
+    invQuery = invQuery.in("id", facturaIdsSeleccionades);
+  }
+
+  const { data: invoices, error: invErr } = await invQuery;
+
   if (invErr) throw new Error(`Invoices query: ${invErr.message}`);
   if (!invoices || invoices.length === 0) {
-    throw new Error("No hi ha factures pendents per a la setmana seleccionada.");
+    throw new Error("No hi ha factures seleccionades vàlides per a la setmana.");
   }
 
   // Exclude invoices already in an active remesa
