@@ -312,34 +312,26 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
     weekday: "short", day: "numeric", month: "short",
   });
 
-  const divider = <div className="h-px bg-[#EDD5D5]/70 mx-3" />;
+  const divider = <div className="h-px bg-[#F0F0F0] mx-3" />;
 
   return (
-    <div
-      className="mx-2 my-2 rounded-xl border border-[#EDD5D5]/80 overflow-hidden shrink-0"
-      style={{ background: "linear-gradient(160deg, #FEF2F2 0%, #F9F5F5 50%, #FAFAFA 100%)" }}
-    >
+    <div className="mx-2 my-2 rounded-2xl border border-[#EBEBEB] bg-white shadow-sm overflow-hidden shrink-0">
+
       {/* User */}
-      <Link
-        href="/dashboard/perfil"
-        className="flex items-center gap-2.5 px-3 pt-3 pb-2.5 group"
-      >
+      <Link href="/dashboard/perfil" className="flex items-center gap-2.5 px-3 pt-3 pb-2.5 group">
         <div className="relative shrink-0">
           {user.avatar_url ? (
-            <Image
-              src={user.avatar_url} alt={user.full_name}
-              width={30} height={30}
-              className="w-[30px] h-[30px] rounded-full object-cover ring-1 ring-[#EDD5D5]"
-            />
+            <Image src={user.avatar_url} alt={user.full_name} width={32} height={32}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-white shadow-sm" />
           ) : (
-            <div className="w-[30px] h-[30px] rounded-full bg-[#8E0E1A] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-[#8E0E1A] flex items-center justify-center shadow-sm">
               <span className="text-[12px] font-bold text-white">{user.full_name?.charAt(0) ?? "?"}</span>
             </div>
           )}
-          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-[1.5px] border-white" />
+          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-bold text-[#1A1A1A] truncate leading-tight group-hover:text-[#8E0E1A] transition-colors">
+          <p className="text-[12px] font-bold text-[#111827] truncate leading-tight group-hover:text-[#8E0E1A] transition-colors">
             {user.full_name}
           </p>
           <span className={[
@@ -353,30 +345,26 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
 
       {divider}
 
-      {/* Clock — hero element */}
+      {/* Clock */}
       <div className="px-3 py-3 text-center select-none">
-        <div className="flex items-baseline justify-center gap-0.5">
-          <span className="text-[28px] font-bold tabular-nums tracking-tight text-[#0A0A0A] leading-none">
-            {hhmm}
-          </span>
-          <span className="text-[14px] font-semibold tabular-nums text-[#B0A0A0] leading-none ml-0.5">
-            :{ss}
-          </span>
+        <div className="flex items-baseline justify-center">
+          <span className="text-[30px] font-bold tabular-nums tracking-tight text-[#111827] leading-none">{hhmm}</span>
+          <span className="text-[13px] font-medium tabular-nums text-[#9CA3AF] leading-none ml-0.5">:{ss}</span>
         </div>
-        <p className="text-[10px] text-[#8C7070] mt-1.5 capitalize tracking-wide">{dateStr}</p>
+        <p className="text-[10px] text-[#6B7280] mt-1.5 capitalize">{dateStr}</p>
       </div>
 
       {/* Weather */}
       {weather && weatherInfo && (
         <>
           {divider}
-          <div className="px-3 py-2 flex items-center gap-2 text-[10px]">
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#8C7070" strokeWidth="1.4">
+          <div className="px-3 py-2 flex items-center gap-1.5 text-[10px]">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#9CA3AF" strokeWidth="1.4">
               <path d="M9 7a3 3 0 10-5.83 1H3a2 2 0 000 4h6a2 2 0 100-4h-.17z" />
             </svg>
-            <span className="font-bold text-[#374151]">{weather.temp}°</span>
-            {weather.city && <span className="text-[#9CA3AF] truncate">{weather.city}</span>}
-            <span className="text-[#9CA3AF] truncate flex-1">{weatherInfo.label}</span>
+            <span className="font-semibold text-[#374151]">{weather.temp}°</span>
+            {weather.city && <span className="text-[#9CA3AF]">{weather.city}</span>}
+            <span className="text-[#9CA3AF] flex-1">{weatherInfo.label}</span>
           </div>
         </>
       )}
@@ -431,8 +419,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Clients & Vendes ───────────────────────────────────────────────────
     {
       label: "Clientes & Ventas",
-      dot: "bg-blue-400",
-      iconColor: "text-blue-500",
+      dot: "bg-blue-400", iconColor: "text-blue-500",
+      labelColor: "text-blue-500",
+      activeClasses: "bg-blue-50 text-blue-700", activeBar: "bg-blue-500",
       items: [
         { href: "/dashboard/clientes",  label: "Clientes",  Icon: IconClientes,  exact: false },
         { href: "/dashboard/facturas",  label: "Facturas",  Icon: IconFacturas,  exact: false },
@@ -448,8 +437,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Delegats ───────────────────────────────────────────────────────────
     ...(!isDelegate || isKol || isCoordinator ? [{
       label: "Delegados",
-      dot: "bg-violet-400",
-      iconColor: "text-violet-500",
+      dot: "bg-violet-400", iconColor: "text-violet-500",
+      labelColor: "text-violet-500",
+      activeClasses: "bg-violet-50 text-violet-700", activeBar: "bg-violet-500",
       items: [
         { href: "/dashboard/delegados",                label: "Delegados",       Icon: IconDelegados,    exact: false },
         ...(isOwner ? [
@@ -464,8 +454,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── CRM & Equip ────────────────────────────────────────────────────────
     {
       label: "CRM & Equipo",
-      dot: "bg-teal-400",
-      iconColor: "text-teal-500",
+      dot: "bg-teal-400", iconColor: "text-teal-500",
+      labelColor: "text-teal-600",
+      activeClasses: "bg-teal-50 text-teal-700", activeBar: "bg-teal-500",
       items: [
         { href: "/dashboard/prospectos", label: "Prospectos",  Icon: IconCRM,        exact: false },
         { href: "/dashboard/calendario", label: "Calendario",  Icon: IconCalendario, exact: false },
@@ -477,8 +468,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Afiliats ───────────────────────────────────────────────────────────
     {
       label: "Afiliados",
-      dot: "bg-amber-400",
-      iconColor: "text-amber-500",
+      dot: "bg-amber-400", iconColor: "text-amber-500",
+      labelColor: "text-amber-600",
+      activeClasses: "bg-amber-50 text-amber-700", activeBar: "bg-amber-500",
       items: [
         { href: "/dashboard/afiliados", label: "Afiliados", Icon: IconAfiliados, exact: false },
         ...(isOwner ? [{ href: "/dashboard/recomendadores", label: "Recomendadores", Icon: IconRecomendadores, exact: false }] : []),
@@ -488,8 +480,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Finances ───────────────────────────────────────────────────────────
     ...((isOwner || isConsigliere) ? [{
       label: "Finanzas",
-      dot: "bg-emerald-400",
-      iconColor: "text-emerald-500",
+      dot: "bg-emerald-400", iconColor: "text-emerald-500",
+      labelColor: "text-emerald-600",
+      activeClasses: "bg-emerald-50 text-emerald-700", activeBar: "bg-emerald-500",
       items: [
         { href: "/dashboard/pressupost",                         label: "Presupuesto",      Icon: IconPressupost, exact: false },
         { href: "/dashboard/bruixola",                           label: "Brújula",          Icon: IconBruixola,   exact: true  },
@@ -505,8 +498,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Administració ──────────────────────────────────────────────────────
     ...(isOwner ? [{
       label: "Administración",
-      dot: "bg-rose-400",
-      iconColor: "text-rose-500",
+      dot: "bg-rose-400", iconColor: "text-rose-500",
+      labelColor: "text-rose-500",
+      activeClasses: "bg-rose-50 text-rose-700", activeBar: "bg-rose-500",
       items: [
         { href: "/dashboard/analitica",           label: "Analítica IA",  Icon: IconAnalitica,   exact: false },
         { href: "/dashboard/performance",         label: "Performance",   Icon: IconRendimiento, exact: true  },
@@ -517,8 +511,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
 
     ...(!isOwner && (isKol || isCoordinator || role === "KOL" || role === "COORDINATOR") ? [{
       label: "Administración",
-      dot: "bg-rose-400",
-      iconColor: "text-rose-500",
+      dot: "bg-rose-400", iconColor: "text-rose-500",
+      labelColor: "text-rose-500",
+      activeClasses: "bg-rose-50 text-rose-700", activeBar: "bg-rose-500",
       items: [
         { href: "/dashboard/admin/asignaciones", label: "Asignaciones", Icon: IconDelegados, exact: false },
       ],
@@ -527,8 +522,9 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
     // ── Cuenta ─────────────────────────────────────────────────────────────
     {
       label: "Cuenta",
-      dot: "bg-slate-300",
-      iconColor: "text-slate-400",
+      dot: "bg-slate-300", iconColor: "text-slate-400",
+      labelColor: "text-slate-400",
+      activeClasses: "bg-[#FEF2F2] text-[#8E0E1A]", activeBar: "bg-[#8E0E1A]",
       items: [
         { href: "/dashboard/perfil", label: "Mi perfil",     Icon: IconPerfil, exact: false },
         { href: "/dashboard/manual", label: "Manual de uso", Icon: IconManual, exact: false },
@@ -698,15 +694,21 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
         {/* Navigation — scrollable */}
         <nav className="flex-1 py-2 px-2 overflow-y-auto min-h-0 space-y-0.5" aria-label="Navegación principal">
           {sections.map(({ label, items, ...sectionRest }) => {
-            const dot       = (sectionRest as { dot?: string; iconColor?: string }).dot;
-            const iconColor = (sectionRest as { dot?: string; iconColor?: string }).iconColor ?? "text-[#9CA3AF]";
+            type SR = { dot?: string; iconColor?: string; labelColor?: string; activeClasses?: string; activeBar?: string };
+            const sr = sectionRest as SR;
+            const dot          = sr.dot;
+            const iconColor    = sr.iconColor    ?? "text-[#9CA3AF]";
+            const labelColor   = sr.labelColor   ?? "text-[#8A8F9A]";
+            const activeClasses = sr.activeClasses ?? "bg-[#FEF2F2] text-[#8E0E1A]";
+            const activeBar    = sr.activeBar    ?? "bg-[#8E0E1A]";
+
             if (items.length === 0) return null;
             return (
               <div key={label || "_root"} className={label ? "pt-3 first:pt-1" : ""}>
                 {label && (
                   <div className="px-3 mb-1.5 flex items-center gap-1.5">
                     {dot && <span className={`w-2 h-2 rounded-full ${dot} shrink-0`} />}
-                    <p className="text-[9px] font-bold text-[#8A8F9A] uppercase tracking-[0.12em]">
+                    <p className={`text-[9px] font-bold uppercase tracking-[0.12em] ${labelColor}`}>
                       {label}
                     </p>
                   </div>
@@ -723,16 +725,16 @@ export function Sidebar({ user, drawer = false, onClose, notifications = [], ini
                           href={href}
                           onClick={onClose}
                           className={[
-                            "relative flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[12px] font-medium transition-all duration-100",
+                            "relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all duration-150",
                             isActive
-                              ? "text-[#8E0E1A] bg-[#FEF2F2] font-semibold"
+                              ? `${activeClasses} font-semibold`
                               : "text-[#4B5563] hover:text-[#111827] hover:bg-[#F3F4F6]",
                           ].join(" ")}
                         >
                           {isActive && (
-                            <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#8E0E1A]" aria-hidden />
+                            <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full ${activeBar}`} aria-hidden />
                           )}
-                          <span className={`shrink-0 ${isActive ? "text-[#8E0E1A]" : iconColor}`}>
+                          <span className={`shrink-0 ${isActive ? "" : iconColor}`}>
                             <Icon />
                           </span>
                           {itemLabel}
