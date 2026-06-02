@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const ua = h.get("user-agent") ?? "";
   const mobile = isMobileUA(ua);
 
-  let userProfile: { id: string; full_name: string; role: string; avatar_url: string | null; created_at: string; is_kol: boolean; is_coordinator: boolean } | null = null;
+  let userProfile: { id: string; full_name: string; role: string; avatar_url: string | null; created_at: string; member_since: string | null; is_kol: boolean; is_coordinator: boolean } | null = null;
   let notifications: NotificationItem[] = [];
   let unreadMessages = 0;
 
@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const [profileRes, notifRes, unreadMsgCount] = await Promise.all([
       admin
         .from("profiles")
-        .select("id, full_name, role, avatar_url, created_at, is_kol, is_coordinator")
+        .select("id, full_name, role, avatar_url, created_at, member_since, is_kol, is_coordinator")
         .eq("id", user.id)
         .maybeSingle(),
       admin

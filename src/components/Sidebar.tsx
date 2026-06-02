@@ -231,6 +231,7 @@ export type UserProps = {
   role: string;
   avatar_url: string | null;
   created_at: string;
+  member_since?: string | null;
   is_kol?: boolean;
   is_coordinator?: boolean;
 } | null;
@@ -386,7 +387,7 @@ function IdentityCard({ user }: { user: NonNullable<UserProps> }) {
       <div className="px-3 py-2 flex items-center gap-2">
         <div className="shrink-0">
           <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">Antiguitat</p>
-          <p className="text-[10px] font-semibold text-[#8C7070]">{antigüedad(user.created_at)}</p>
+          <p className="text-[10px] font-semibold text-[#8C7070]">{antigüedad(user.member_since ?? user.created_at)}</p>
         </div>
         <div className="flex-1 min-w-0 border-l border-[#EDD5D5]/70 pl-2">
           <p className="text-[8px] font-semibold text-[#C4ABA8] uppercase tracking-widest mb-0.5">ID</p>
@@ -520,6 +521,44 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
   ];
 }
 
+// ─── Tooltip button ───────────────────────────────────────────────────────────
+
+function TooltipButton({
+  label, title, icon, badge, onClick,
+}: {
+  label: string;
+  title: string;
+  icon: React.ReactNode;
+  badge: number | null;
+  onClick: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
+      <button
+        onClick={onClick}
+        aria-label={title}
+        className="relative p-1.5 rounded-md text-[#8E0E1A] bg-transparent hover:bg-[#FEF2F2] transition-colors"
+      >
+        {icon}
+        {badge != null && badge > 0 && (
+          <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#8E0E1A] border border-white" />
+        )}
+      </button>
+      {visible && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 pointer-events-none">
+          <div className="bg-[#0A0A0A] text-white text-[10px] font-semibold px-2 py-1 rounded-md whitespace-nowrap shadow-lg">
+            {label}
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden">
+              <div className="w-2 h-2 bg-[#0A0A0A] rotate-45 translate-y-0.5 mx-auto" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Compact AI strip (Próspero + Analytics + Mensajería) ────────────────────
 
 function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
@@ -536,24 +575,24 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   const btns = [
     {
       label: "Próspero",
-      title: "Próspero · Asistente IA",
+      title: "Próspero · Assistent IA",
       event: "open-prospero",
       icon: (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
           <path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8c0 1.16.3 2.25.82 3.19L1.5 14.5l3.31-.82A6.5 6.5 0 1 0 8 1.5z" strokeLinejoin="round"/>
-          <circle cx="5.5" cy="8" r="0.75" fill="currentColor" stroke="none"/>
-          <circle cx="8" cy="8" r="0.75" fill="currentColor" stroke="none"/>
-          <circle cx="10.5" cy="8" r="0.75" fill="currentColor" stroke="none"/>
+          <circle cx="5.5" cy="8" r="0.85" fill="currentColor" stroke="none"/>
+          <circle cx="8" cy="8" r="0.85" fill="currentColor" stroke="none"/>
+          <circle cx="10.5" cy="8" r="0.85" fill="currentColor" stroke="none"/>
         </svg>
       ),
       badge: null as number | null,
     },
     {
       label: "Analytics",
-      title: "Próspero Analytics · Inteligencia financiera",
+      title: "Próspero Analytics · Intel·ligència financera",
       event: "open-prospero-analitic",
       icon: (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
           <path d="M2 13L6 8l3 3 3-4 2-2" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M2 2v12h12" strokeLinecap="round"/>
         </svg>
@@ -562,10 +601,10 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
     },
     {
       label: "Missatgeria",
-      title: "Mensajería instantánea",
+      title: "Missatgeria instantània",
       event: "open-mensajeria",
       icon: (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
           <path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h2v2.5L7 12h7a1 1 0 001-1V3a1 1 0 00-1-1z" strokeLinejoin="round"/>
         </svg>
       ),
@@ -576,17 +615,14 @@ function AIStrip({ initialUnread = 0 }: { initialUnread?: number }) {
   return (
     <>
       {btns.map((btn) => (
-        <button
+        <TooltipButton
           key={btn.label}
+          label={btn.label}
           title={btn.title}
+          badge={btn.badge}
+          icon={btn.icon}
           onClick={() => document.dispatchEvent(new CustomEvent(btn.event))}
-          className="relative p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#8E0E1A] hover:bg-[#FEF2F2] transition-all"
-        >
-          {btn.icon}
-          {btn.badge != null && btn.badge > 0 && (
-            <span className="absolute top-0.5 right-0.5 min-w-[8px] h-[8px] rounded-full bg-[#8E0E1A]" />
-          )}
-        </button>
+        />
       ))}
     </>
   );
