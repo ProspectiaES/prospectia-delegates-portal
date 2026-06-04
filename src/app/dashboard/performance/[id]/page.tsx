@@ -74,7 +74,7 @@ export default async function DelegatePerformanceDrillPage({
       .eq("status", 2),
 
     admin.from("holded_products")
-      .select("id, sku, cost, purchase_price, commission_delegate, commission_delegate_type, commission_4, commission_4_type, commission_5, commission_5_type"),
+      .select("id, sku, name, cost, purchase_price, commission_delegate, commission_delegate_type, commission_4, commission_4_type, commission_5, commission_5_type"),
 
     admin.from("holded_contacts")
       .select("id, name, city, kol_id, affiliate_id, coordinator_id, recommender_id, recommender_rate"),
@@ -93,12 +93,15 @@ export default async function DelegatePerformanceDrillPage({
   const allInvs   = ((histInvRes.data  ?? []) as InvHist[]).filter(i => contactIds.has(i.contact_id));
   const vencInvs  = ((overdueRes.data  ?? []) as InvOverdue[]).filter(i => contactIds.has(i.contact_id));
 
-  // Bixgrow for current period invoices
+  // Current period bounds (for KPI display)
   const curStart = new Date(Date.UTC(curYear, curMonth - 1, 1)).toISOString();
   const curEnd   = new Date(Date.UTC(curYear, curMonth, 0, 23, 59, 59, 999)).toISOString();
-  const curInvIds = allInvs.filter(i => i.date_paid && i.date_paid >= curStart && i.date_paid <= curEnd).map(i => i.id);
-  const bixgrowRes = curInvIds.length > 0
-    ? await admin.from("bixgrow_orders").select("invoice_id, commission").in("invoice_id", curInvIds)
+  void curEnd;
+
+  // Bixgrow for ALL historical invoices, not just current month
+  const allInvIds = allInvs.map(i => i.id).filter(Boolean);
+  const bixgrowRes = allInvIds.length > 0
+    ? await admin.from("bixgrow_orders").select("invoice_id, commission").in("invoice_id", allInvIds)
     : { data: [] };
 
   const bixgrowMap: Record<string, number> = {};
@@ -107,12 +110,19 @@ export default async function DelegatePerformanceDrillPage({
   }
 
   // ── Product map ────────────────────────────────────────────────────────────
-  const productMap: Record<string, { sku: string | null; cost: number | null; commission_delegate: number | null; commission_delegate_type: CommType; commission_4: number | null; commission_4_type: CommType; commission_5: number | null; commission_5_type: CommType }> = {};
-  let sprayCost = 6;
-  for (const p of (productsRes.data ?? []) as { id: string; sku: string | null; cost: number | null; purchase_price: number | null; commission_delegate: number | null; commission_delegate_type: string; commission_4: number | null; commission_4_type: string; commission_5: number | null; commission_5_type: string }[]) {
+  type ProductInfo = { sku: string | null; name: string | null; cost: number | null; commission_delegate: number | null; commission_delegate_type: CommType; commission_4: number | null; commission_4_type: CommType; commission_5: number | null; commission_5_type: CommType };
+  const productMap: Record<string, ProductInfo> = {};
+  const productByName: Record<string, ProductInfo> = {}; // fallback per nom normalitzat
+
+  for (const p of (productsRes.data ?? []) as { id: string; sku: string | null; name: string | null; cost: number | null; purchase_price: number | null; commission_delegate: number | null; commission_delegate_type: string; commission_4: number | null; commission_4_type: string; commission_5: number | null; commission_5_type: string }[]) {
     const cost = p.cost ?? p.purchase_price ?? null;
-    productMap[p.id] = { sku: p.sku, cost, commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType, commission_4: p.commission_4, commission_4_type: (p.commission_4_type ?? "percent") as CommType, commission_5: p.commission_5, commission_5_type: (p.commission_5_type ?? "percent") as CommType };
-    if (p.sku === "VIHO-OBE-SPRAY-002" && cost != null) sprayCost = cost;
+    const info: ProductInfo = { sku: p.sku, name: p.name, cost, commission_delegate: p.commission_delegate, commission_delegate_type: (p.commission_delegate_type ?? "percent") as CommType, commission_4: p.commission_4, commission_4_type: (p.commission_4_type ?? "percent") as CommType, commission_5: p.commission_5, commission_5_type: (p.commission_5_type ?? "percent") as CommType };
+    productMap[p.id] = info;
+    // Index per nom normalitzat (fallback quan productId no està a la línia de factura)
+    if (p.name) {
+      const normalName = p.name.trim().toLowerCase().replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ");
+      if (!productByName[normalName]) productByName[normalName] = info;
+    }
   }
 
   // ── Contact maps ───────────────────────────────────────────────────────────
@@ -138,7 +148,16 @@ export default async function DelegatePerformanceDrillPage({
     buckets[k] = { year, month, sprayUnits: 0, focUnits: 0, ingresos: 0, cogs: 0, focCogs: 0, commDelegate: 0, commRec: 0, commKol: 0, commAffiliate: 0, commCoord: 0, invoiceCount: 0, activeClients: new Set() };
   }
 
-  type RawLine = { productId?: string; units?: number | string; price?: number | string; discount?: number | string };
+  // costPrice ve de Holded per línia de factura (reflex el cost real en el moment de la venda).
+  // Fallback: cost del producte a la nostra BD. Si tampoc, 0 (no distorsionem amb un valor fals).
+  type RawLine = { productId?: string; id?: string; name?: string; units?: number | string; price?: number | string; discount?: number | string; costPrice?: number | string };
+
+  function getUnitCost(rp: RawLine, prod: ProductInfo | undefined): number {
+    const rawCost = Number(rp.costPrice) || 0;
+    if (rawCost > 0) return rawCost;          // 1r: costPrice de Holded per línia
+    if (prod?.cost != null) return Number(prod.cost); // 2n: cost del producte a la BD
+    return 0;                                  // 3r: desconegut (no inventem cost)
+  }
 
   for (const inv of allInvs) {
     if (!inv.date_paid) continue;
@@ -157,7 +176,7 @@ export default async function DelegatePerformanceDrillPage({
       if (recRate > 0) bkt.commRec += (inv.subtotal ?? 0) * (recRate / 100);
     }
 
-    // Affiliate commission: bixgrow real data or fallback
+    // Affiliate commission: bixgrow real data o fallback 20%
     if (bixgrowMap[inv.id] != null) {
       bkt.commAffiliate += bixgrowMap[inv.id];
     } else if (meta.affiliate_id) {
@@ -165,23 +184,31 @@ export default async function DelegatePerformanceDrillPage({
     }
 
     for (const rp of ((inv.raw?.products ?? []) as RawLine[])) {
-      if (!rp.productId) continue;
-      const prod = productMap[rp.productId];
-      if (!prod) continue;
-      const units = Number(rp.units) || 0;
-      const price = Number(rp.price) || 0;
-      const disc  = Number(rp.discount) || 0;
-      const isFoc = price === 0;
+      // Lookup per productId, amb fallback per nom normalitzat
+      const prodId = rp.productId ?? rp.id;
+      let prod = prodId ? productMap[prodId] : undefined;
+      if (!prod && rp.name) {
+        const normalName = rp.name.trim().toLowerCase().replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ");
+        prod = productByName[normalName];
+      }
+
+      const units    = Number(rp.units)    || 0;
+      const price    = Number(rp.price)    || 0;
+      const disc     = Number(rp.discount) || 0;
+      const isFoc    = price === 0;
+      const unitCost = getUnitCost(rp, prod); // cost real per unitat
 
       if (isFoc) {
         bkt.focUnits += units;
-        bkt.focCogs  += units * sprayCost;
+        bkt.focCogs  += units * unitCost;
       } else {
-        bkt.sprayUnits  += units;
-        bkt.cogs        += units * sprayCost;
-        bkt.commDelegate += calcLine(units, price, disc, prod.commission_delegate, prod.commission_delegate_type);
-        if (meta.kol_id)         bkt.commKol   += calcLine(units, price, disc, prod.commission_4, prod.commission_4_type);
-        if (meta.coordinator_id) bkt.commCoord += calcLine(units, price, disc, prod.commission_5, prod.commission_5_type);
+        bkt.sprayUnits += units;
+        bkt.cogs       += units * unitCost;
+        if (prod) {
+          bkt.commDelegate += calcLine(units, price, disc, prod.commission_delegate, prod.commission_delegate_type);
+          if (meta.kol_id)         bkt.commKol   += calcLine(units, price, disc, prod.commission_4, prod.commission_4_type);
+          if (meta.coordinator_id) bkt.commCoord += calcLine(units, price, disc, prod.commission_5, prod.commission_5_type);
+        }
       }
     }
   }
@@ -249,7 +276,7 @@ export default async function DelegatePerformanceDrillPage({
     const cid  = inv.contact_id;
     const bkt2 = clientAgg[cid];
     if (!bkt2) continue;
-    const meta = cmetaMap[cid] ?? {};
+    const meta = cmetaMap[cid] ?? {} as CMeta;
     if (inv.date_paid && inv.date_paid > bkt2.lastInvoice) bkt2.lastInvoice = inv.date_paid;
     bkt2.ingresos += inv.subtotal ?? 0;
 
@@ -258,23 +285,30 @@ export default async function DelegatePerformanceDrillPage({
       if (recRate > 0) bkt2.commRec += (inv.subtotal ?? 0) * (recRate / 100);
     }
     if (bixgrowMap[inv.id] != null) bkt2.commAffiliate += bixgrowMap[inv.id];
-    else if ((meta as { affiliate_id?: string | null }).affiliate_id) bkt2.commAffiliate += (inv.subtotal ?? 0) * AFFILIATE_RATE;
+    else if (meta.affiliate_id) bkt2.commAffiliate += (inv.subtotal ?? 0) * AFFILIATE_RATE;
 
     for (const rp of ((inv.raw?.products ?? []) as RawLine[])) {
-      if (!rp.productId) continue;
-      const prod = productMap[rp.productId];
-      if (!prod) continue;
-      const units = Number(rp.units) || 0;
-      const price = Number(rp.price) || 0;
-      const disc  = Number(rp.discount) || 0;
-      const isFoc = price === 0;
-      if (isFoc) { bkt2.focUnits += units; bkt2.focCogs += units * sprayCost; }
+      const prodId2 = rp.productId ?? rp.id;
+      let prod2 = prodId2 ? productMap[prodId2] : undefined;
+      if (!prod2 && rp.name) {
+        const nn = rp.name.trim().toLowerCase().replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ");
+        prod2 = productByName[nn];
+      }
+      const units    = Number(rp.units)    || 0;
+      const price    = Number(rp.price)    || 0;
+      const disc     = Number(rp.discount) || 0;
+      const isFoc    = price === 0;
+      const unitCost = getUnitCost(rp, prod2);
+
+      if (isFoc) { bkt2.focUnits += units; bkt2.focCogs += units * unitCost; }
       else {
-        bkt2.sprayUnits  += units;
-        bkt2.cogs        += units * sprayCost;
-        bkt2.commDelegate += calcLine(units, price, disc, prod.commission_delegate, prod.commission_delegate_type);
-        if ((meta as { kol_id?: string | null }).kol_id)         bkt2.commKol   += calcLine(units, price, disc, prod.commission_4, prod.commission_4_type);
-        if ((meta as { coordinator_id?: string | null }).coordinator_id) bkt2.commCoord += calcLine(units, price, disc, prod.commission_5, prod.commission_5_type);
+        bkt2.sprayUnits += units;
+        bkt2.cogs       += units * unitCost;
+        if (prod2) {
+          bkt2.commDelegate += calcLine(units, price, disc, prod2.commission_delegate, prod2.commission_delegate_type);
+          if (meta.kol_id)         bkt2.commKol   += calcLine(units, price, disc, prod2.commission_4, prod2.commission_4_type);
+          if (meta.coordinator_id) bkt2.commCoord += calcLine(units, price, disc, prod2.commission_5, prod2.commission_5_type);
+        }
       }
     }
   }
@@ -390,14 +424,14 @@ export default async function DelegatePerformanceDrillPage({
               indent: false, sub: false,
             },
             {
-              label: `- Coste producto vendido (${acc.sprayUnits} uds × ${fmtEuro2(sprayCost)}/ud)`,
+              label: `- Coste producto vendido (${acc.sprayUnits} uds, coste real por línea Holded)`,
               value: -acc.cogs,
               pct: acc.ingresos > 0 ? (-acc.cogs / acc.ingresos) * 100 : null,
               cls: "text-red-600",
               indent: true, sub: false, border: "",
             },
             acc.focUnits > 0 ? {
-              label: `- Coste FOC / muestras (${acc.focUnits} uds gratuitas × ${fmtEuro2(sprayCost)}/ud)`,
+              label: `- Coste FOC / muestras (${acc.focUnits} uds gratuitas, coste real Holded)`,
               value: -acc.focCogs,
               pct: acc.ingresos > 0 ? (-acc.focCogs / acc.ingresos) * 100 : null,
               cls: "text-amber-600",
