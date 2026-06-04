@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { orderStatus } from "@/lib/holded/api";
+import { MrwTrackingCell } from "@/components/MrwTrackingCell";
 
 const ETAPA: Record<number, string> = {
   0: "—",
@@ -34,6 +35,7 @@ function fmtDate(iso: string | null) {
 
 export default async function PedidosPage() {
   const [supabase, profile] = await Promise.all([createClient(), getProfile()]);
+  const isOwner = ["OWNER", "ADMIN"].includes(profile?.role ?? "");
 
   let contactIds: string[] | null = null;
   if (profile?.role === "DELEGATE") {
@@ -47,7 +49,7 @@ export default async function PedidosPage() {
 
   let query = supabase
     .from("holded_salesorders")
-    .select("id, doc_number, contact_id, contact_name, date, total, status, shipping_status, tracking_company_name, tracking_number, tracking_pickup_date, tracking_delivery_date", { count: "exact" })
+    .select("id, doc_number, contact_id, contact_name, date, total, status, shipping_status, tracking_company_name, tracking_number, tracking_pickup_date, tracking_delivery_date, mrw_tracking_number, mrw_status, mrw_delivered_at, mrw_last_event", { count: "exact" })
     .or("shipping_status.is.null,shipping_status.lt.5")
     .order("date", { ascending: false });
 
@@ -103,7 +105,7 @@ export default async function PedidosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                  {["Pedido", "Cliente", "Fecha", "Importe", "Estado", "Etapa", "Seguimiento", ""].map(h => (
+                  {["Pedido", "Cliente", "Fecha", "Importe", "Estado", "Etapa", "Seguimiento", "MRW", ""].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -148,6 +150,18 @@ export default async function PedidosPage() {
                         ) : (
                           <span className="text-xs text-[#D1D5DB]">—</span>
                         )}
+                      </td>
+                      {/* MRW Tracking */}
+                      <td className="px-4 py-3">
+                        <MrwTrackingCell
+                          orderId={o.id}
+                          mrwTrackingNumber={(o as Record<string, unknown>).mrw_tracking_number as string | null}
+                          mrwStatus={(o as Record<string, unknown>).mrw_status as string | null}
+                          mrwDeliveredAt={(o as Record<string, unknown>).mrw_delivered_at as string | null}
+                          mrwLastEvent={(o as Record<string, unknown>).mrw_last_event as string | null}
+                          shippingStatus={o.shipping_status}
+                          isOwner={isOwner}
+                        />
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {canEdit && (
