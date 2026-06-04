@@ -168,8 +168,17 @@ export async function submitOrder(
 
   if (lines.length === 0) return { error: "Añade al menos un producto" };
 
+  // ── Persist RE status on contact (so future orders auto-detect it) ─────────
+  if (recargo) {
+    await admin.from("holded_contacts")
+      .update({ has_recargo_equivalencia: true })
+      .eq("id", contactId)
+      .then(() => {}); // non-fatal
+  }
+
   // ── Create salesorder in Holded ──────────────────────────────────────────
-  const notes = (formData.get("notes") as string)?.trim() || undefined;
+  const rawNotes = (formData.get("notes") as string)?.trim() || undefined;
+  const notes = buildNotesWithRecargo(rawNotes, recargo);
 
   try {
     const created = await createSalesOrder({
@@ -323,6 +332,8 @@ export async function updateOrderAction(
 
   if (lines.length === 0) return { error: "Añade al menos un producto" };
 
+  const notesWithRec = buildNotesWithRecargo(notes, recargo);
+
   try {
     await updateSalesOrder(orderId, {
       contactId,
@@ -330,7 +341,7 @@ export async function updateOrderAction(
       date: dateUnix || Math.floor(Date.now() / 1000),
       currency: "eur",
       language: "es",
-      notes,
+      notes: notesWithRec,
       products: lines,
     });
 
@@ -369,4 +380,14 @@ function addRecargoTaxes(taxes: string[]): string[] {
     if (t === "s_iva_4"  && !result.includes("s_rec_05")) result.push("s_rec_05");
   }
   return result;
+}
+
+// Footer legal note appended to order notes when recargo de equivalencia applies
+const RECARGO_FOOTER =
+  "Régimen Especial del Recargo de Equivalencia aplicado según Ley 37/1992 del IVA: " +
+  "IVA 10% + R.E. 1,4% · IVA 21% + R.E. 5,2%";
+
+function buildNotesWithRecargo(notes: string | undefined, recargo: boolean): string | undefined {
+  if (!recargo) return notes || undefined;
+  return notes ? `${notes}\n\n${RECARGO_FOOTER}` : RECARGO_FOOTER;
 }

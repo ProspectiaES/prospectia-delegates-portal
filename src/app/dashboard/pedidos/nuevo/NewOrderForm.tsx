@@ -7,7 +7,7 @@ import type { OrderFormState } from "@/app/actions/orders";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PaymentMethod { id: string; name: string; }
-interface Contact       { id: string; name: string; }
+interface Contact       { id: string; name: string; has_recargo_equivalencia?: boolean; }
 interface Product {
   id: string;
   name: string;
@@ -183,12 +183,22 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
   const [paymentMethodId, setPaymentMethodId]   = useState(paymentMethods[0]?.id ?? "");
   const [showIban, setShowIban]                 = useState(false);
 
-  // Recargo — mandatory for new clients; auto-false for existing
+  // Recargo — mandatory for new clients; auto-detected from contact for existing
   const [recargo, setRecargo] = useState<"true" | "false" | "">("");
 
   useEffect(() => {
-    setRecargo(clientMode === "existing" ? "false" : "");
+    if (clientMode === "new") {
+      setRecargo("");
+    }
   }, [clientMode]);
+
+  // Auto-detect RE when selecting existing client
+  useEffect(() => {
+    if (clientMode === "existing" && selectedContactId) {
+      const contact = contacts.find(c => c.id === selectedContactId);
+      setRecargo(contact?.has_recargo_equivalencia ? "true" : "false");
+    }
+  }, [clientMode, selectedContactId, contacts]);
 
   // Assignment (privileged users)
   const [assignedDelegateId, setAssignedDelegateId]     = useState("");
@@ -455,8 +465,28 @@ export function NewOrderForm({ paymentMethods, contacts, products, userRole, def
             </div>
           )}
 
-          {/* Hidden recargo for existing clients */}
-          {clientMode === "existing" && (
+          {/* Recargo de equivalencia for existing clients — read-only indicator */}
+          {clientMode === "existing" && selectedContactId && (
+            <div className="pt-3 border-t border-[#F3F4F6]">
+              <input type="hidden" name="recargo_equivalencia" value={recargo === "true" ? "true" : "false"} />
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${recargo === "true" ? "bg-amber-500" : "bg-[#D1D5DB]"}`} />
+                <span className="text-xs text-[#6B7280]">
+                  Recargo de equivalencia:
+                  <span className={`ml-1 font-semibold ${recargo === "true" ? "text-amber-700" : "text-[#374151]"}`}>
+                    {recargo === "true" ? "Sí — IVA 10% + R.E. 1,4% · IVA 21% + R.E. 5,2%" : "No"}
+                  </span>
+                </span>
+              </div>
+              {recargo === "true" && (
+                <p className="mt-1 text-[10px] text-amber-600 ml-4">
+                  Se añadirán automáticamente los recargos y la nota legal al pie del pedido.
+                </p>
+              )}
+            </div>
+          )}
+          {/* Hidden recargo when no contact selected yet */}
+          {clientMode === "existing" && !selectedContactId && (
             <input type="hidden" name="recargo_equivalencia" value="false" />
           )}
         </div>

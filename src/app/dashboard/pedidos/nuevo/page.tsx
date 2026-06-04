@@ -25,9 +25,9 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
   // All contacts visible on this page — delegates get auto-assigned on order creation
   const { data: contactsRaw } = await admin
     .from("holded_contacts")
-    .select("id, name")
+    .select("id, name, has_recargo_equivalencia")
     .order("name");
-  const contactsData = (contactsRaw ?? []) as { id: string; name: string }[];
+  const contactsData = (contactsRaw ?? []) as { id: string; name: string; has_recargo_equivalencia: boolean }[];
 
   const contacts = contactsData;
   const products = (productsData ?? []) as {
