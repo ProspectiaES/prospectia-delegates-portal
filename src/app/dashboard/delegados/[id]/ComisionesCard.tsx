@@ -65,6 +65,8 @@ interface Props {
   mesStr: string;        // YYYY-MM
   isCurrentMes: boolean;
   delegateId: string;
+  delegateName: string;
+  irpfPct: number;       // 0 | 7 | 15
   pendientes: PendienteRow[];
   vencidas: VencidaRow[];
   isOwner: boolean;
@@ -95,13 +97,186 @@ function nextMes(mes: string): string {
     : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
+// ─── Liquidación preview modal ────────────────────────────────────────────────
+
+function LiquidacionPreview({
+  blocks, period, mesStr, delegateId, delegateName, irpfPct,
+  onClose,
+}: {
+  blocks: CommissionBlock[];
+  period: string;
+  mesStr: string;
+  delegateId: string;
+  delegateName: string;
+  irpfPct: number;
+  onClose: () => void;
+}) {
+  const grandTotal = blocks.reduce((s, b) => s + b.totalNetCommission, 0);
+  const ivaPct     = 21;
+  const ivaAmount  = Math.round(grandTotal * ivaPct / 100 * 100) / 100;
+  const irpfAmount = Math.round(grandTotal * irpfPct / 100 * 100) / 100;
+  const totalPayable = Math.round((grandTotal + ivaAmount - irpfAmount) * 100) / 100;
+
+  const downloadUrl = `/api/delegados/${delegateId}/liquidacion${mesStr ? `?mes=${mesStr}` : ""}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB] bg-[#F9FAFB] shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-[#0A0A0A]">Previsualización liquidación</h2>
+            <p className="text-xs text-[#6B7280] mt-0.5 capitalize">{delegateName} · {period}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-[#8E0E1A] text-white hover:bg-[#7A0C17] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 2v9M5 8l3 3 3-3" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3 13h10" strokeLinecap="round"/>
+              </svg>
+              Descargar PDF
+            </a>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F3F4F6] transition-colors">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3l10 10M13 3L3 13" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content — scrollable */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+          {blocks.map((block) => (
+            <div key={block.role}>
+              {/* Block header */}
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">
+                  Liquidación {block.role}
+                </h3>
+                <span className="text-sm font-bold text-[#0A0A0A] tabular-nums">
+                  {fmtEuro(block.totalNetCommission)}
+                </span>
+              </div>
+
+              {/* Invoices */}
+              <div className="border border-[#E5E7EB] rounded-xl overflow-hidden divide-y divide-[#F3F4F6]">
+                {block.invoices.map((inv) => (
+                  <div key={inv.invoiceId} className="px-4 py-3 space-y-2">
+                    {/* Invoice header */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#0A0A0A] truncate">
+                          {inv.docNumber} — {inv.contactName}
+                        </p>
+                        <p className="text-[10px] text-[#9CA3AF] mt-0.5">
+                          {inv.invoiceDate ? `Emisión: ${fmtDate(inv.invoiceDate)}` : ""}
+                          {inv.paidAt ? ` · Cobro: ${fmtDate(inv.paidAt)}` : ""}
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums text-[#0A0A0A] shrink-0">
+                        {fmtEuro(inv.netCommission)}
+                      </span>
+                    </div>
+
+                    {/* Lines */}
+                    {inv.lines.length > 0 && (
+                      <div className="bg-[#F9FAFB] rounded-lg px-3 py-2 space-y-1">
+                        {inv.lines.map((l, i) => (
+                          <div key={i} className="flex items-center justify-between text-[11px]">
+                            <span className="text-[#6B7280] truncate mr-2">
+                              {l.productName}
+                              {l.sku ? ` (${l.sku})` : ""}
+                              {" · "}{l.units} ud × {fmtEuro(l.unitPrice)}
+                              {l.discountPct > 0 ? ` -${l.discountPct}%` : ""}
+                              {" · tasa "}{fmtRate(l.commissionRate, l.commissionType)}
+                            </span>
+                            <span className="tabular-nums font-semibold text-[#374151] shrink-0">
+                              {fmtEuro(l.commissionAmount)}
+                            </span>
+                          </div>
+                        ))}
+                        {inv.recommenderDeduction > 0 && (
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#E5E7EB] mt-1">
+                            <span className="text-amber-600">− Deducción recomendador ({inv.recommenderName})</span>
+                            <span className="tabular-nums text-amber-600">{fmtEuro(-inv.recommenderDeduction)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {block.invoices.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-[#9CA3AF]">
+                    Sin facturas cobradas en este período
+                  </div>
+                )}
+
+                {/* Block total */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-[#F9FAFB]">
+                  <span className="text-xs font-bold text-[#374151]">Total comisión {block.role}</span>
+                  <span className="text-sm font-bold tabular-nums text-[#0A0A0A]">{fmtEuro(block.totalNetCommission)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Fiscal summary */}
+          <div className="border border-[#E5E7EB] rounded-xl overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#F9FAFB] border-b border-[#E5E7EB]">
+              <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Resumen fiscal</h3>
+            </div>
+            <div className="divide-y divide-[#F3F4F6]">
+              {[
+                { label: "Base imponible (comisión neta)", value: grandTotal, cls: "text-[#0A0A0A]" },
+                { label: `+ IVA ${ivaPct}%`, value: ivaAmount, cls: "text-[#374151]" },
+                ...(irpfPct > 0 ? [{ label: `− Retención IRPF ${irpfPct}%`, value: -irpfAmount, cls: "text-amber-600" }] : []),
+              ].map(({ label, value, cls }) => (
+                <div key={label} className="flex items-center justify-between px-4 py-2.5">
+                  <span className={`text-xs ${cls}`}>{label}</span>
+                  <span className={`text-xs font-semibold tabular-nums ${cls}`}>{fmtEuro(value)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between px-4 py-3 bg-[#0A0A0A]">
+                <span className="text-sm font-bold text-white">TOTAL A PERCIBIR</span>
+                <span className="text-lg font-bold tabular-nums text-white">{fmtEuro(totalPayable)}</span>
+              </div>
+            </div>
+          </div>
+
+          {irpfPct === 0 && (
+            <p className="text-[10px] text-[#9CA3AF] text-center">
+              Sin retención IRPF. Si procede, configúralo en el perfil del delegado.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Month navigation ─────────────────────────────────────────────────────────
 
 function MonthNav({
-  mesStr, isCurrentMes, period, delegateId, isOwner, hasCommissions,
-}: { mesStr: string; isCurrentMes: boolean; period: string; delegateId: string; isOwner: boolean; hasCommissions: boolean }) {
+  mesStr, isCurrentMes, period, delegateId, delegateName, irpfPct,
+  isOwner, hasCommissions, blocks,
+}: {
+  mesStr: string; isCurrentMes: boolean; period: string;
+  delegateId: string; delegateName: string; irpfPct: number;
+  isOwner: boolean; hasCommissions: boolean;
+  blocks: CommissionBlock[];
+}) {
   const router   = useRouter();
   const pathname = usePathname();
+  const [showPreview, setShowPreview] = useState(false);
 
   function go(mes: string) {
     const nowMes = (() => {
@@ -145,10 +320,8 @@ function MonthNav({
             </svg>
           </button>
         )}
-        <a
-          href={`/api/delegados/${delegateId}/liquidacion${isCurrentMes ? "" : `?mes=${mesStr}`}`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => setShowPreview(true)}
           className="flex items-center gap-1 text-xs font-semibold text-[#8E0E1A] border border-[#8E0E1A] rounded-[5px] px-2.5 py-1 hover:bg-[#8E0E1A] hover:text-white transition-colors"
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
@@ -156,7 +329,18 @@ function MonthNav({
             <path d="M3 13h10" strokeLinecap="round" />
           </svg>
           Liquidación
-        </a>
+        </button>
+        {showPreview && (
+          <LiquidacionPreview
+            blocks={blocks}
+            period={period}
+            mesStr={isCurrentMes ? "" : mesStr}
+            delegateId={delegateId}
+            delegateName={delegateName}
+            irpfPct={irpfPct}
+            onClose={() => setShowPreview(false)}
+          />
+        )}
         {isOwner && hasCommissions && (
           <AutofacturaButton delegateId={delegateId} defaultMes={mesStr} />
         )}
@@ -429,7 +613,7 @@ function BlockPaginationBar({ page, total, onPage }: { page: number; total: numb
   );
 }
 
-export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, pendientes, vencidas, isOwner }: Props) {
+export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateId, delegateName, irpfPct, pendientes, vencidas, isOwner }: Props) {
   const [blockPages, setBlockPages] = useState<Record<string, number>>({});
   function getPage(role: string) { return blockPages[role] ?? 1; }
   function setPage(role: string, p: number) { setBlockPages(prev => ({ ...prev, [role]: p })); }
@@ -446,8 +630,13 @@ export function ComisionesCard({ blocks, period, mesStr, isCurrentMes, delegateI
       subtitle={`Facturas cobradas en ${period}`}
       badge={badge}
     >
-      {/* Month navigation */}
-      <MonthNav mesStr={mesStr} isCurrentMes={isCurrentMes} period={period} delegateId={delegateId} isOwner={isOwner} hasCommissions={grandTotal > 0} />
+      {/* Month navigation + preview */}
+      <MonthNav
+        mesStr={mesStr} isCurrentMes={isCurrentMes} period={period}
+        delegateId={delegateId} delegateName={delegateName} irpfPct={irpfPct}
+        isOwner={isOwner} hasCommissions={grandTotal > 0}
+        blocks={blocks}
+      />
 
       {/* Commission blocks */}
       {blocks.every(b => b.invoices.length === 0) ? (

@@ -699,6 +699,8 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
             mesStr={mesStr}
             isCurrentMes={isCurrentMes}
             delegateId={id}
+            delegateName={delegate.delegate_name ?? delegate.full_name}
+            irpfPct={Number(delegate.irpf_pct ?? 0)}
             pendientes={pendientes}
             vencidas={vencidas}
             isOwner={isOwner}
