@@ -17,6 +17,7 @@ interface ProductRow {
   commission_delegate: number | null; commission_delegate_type: CommType;
   commission_recommender: number | null; commission_recommender_type: CommType;
   commission_4: number | null; commission_4_type: CommType;
+  commission_base_eur: number | null;
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ export async function GET(
   // Products map
   const { data: allProducts } = await admin
     .from("holded_products")
-    .select("id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type");
+    .select("id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type, commission_base_eur");
 
   const productMap: Record<string, ProductRow> = {};
   for (const p of allProducts ?? []) productMap[p.id] = p as ProductRow;

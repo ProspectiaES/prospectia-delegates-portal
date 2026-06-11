@@ -82,7 +82,7 @@ export default async function ComisionesPage({
 
     // Products with cost data
     admin.from("holded_products")
-      .select("id, name, sku, cost, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"),
+      .select("id, name, sku, cost, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type, commission_base_eur"),
 
     // Facturat: issued this month (any status, not CN)
     admin.from("holded_invoices")
@@ -99,7 +99,7 @@ export default async function ComisionesPage({
     id: string; name: string; sku: string | null; cost: number | null;
     commission_delegate: number | null; commission_delegate_type: CommType;
     commission_recommender: number | null; commission_recommender_type: CommType;
-    commission_4: number | null; commission_4_type: CommType;
+    commission_4: number | null; commission_4_type: CommType; commission_base_eur?: number | null;
   };
 
   const delegates  = (delegatesRes.data ?? []) as Profile[];

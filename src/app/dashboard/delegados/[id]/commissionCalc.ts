@@ -11,11 +11,15 @@ interface ProductCommission {
   commission_recommender_type: CommType;
   commission_4: number | null;
   commission_4_type: CommType;
+  // Si informat, delegat i recomendador calculen sobre aquest preu base (€)
+  // en lloc del preu de la línia de factura.
+  // Exemple: OBE-SPRAY-04 → 31€ (les comissions no es calculen sobre 45€ PVP)
+  commission_base_eur?: number | null;
 }
 
 interface RawProduct {
   productId?: string;
-  id?: string;          // Holded uses "id" in some invoice types
+  id?: string;
   name?: string;
   sku?: string | null;
   units?: number | string;
@@ -33,12 +37,27 @@ interface PaidInvoiceRaw {
   raw: Record<string, unknown>;
 }
 
+/**
+ * Calcula la comissió per a una línia de producte.
+ *
+ * Si el producte té `commission_base_eur`, s'usa com a preu base
+ * per al càlcul percentual en lloc del preu real de la factura.
+ * Exemple: OBE-SPRAY-04 (31€ base vs 45€ PVP)
+ */
 function calcLineCommission(
-  units: number, price: number, discount: number,
-  rate: number | null, type: CommType
+  units: number,
+  price: number,
+  discount: number,
+  rate: number | null,
+  type: CommType,
+  commissionBaseEur?: number | null  // optional price override per product
 ): number {
   if (!rate) return 0;
-  const lineNet = units * price * (1 - discount / 100);
+  // Use the product's commission base if set; otherwise use invoice price
+  const effectivePrice = (commissionBaseEur != null && commissionBaseEur > 0)
+    ? commissionBaseEur
+    : price;
+  const lineNet = units * effectivePrice * (1 - discount / 100);
   return type === "amount" ? units * rate : (lineNet * rate) / 100;
 }
 
@@ -79,11 +98,16 @@ export function buildCommissionBlock(
       if (!product && rp.name) product = productByName[normalizeProdName(rp.name)];
       if (!product) continue;
 
-      const units = Number(rp.units) || 0;
-      const price = Number(rp.price) || 0;
+      const units    = Number(rp.units)    || 0;
+      const price    = Number(rp.price)    || 0;
       if (price === 0) continue; // promotional — no commission
       const discount = Number(rp.discount) || 0;
-      const lineNet = units * price * (1 - discount / 100);
+
+      // Effective commission base: product override or invoice price
+      const base = (product.commission_base_eur != null && product.commission_base_eur > 0)
+        ? product.commission_base_eur
+        : price;
+      const lineNet = units * base * (1 - discount / 100);
 
       const commRate = rateKey === "kol"
         ? (product.commission_4 ?? 0)
@@ -91,7 +115,11 @@ export function buildCommissionBlock(
       const commType: CommType = rateKey === "kol"
         ? (product.commission_4_type ?? "percent")
         : (product.commission_delegate_type ?? "percent");
-      const commissionAmount = calcLineCommission(units, price, discount, commRate, commType);
+
+      // KOL always on invoice price (commission_4 uses PVP, not the custom base)
+      const commissionAmount = rateKey === "kol"
+        ? calcLineCommission(units, price, discount, commRate, commType)
+        : calcLineCommission(units, price, discount, commRate, commType, product.commission_base_eur);
 
       lines.push({
         productName: rp.name ?? product.name,
@@ -104,12 +132,14 @@ export function buildCommissionBlock(
 
       subtotal += commissionAmount;
 
+      // Recommender deduction — also uses product's commission base if set
       if (rateKey === "delegate" && recommenderId) {
         const recRate = recommenderRateMap[recommenderId] ?? product.commission_recommender;
         const recDeduction = calcLineCommission(
           units, price, discount,
           recRate,
-          "percent"
+          "percent",
+          product.commission_base_eur  // recomendador també usa la base del producte
         );
         recommenderDeduction += recDeduction;
       }
@@ -117,8 +147,6 @@ export function buildCommissionBlock(
 
     const netCommission = subtotal - recommenderDeduction;
 
-    // paymentsDetail contains actual payment records with dates (Unix timestamps).
-    // Take the last entry (most recent payment) as the effective collection date.
     const paymentsDetail = inv.raw?.paymentsDetail as Array<{ date?: number }> | null | undefined;
     const lastPayment = paymentsDetail && paymentsDetail.length > 0
       ? paymentsDetail[paymentsDetail.length - 1]
