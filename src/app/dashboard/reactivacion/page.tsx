@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
-import { buildDefaultReactivationEmail } from "@/lib/reactivacion-template";
-import { ReactivacionClient, type ReactivacionRow } from "./ReactivacionClient";
+import { renderTemplate, buildUltimaCompraClause, firstName, type EmailLang, type LastOrderInfo } from "@/lib/email-template-render";
+import { ReactivacionClient, type ReactivacionRow, type TemplateOption } from "./ReactivacionClient";
+
+interface RawProductLine { name?: string; productId?: string }
 
 export default async function ReactivacionPage() {
   const profile = await getProfile();
@@ -13,7 +15,7 @@ export default async function ReactivacionPage() {
 
   let query = admin
     .from("reactivation_actions")
-    .select("id, client_id, entity_type, owner_id, status, dormancy_status, days_inactive_at_detection, sequence_step, email_personalizado, created_at, authorized_at")
+    .select("id, client_id, entity_type, owner_id, status, dormancy_status, days_inactive_at_detection, sequence_step, email_personalizado, email_language, email_template_id, created_at, authorized_at")
     .in("status", ["pendiente", "autorizado"])
     .order("created_at", { ascending: false });
 
@@ -21,6 +23,13 @@ export default async function ReactivacionPage() {
 
   const { data: actionsData } = await query;
   const actions = actionsData ?? [];
+
+  // Reactivación templates (per al selector + per calcular el text per defecte)
+  const { data: templatesData } = await admin
+    .from("email_templates")
+    .select("id, name, subject, body_text, language, is_default")
+    .eq("category", "reactivacion");
+  const templates = (templatesData ?? []) as TemplateOption[];
 
   if (actions.length === 0) {
     return (
@@ -34,7 +43,7 @@ export default async function ReactivacionPage() {
   const clientIds = [...new Set(actions.map(a => a.client_id))];
   const ownerIds  = [...new Set(actions.map(a => a.owner_id).filter(Boolean) as string[])];
 
-  const [viewRes, profilesRes] = await Promise.all([
+  const [viewRes, profilesRes, overridesRes, invoicesRes] = await Promise.all([
     admin
       .from("v_clients_dormits")
       .select("entity_id, entity_type, entity_name, email, days_inactive, dormancy_status, antiguity_segment, volume_segment, lifetime_revenue")
@@ -42,6 +51,12 @@ export default async function ReactivacionPage() {
     ownerIds.length > 0
       ? admin.from("profiles").select("id, full_name, delegate_name").in("id", ownerIds)
       : Promise.resolve({ data: [] }),
+    admin.from("client_template_overrides").select("client_id, language, template_id").eq("category", "reactivacion").in("client_id", clientIds),
+    admin.from("holded_invoices")
+      .select("contact_id, doc_number, date_paid, raw")
+      .in("contact_id", clientIds)
+      .eq("status", 3).eq("is_credit_note", false)
+      .order("date_paid", { ascending: false }),
   ]);
 
   const viewMap: Record<string, {
@@ -56,14 +71,57 @@ export default async function ReactivacionPage() {
     ownerMap[p.id] = p.delegate_name ?? p.full_name;
   }
 
+  // Override per (client_id, language) → template_id
+  const overrideMap: Record<string, string> = {};
+  for (const o of (overridesRes.data ?? []) as { client_id: string; language: string; template_id: string }[]) {
+    overrideMap[`${o.client_id}:${o.language}`] = o.template_id;
+  }
+
+  // Darrera factura per client (primera fila per contact_id, ja ve ordenat per date_paid desc)
+  const lastOrderMap: Record<string, LastOrderInfo> = {};
+  for (const inv of (invoicesRes.data ?? []) as { contact_id: string; doc_number: string | null; date_paid: string | null; raw: Record<string, unknown> }[]) {
+    if (lastOrderMap[inv.contact_id]) continue; // ja tenim la més recent
+    const lines = (inv.raw?.products ?? []) as RawProductLine[];
+    const products = lines.map(l => l.name).filter((n): n is string => !!n);
+    lastOrderMap[inv.contact_id] = { docNumber: inv.doc_number, products };
+  }
+
+  const templatesByLang: Record<EmailLang, TemplateOption[]> = { es: [], ca: [] };
+  for (const t of templates) templatesByLang[t.language as EmailLang].push(t);
+
+  function resolveTemplate(clientId: string, lang: EmailLang): TemplateOption | null {
+    const overrideId = overrideMap[`${clientId}:${lang}`];
+    if (overrideId) {
+      const t = templates.find(t => t.id === overrideId);
+      if (t) return t;
+    }
+    return templatesByLang[lang].find(t => t.is_default) ?? templatesByLang[lang][0] ?? null;
+  }
+
+  function buildEmailText(clientName: string, delegateName: string, lang: EmailLang, template: TemplateOption | null, lastOrder: LastOrderInfo | undefined): string {
+    if (!template) return "";
+    return renderTemplate(template.body_text, {
+      nombre: firstName(clientName),
+      delegado: delegateName,
+      ultima_compra: buildUltimaCompraClause(lang, lastOrder ?? null),
+    });
+  }
+
   const rows: ReactivacionRow[] = actions.map(a => {
     const v = viewMap[a.client_id];
     const delegateName = a.owner_id ? (ownerMap[a.owner_id] ?? "—") : "—";
+    const lang = (a.email_language as EmailLang) ?? "es";
+    const template = a.email_template_id
+      ? templates.find(t => t.id === a.email_template_id) ?? resolveTemplate(a.client_id, lang)
+      : resolveTemplate(a.client_id, lang);
+    const clientName = v?.entity_name ?? a.client_id;
+    const lastOrder = lastOrderMap[a.client_id];
+
     return {
       id: a.id,
       clientId: a.client_id,
       entityType: a.entity_type,
-      clientName: v?.entity_name ?? a.client_id,
+      clientName,
       clientEmail: v?.email ?? null,
       status: a.status,
       daysInactive: v?.days_inactive ?? a.days_inactive_at_detection,
@@ -74,7 +132,10 @@ export default async function ReactivacionPage() {
       delegateName,
       createdAt: a.created_at,
       authorizedAt: a.authorized_at,
-      emailText: a.email_personalizado ?? buildDefaultReactivationEmail(v?.entity_name ?? a.client_id, delegateName),
+      language: lang,
+      templateId: template?.id ?? null,
+      lastOrder: lastOrder ?? null,
+      emailText: a.email_personalizado ?? buildEmailText(clientName, delegateName, lang, template, lastOrder),
     };
   }).sort((a, b) => (b.daysInactive ?? 0) - (a.daysInactive ?? 0));
 
@@ -87,7 +148,7 @@ export default async function ReactivacionPage() {
           {isOwner ? " (todos los delegados)" : " asignadas a ti"}
         </p>
       </div>
-      <ReactivacionClient rows={rows} isOwner={isOwner} />
+      <ReactivacionClient rows={rows} templatesByLang={templatesByLang} isOwner={isOwner} />
     </div>
   );
 }

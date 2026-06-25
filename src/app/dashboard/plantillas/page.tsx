@@ -11,24 +11,36 @@ export default async function PlantillasPage() {
   const admin = createAdminClient();
   const { data: rows } = await admin
     .from("email_templates")
-    .select("id, name, subject, body_html, body_text, created_at")
-    .order("name");
+    .select("id, name, subject, body_html, body_text, category, language, is_default, created_at")
+    .order("category").order("language").order("name");
 
   const templates = (rows ?? []) as Template[];
 
   async function saveTemplate(fd: FormData) {
     "use server";
-    const id = fd.get("id") as string | null;
+    const id       = fd.get("id") as string | null;
+    const category = (fd.get("category") as string) === "reactivacion" ? "reactivacion" : "prospecto";
+    const language = (fd.get("language") as string) === "ca" ? "ca" : "es";
+    const isDefault = fd.get("is_default") === "true";
     const prof = await getProfile();
     const adm = createAdminClient();
 
     const payload = {
-      name:      (fd.get("name") as string).trim(),
-      subject:   (fd.get("subject") as string).trim(),
-      body_text: (fd.get("body_text") as string).trim(),
-      body_html: (fd.get("body_text") as string).trim().replace(/\n/g, "<br>"),
+      name:       (fd.get("name") as string).trim(),
+      subject:    (fd.get("subject") as string).trim(),
+      body_text:  (fd.get("body_text") as string).trim(),
+      body_html:  (fd.get("body_text") as string).trim().replace(/\n/g, "<br>"),
+      category, language,
+      is_default: isDefault,
       updated_at: new Date().toISOString(),
     };
+
+    // Si es marca com a per defecte, desmarca l'anterior per defecte del mateix category+language
+    if (isDefault) {
+      await adm.from("email_templates")
+        .update({ is_default: false })
+        .eq("category", category).eq("language", language).eq("is_default", true);
+    }
 
     if (id) {
       await adm.from("email_templates").update(payload).eq("id", id);
@@ -37,6 +49,7 @@ export default async function PlantillasPage() {
     }
 
     revalidatePath("/dashboard/plantillas");
+    revalidatePath("/dashboard/reactivacion");
   }
 
   async function deleteTemplate(id: string) {

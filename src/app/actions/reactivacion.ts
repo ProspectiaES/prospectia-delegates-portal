@@ -29,14 +29,16 @@ async function authorizeAccess(actionId: string) {
   return { admin, userId: user.id } as const;
 }
 
-// ── Guardar text editat sense canviar l'estat (autosave) ─────────────────────
+// ── Guardar text editat + idioma + plantilla triada, sense canviar l'estat ───
 
-export async function saveEmailDraft(actionId: string, emailText: string): Promise<ActionResult> {
+export async function saveEmailDraft(
+  actionId: string, emailText: string, language: "ca" | "es", templateId: string | null
+): Promise<ActionResult> {
   const auth = await authorizeAccess(actionId);
   if ("error" in auth) return auth;
 
   const { error } = await auth.admin.from("reactivation_actions")
-    .update({ email_personalizado: emailText })
+    .update({ email_personalizado: emailText, email_language: language, email_template_id: templateId })
     .eq("id", actionId);
 
   if (error) return { error: error.message };
@@ -45,7 +47,9 @@ export async function saveEmailDraft(actionId: string, emailText: string): Promi
 
 // ── Autoritzar l'enviament (pendiente → autorizado) ───────────────────────────
 
-export async function authorizeReactivation(actionId: string, emailText: string): Promise<ActionResult> {
+export async function authorizeReactivation(
+  actionId: string, emailText: string, language: "ca" | "es", templateId: string | null
+): Promise<ActionResult> {
   const auth = await authorizeAccess(actionId);
   if ("error" in auth) return auth;
 
@@ -53,11 +57,41 @@ export async function authorizeReactivation(actionId: string, emailText: string)
     .update({
       status: "autorizado",
       email_personalizado: emailText,
+      email_language: language,
+      email_template_id: templateId,
       authorized_at: new Date().toISOString(),
       authorized_by: auth.userId,
     })
     .eq("id", actionId)
     .eq("status", "pendiente"); // només transiciona des de pendiente
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/reactivacion");
+  return { success: true };
+}
+
+// ── Assignar una plantilla ad hoc a aquest client (per categoria+idioma) ─────
+// Es desa com a override persistent: la propera vegada que aquest client
+// entri en un cicle de reactivació, es precarregarà aquesta plantilla.
+
+export async function assignClientTemplate(
+  clientId: string, language: "ca" | "es", templateId: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (!["OWNER", "ADMIN"].includes(profile?.role ?? "")) return { error: "Sin permisos" };
+
+  const { error } = await admin.from("client_template_overrides").upsert({
+    client_id: clientId,
+    category: "reactivacion",
+    language,
+    template_id: templateId,
+    created_by: user.id,
+  }, { onConflict: "client_id,category,language" });
 
   if (error) return { error: error.message };
   revalidatePath("/dashboard/reactivacion");

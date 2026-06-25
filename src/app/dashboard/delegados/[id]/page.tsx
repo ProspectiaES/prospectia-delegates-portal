@@ -196,7 +196,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
   // Commissions: load products + paid invoices this month (raw) + credit notes
   const [allProductsRes, paidMonthInvRes, cnRes, contactsWithRecRes] = await Promise.all([
     admin.from("holded_products").select(
-      "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type"
+      "id, name, commission_delegate, commission_delegate_type, commission_recommender, commission_recommender_type, commission_4, commission_4_type, commission_base_eur"
     ),
     contactIds.length > 0
       ? supabase.from("holded_invoices").select("id, doc_number, contact_id, contact_name, date, total, raw")
@@ -309,7 +309,7 @@ export default async function DelegadoDetailPage({ params, searchParams }: PageP
     id: string; name: string;
     commission_delegate: number | null; commission_delegate_type: "percent" | "amount";
     commission_recommender: number | null; commission_recommender_type: "percent" | "amount";
-    commission_4: number | null; commission_4_type: "percent" | "amount";
+    commission_4: number | null; commission_4_type: "percent" | "amount"; commission_base_eur?: number | null;
   }> = {};
   for (const p of allProductsRes.data ?? []) productMap[p.id] = p as typeof productMap[string];
 

@@ -8,6 +8,9 @@ export interface Template {
   subject: string;
   body_html: string;
   body_text: string | null;
+  category: "prospecto" | "reactivacion";
+  language: "ca" | "es";
+  is_default: boolean;
   created_at: string;
 }
 
@@ -17,20 +20,27 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
+const CATEGORY_LABEL: Record<string, string> = { prospecto: "Prospectos", reactivacion: "Reactivación" };
+const LANG_LABEL: Record<string, string> = { es: "Español", ca: "Català" };
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function TemplateForm({
   initial,
+  defaultCategory,
   onSave,
   onCancel,
 }: {
   initial?: Template;
+  defaultCategory: "prospecto" | "reactivacion";
   onSave: (fd: FormData) => Promise<void>;
   onCancel: () => void;
 }) {
   const [pending, startT] = useTransition();
+  const category = initial?.category ?? defaultCategory;
+  const isReactivacion = category === "reactivacion";
 
   return (
     <form
@@ -38,12 +48,23 @@ function TemplateForm({
       className="bg-white rounded-xl border border-[#E5E7EB] p-5 space-y-4"
     >
       {initial && <input type="hidden" name="id" value={initial.id} />}
+      <input type="hidden" name="category" value={category} />
 
-      <div>
-        <label className="block text-xs font-semibold text-[#374151] mb-1.5">Nombre de la plantilla *</label>
-        <input name="name" required defaultValue={initial?.name}
-          placeholder="Seguimiento inicial, Propuesta, Reactivación…"
-          className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm" />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-[#374151] mb-1.5">Nombre de la plantilla *</label>
+          <input name="name" required defaultValue={initial?.name}
+            placeholder="Seguimiento inicial, Propuesta…"
+            className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#374151] mb-1.5">Idioma *</label>
+          <select name="language" defaultValue={initial?.language ?? "es"}
+            className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm">
+            <option value="es">Español</option>
+            <option value="ca">Català</option>
+          </select>
+        </div>
       </div>
 
       <div>
@@ -56,13 +77,24 @@ function TemplateForm({
       <div>
         <label className="block text-xs font-semibold text-[#374151] mb-1.5">
           Cuerpo (texto plano) *
-          <span className="ml-2 font-normal text-[#9CA3AF]">Puedes usar {"{{nombre}}"}, {"{{empresa}}"}</span>
+          <span className="ml-2 font-normal text-[#9CA3AF]">
+            {isReactivacion
+              ? <>Usa {"{{nombre}}"}, {"{{delegado}}"}, {"{{ultima_compra}}"}</>
+              : <>Usa {"{{nombre}}"}, {"{{empresa}}"}</>}
+          </span>
         </label>
         <textarea name="body_text" required rows={8}
           defaultValue={initial?.body_text ?? initial?.body_html.replace(/<[^>]+>/g, "") ?? ""}
           placeholder="Hola {{nombre}},&#10;&#10;Me pongo en contacto…"
           className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm focus:border-[#8E0E1A] focus:outline-none focus:ring-2 focus:ring-[#8E0E1A]/10 shadow-sm resize-y" />
       </div>
+
+      {isReactivacion && (
+        <label className="flex items-center gap-2 text-xs text-[#6B7280]">
+          <input type="checkbox" name="is_default" value="true" defaultChecked={initial?.is_default} />
+          Usar como plantilla por defecto para este idioma (sustituye a la actual por defecto)
+        </label>
+      )}
 
       <div className="flex items-center justify-end gap-3">
         <button type="button" onClick={onCancel}
@@ -79,12 +111,27 @@ function TemplateForm({
 }
 
 export function PlantillasClient({ templates, onSave, onDelete }: Props) {
+  const [tab, setTab]             = useState<"prospecto" | "reactivacion">("reactivacion");
   const [creating, setCreating]   = useState(false);
   const [editing, setEditing]     = useState<string | null>(null);
   const [deleting, startDelT]     = useTransition();
 
+  const filtered = templates.filter(t => t.category === tab);
+
   return (
     <div className="space-y-4">
+
+      <div className="flex items-center gap-2 border-b border-[#E5E7EB]">
+        {(["reactivacion", "prospecto"] as const).map(c => (
+          <button key={c} onClick={() => { setTab(c); setCreating(false); setEditing(null); }}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === c ? "border-[#8E0E1A] text-[#8E0E1A]" : "border-transparent text-[#9CA3AF] hover:text-[#374151]"
+            }`}>
+            {CATEGORY_LABEL[c]}
+            <span className="ml-1.5 text-[10px] text-[#9CA3AF]">({templates.filter(t => t.category === c).length})</span>
+          </button>
+        ))}
+      </div>
 
       {!creating && (
         <button
@@ -94,30 +141,40 @@ export function PlantillasClient({ templates, onSave, onDelete }: Props) {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M7 2v10M2 7h10" strokeLinecap="round"/>
           </svg>
-          Nueva plantilla
+          Nueva plantilla de {CATEGORY_LABEL[tab].toLowerCase()}
         </button>
       )}
 
       {creating && (
-        <TemplateForm onSave={onSave} onCancel={() => setCreating(false)} />
+        <TemplateForm defaultCategory={tab} onSave={onSave} onCancel={() => setCreating(false)} />
       )}
 
-      {templates.length === 0 && !creating ? (
+      {filtered.length === 0 && !creating ? (
         <div className="rounded-xl border border-dashed border-[#E5E7EB] py-16 text-center">
-          <p className="text-sm font-medium text-[#0A0A0A]">Sin plantillas.</p>
-          <p className="mt-1 text-xs text-[#9CA3AF]">Crea la primera para que los delegados puedan usarla.</p>
+          <p className="text-sm font-medium text-[#0A0A0A]">Sin plantillas de {CATEGORY_LABEL[tab].toLowerCase()}.</p>
+          <p className="mt-1 text-xs text-[#9CA3AF]">Crea la primera con el botón de arriba.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {templates.map(t => (
+          {filtered.map(t => (
             <div key={t.id}>
               {editing === t.id ? (
-                <TemplateForm initial={t} onSave={onSave} onCancel={() => setEditing(null)} />
+                <TemplateForm initial={t} defaultCategory={tab} onSave={onSave} onCancel={() => setEditing(null)} />
               ) : (
                 <div className="bg-white rounded-xl border border-[#E5E7EB] p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[#0A0A0A]">{t.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-[#0A0A0A]">{t.name}</p>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#F3F4F6] text-[#6B7280]">
+                          {LANG_LABEL[t.language]}
+                        </span>
+                        {t.is_default && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                            Por defecto
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-[#6B7280] mt-0.5">{t.subject}</p>
                       <p className="mt-2 text-xs text-[#9CA3AF] line-clamp-2 whitespace-pre-wrap">
                         {t.body_text ?? t.body_html.replace(/<[^>]+>/g, "")}
