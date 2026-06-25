@@ -174,10 +174,15 @@ CREATE TABLE IF NOT EXISTS reactivation_actions (
   responded_at                  TIMESTAMPTZ,
   closed_at                    TIMESTAMPTZ,
   closed_reason                TEXT,
-  notes                        TEXT,
-
-  UNIQUE(client_id, sequence_step)  -- evita detecció duplicada del mateix pas per al mateix client
+  notes                        TEXT
 );
+
+-- Únic per (client_id, sequence_step) MENTRE el cicle estigui obert (status != 'cerrado').
+-- Un cop tancat, es permet un nou cicle de reactivació (nou sequence_step=1) per al mateix
+-- client en el futur — una UNIQUE global impediria reactivar-lo mai més després del primer cicle.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reactivation_actions_unique_open_step
+  ON reactivation_actions(client_id, sequence_step)
+  WHERE status != 'cerrado';
 
 CREATE INDEX IF NOT EXISTS idx_reactivation_actions_owner  ON reactivation_actions(owner_id);
 CREATE INDEX IF NOT EXISTS idx_reactivation_actions_client ON reactivation_actions(client_id);
