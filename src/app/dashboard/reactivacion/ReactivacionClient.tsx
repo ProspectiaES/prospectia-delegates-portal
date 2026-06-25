@@ -59,6 +59,7 @@ const ANTIGUITY_LABEL: Record<string, string> = {
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   pendiente:  { label: "Pendiente",  cls: "bg-amber-100 text-amber-700" },
   autorizado: { label: "Autorizado", cls: "bg-blue-100 text-blue-700" },
+  enviado:    { label: "Enviado",    cls: "bg-emerald-100 text-emerald-700" },
 };
 
 function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: Record<EmailLang, TemplateOption[]> }) {
@@ -70,6 +71,7 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
   const [pending, startTr]        = useTransition();
   const [savedAt, setSavedAt]     = useState<number | null>(null);
   const [pinnedAt, setPinnedAt]   = useState<number | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstRender = useRef(true);
 
@@ -119,7 +121,11 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
   }
 
   function handleAuthorize() {
-    startTr(async () => { await authorizeReactivation(row.id, emailText, lang, templateId); });
+    setSendError(null);
+    startTr(async () => {
+      const res = await authorizeReactivation(row.id, emailText, lang, templateId);
+      if (res.error) setSendError(res.error);
+    });
   }
   function handleNoContactar() {
     if (!confirm(`¿Marcar a ${row.clientName} como "no contactar"? Se cerrará este ciclo de reactivación.`)) return;
@@ -234,6 +240,12 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
             />
           )}
 
+          {sendError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              ⚠ {sendError}
+            </p>
+          )}
+
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-[#9CA3AF]">
               {pending ? "Guardando…" : savedAt ? "Guardado" : ""}
@@ -251,13 +263,18 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
                   </button>
                   <button onClick={handleAuthorize} disabled={pending}
                     className="text-xs font-bold text-white bg-[#8E0E1A] hover:bg-[#6B0A14] px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                    Autorizar envío
+                    Autorizar y enviar
                   </button>
                 </>
               )}
               {row.status === "autorizado" && (
                 <span className="text-xs text-blue-700 font-medium">
-                  Autorizado {row.authorizedAt ? `el ${new Date(row.authorizedAt).toLocaleDateString("es-ES")}` : ""} — pendiente de envío
+                  Autorizado {row.authorizedAt ? `el ${new Date(row.authorizedAt).toLocaleDateString("es-ES")}` : ""} — el envío falló, reintentando…
+                </span>
+              )}
+              {row.status === "enviado" && (
+                <span className="text-xs text-emerald-700 font-medium">
+                  ✓ Email enviado
                 </span>
               )}
             </div>

@@ -16,7 +16,7 @@ export default async function ReactivacionPage() {
   let query = admin
     .from("reactivation_actions")
     .select("id, client_id, entity_type, owner_id, status, dormancy_status, days_inactive_at_detection, sequence_step, email_personalizado, email_language, email_template_id, created_at, authorized_at")
-    .in("status", ["pendiente", "autorizado"])
+    .in("status", ["pendiente", "autorizado", "enviado"])
     .order("created_at", { ascending: false });
 
   if (!isOwner) query = query.eq("owner_id", profile.id);

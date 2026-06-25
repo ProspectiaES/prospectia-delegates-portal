@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendReactivationEmail } from "@/lib/reactivacion-send";
 
 type ActionResult = { error?: string; success?: boolean };
 
@@ -66,7 +67,15 @@ export async function authorizeReactivation(
     .eq("status", "pendiente"); // només transiciona des de pendiente
 
   if (error) return { error: error.message };
+
+  // Enviament immediat — si falla (xarxa, Resend caigut…), el cron de
+  // /api/reactivation/send ho reintentarà; l'estat queda en 'autorizado'.
+  const sendResult = await sendReactivationEmail(actionId);
+
   revalidatePath("/dashboard/reactivacion");
+  if (!sendResult.success) {
+    return { success: true, error: `Autorizado, pero el envío falló: ${sendResult.error ?? sendResult.skipped}` };
+  }
   return { success: true };
 }
 
