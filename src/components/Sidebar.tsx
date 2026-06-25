@@ -473,9 +473,10 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       labelColor: "text-teal-600",
       activeClasses: "bg-teal-50 text-teal-700", activeBar: "bg-teal-500",
       items: [
-        { href: "/dashboard/prospectos", label: "Prospectos",      Icon: IconCRM,        exact: false },
-        { href: "/dashboard/calendario", label: "Calendario",      Icon: IconCalendario, exact: false },
-        { href: "/dashboard/tareas",     label: "Tareas",          Icon: IconTasques,    exact: false },
+        { href: "/dashboard/prospectos",   label: "Prospectos",      Icon: IconCRM,        exact: false },
+        { href: "/dashboard/calendario",   label: "Calendario",      Icon: IconCalendario, exact: false },
+        { href: "/dashboard/tareas",       label: "Tareas",          Icon: IconTasques,    exact: false },
+        { href: "/dashboard/reactivacion", label: "Reactivación",    Icon: IconCRM,        exact: false },
         ...(isOwner ? [{ href: "/dashboard/plantillas", label: "Plantillas email", Icon: IconTemplates, exact: false }] : []),
       ],
     },
