@@ -67,14 +67,33 @@ export async function authorizeReactivation(
     .eq("status", "pendiente"); // només transiciona des de pendiente
 
   if (error) return { error: error.message };
-
-  // Enviament immediat — si falla (xarxa, Resend caigut…), el cron de
-  // /api/reactivation/send ho reintentarà; l'estat queda en 'autorizado'.
-  const sendResult = await sendReactivationEmail(actionId);
-
   revalidatePath("/dashboard/reactivacion");
-  if (!sendResult.success) {
-    return { success: true, error: `Autorizado, pero el envío falló: ${sendResult.error ?? sendResult.skipped}` };
+
+  // FASE TEST: l'enviament és sempre manual (botó "Enviar ahora" separat).
+  // Per activar l'enviament automàtic en autoritzar, posa
+  // REACTIVATION_AUTO_SEND=true a les variables d'entorn — no cal cap canvi
+  // de codi més. El cron /api/reactivation/send (comentat al crontab) ja
+  // està llest per reactivar-se com a safety-net quan es passi a automàtic.
+  if (process.env.REACTIVATION_AUTO_SEND === "true") {
+    const sendResult = await sendReactivationEmail(actionId);
+    if (!sendResult.success) {
+      return { success: true, error: `Autorizado, pero el envío falló: ${sendResult.error ?? sendResult.skipped}` };
+    }
+  }
+  return { success: true };
+}
+
+// ── Enviar ara (acció manual explícita, separada de l'autorització) ─────────
+
+export async function sendReactivationNow(actionId: string): Promise<ActionResult> {
+  const auth = await authorizeAccess(actionId);
+  if ("error" in auth) return auth;
+
+  const result = await sendReactivationEmail(actionId);
+  revalidatePath("/dashboard/reactivacion");
+
+  if (!result.success) {
+    return { error: result.error ?? result.skipped ?? "No se pudo enviar" };
   }
   return { success: true };
 }

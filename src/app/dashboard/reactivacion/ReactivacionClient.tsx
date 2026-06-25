@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import {
-  saveEmailDraft, authorizeReactivation, markNoContactar, markResueltoManualmente, assignClientTemplate,
+  saveEmailDraft, authorizeReactivation, markNoContactar, markResueltoManualmente, assignClientTemplate, sendReactivationNow,
 } from "@/app/actions/reactivacion";
 import { renderTemplate, buildUltimaCompraClause, firstName, type EmailLang, type LastOrderInfo } from "@/lib/email-template-render";
 
@@ -124,6 +124,14 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
     setSendError(null);
     startTr(async () => {
       const res = await authorizeReactivation(row.id, emailText, lang, templateId);
+      if (res.error) setSendError(res.error);
+    });
+  }
+  function handleSendNow() {
+    if (!confirm(`¿Enviar el email de reactivación a ${row.clientName} ahora? Esta acción no se puede deshacer.`)) return;
+    setSendError(null);
+    startTr(async () => {
+      const res = await sendReactivationNow(row.id);
       if (res.error) setSendError(res.error);
     });
   }
@@ -263,14 +271,20 @@ function Row({ row, templatesByLang }: { row: ReactivacionRow; templatesByLang: 
                   </button>
                   <button onClick={handleAuthorize} disabled={pending}
                     className="text-xs font-bold text-white bg-[#8E0E1A] hover:bg-[#6B0A14] px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                    Autorizar y enviar
+                    Autorizar
                   </button>
                 </>
               )}
               {row.status === "autorizado" && (
-                <span className="text-xs text-blue-700 font-medium">
-                  Autorizado {row.authorizedAt ? `el ${new Date(row.authorizedAt).toLocaleDateString("es-ES")}` : ""} — el envío falló, reintentando…
-                </span>
+                <>
+                  <span className="text-xs text-blue-700 font-medium">
+                    Autorizado {row.authorizedAt ? `el ${new Date(row.authorizedAt).toLocaleDateString("es-ES")}` : ""}
+                  </span>
+                  <button onClick={handleSendNow} disabled={pending}
+                    className="text-xs font-bold text-white bg-[#8E0E1A] hover:bg-[#6B0A14] px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                    Enviar ahora
+                  </button>
+                </>
               )}
               {row.status === "enviado" && (
                 <span className="text-xs text-emerald-700 font-medium">
