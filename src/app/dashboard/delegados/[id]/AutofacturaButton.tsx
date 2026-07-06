@@ -106,14 +106,18 @@ function PctField({
 // ─── Draft summary view ───────────────────────────────────────────────────────
 
 function DraftView({
-  draft, onConfirm, onBack, loading, error,
+  draft, docNumber, onDocNumberChange, onConfirm, onBack, loading, error,
 }: {
   draft: DraftData;
+  docNumber: string;
+  onDocNumberChange: (v: string) => void;
   onConfirm: () => void;
   onBack: () => void;
   loading: boolean;
   error: string | null;
 }) {
+  const canConfirm = docNumber.trim().length > 0;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -158,6 +162,24 @@ function DraftView({
             <span className="text-[#6B7280] tabular-nums">+ {fmtEuro(draft.recargoEqAmount)}</span>
           </div>
         )}
+
+        {/* Invoice number — required before the total */}
+        <div className="pt-2 space-y-1.5">
+          <label className="block text-xs font-semibold text-[#374151]">
+            Número de factura <span className="text-[#8E0E1A]">*</span>
+          </label>
+          <input
+            type="text"
+            value={docNumber}
+            onChange={(e) => onDocNumberChange(e.target.value)}
+            placeholder="p. ex. 2026/001, F-26-032…"
+            className="h-9 w-full px-3 text-sm border border-[#D1D5DB] rounded-lg outline-none focus:border-[#8E0E1A] transition-colors"
+          />
+          {!canConfirm && (
+            <p className="text-xs text-[#8E0E1A]">Necessari per poder generar el PDF</p>
+          )}
+        </div>
+
         <div className="flex justify-between items-center bg-[#8E0E1A] rounded-lg px-4 py-3 mt-2">
           <span className="text-sm font-bold text-white uppercase tracking-wide">Total a pagar</span>
           <span className="text-lg font-bold text-white tabular-nums">{fmtEuro(draft.totalPayable)}</span>
@@ -182,7 +204,7 @@ function DraftView({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={loading}
+          disabled={loading || !canConfirm}
           className="flex-1 px-5 py-2 rounded-lg bg-[#8E0E1A] text-sm font-semibold text-white hover:bg-[#7a0c16] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
         >
           {loading ? (
@@ -210,16 +232,17 @@ function DraftView({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function AutofacturaButton({ delegateId, defaultMes }: Props) {
-  const [open, setOpen]       = useState(false);
-  const [step, setStep]       = useState<"form" | "draft">("form");
-  const [mes, setMes]         = useState(defaultMes);
-  const [irpfOn, setIrpfOn]   = useState(false);
-  const [irpfPct, setIrpfPct] = useState(15);
-  const [recOn, setRecOn]     = useState(false);
-  const [recPct, setRecPct]   = useState(1.4);
-  const [draft, setDraft]     = useState<DraftData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [open, setOpen]           = useState(false);
+  const [step, setStep]           = useState<"form" | "draft">("form");
+  const [mes, setMes]             = useState(defaultMes);
+  const [irpfOn, setIrpfOn]       = useState(false);
+  const [irpfPct, setIrpfPct]     = useState(15);
+  const [recOn, setRecOn]         = useState(false);
+  const [recPct, setRecPct]       = useState(1.4);
+  const [draft, setDraft]         = useState<DraftData | null>(null);
+  const [docNumber, setDocNumber] = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
   const nowMes = (() => {
     const d = new Date();
@@ -230,6 +253,7 @@ export function AutofacturaButton({ delegateId, defaultMes }: Props) {
     setMes(defaultMes);
     setStep("form");
     setDraft(null);
+    setDocNumber("");
     setError(null);
     setOpen(true);
   }
@@ -273,6 +297,7 @@ export function AutofacturaButton({ delegateId, defaultMes }: Props) {
           mes,
           irpf_pct:       irpfOn ? irpfPct : 0,
           recargo_eq_pct: recOn  ? recPct  : 0,
+          doc_number:     docNumber.trim(),
         }),
       });
       if (!res.ok) {
@@ -400,8 +425,10 @@ export function AutofacturaButton({ delegateId, defaultMes }: Props) {
               draft && (
                 <DraftView
                   draft={draft}
+                  docNumber={docNumber}
+                  onDocNumberChange={setDocNumber}
                   onConfirm={handleConfirmar}
-                  onBack={() => { setStep("form"); setError(null); }}
+                  onBack={() => { setStep("form"); setDocNumber(""); setError(null); }}
                   loading={loading}
                   error={error}
                 />

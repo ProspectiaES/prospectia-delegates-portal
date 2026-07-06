@@ -38,6 +38,7 @@ export async function POST(
     irpf_pct?: number;
     recargo_eq_pct?: number;
     dry_run?: boolean;
+    doc_number?: string;
   };
 
   const isDryRun     = body.dry_run === true;
@@ -174,23 +175,11 @@ export async function POST(
     });
   }
 
-  // Next doc number
-  const yearStr = String(pYear).slice(-2);
-  const prefix = `PO-AF-${yearStr}-`;
-  const { data: lastAF } = await admin
-    .from("autofacturas")
-    .select("doc_number")
-    .like("doc_number", `${prefix}%`)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let nextSeq = 1;
-  if (lastAF) {
-    const n = parseInt((lastAF as { doc_number: string }).doc_number.slice(prefix.length), 10);
-    if (!isNaN(n)) nextSeq = n + 1;
+  // Use delegate-supplied number (required)
+  const docNumber = (body.doc_number ?? "").trim();
+  if (!docNumber) {
+    return new Response("Número de factura obligatori", { status: 422 });
   }
-  const docNumber = `${prefix}${String(nextSeq).padStart(4, "0")}`;
 
   // Insert record
   await admin.from("autofacturas").insert({
