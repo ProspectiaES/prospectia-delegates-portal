@@ -226,7 +226,12 @@ export default async function RiesgoInformePage({
                         </td>
                         <td className="px-4 py-3 text-[#6B7280] text-xs whitespace-nowrap tabular-nums">{fmtDate(inv.date)}</td>
                         <td className="px-4 py-3 text-[#6B7280] text-xs whitespace-nowrap tabular-nums">{fmtDate(inv.due_date)}</td>
-                        <td className="px-4 py-3 font-semibold text-[#0A0A0A] text-xs whitespace-nowrap tabular-nums">{fmtEuro(inv.total)}</td>
+                        <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                          <span className="font-semibold text-[#0A0A0A] text-xs">{fmtEuro(inv.outstanding)}</span>
+                          {inv.total > inv.outstanding + 0.02 && (
+                            <p className="text-[9px] text-[#9CA3AF]">de {fmtEuro(inv.total)}</p>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.cls}`}>
                             {badge.label}

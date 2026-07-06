@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 
-function daysUntilCls(days: number | null) {
-  if (days === null) return "bg-[#F3F4F6] text-[#6B7280]";
-  if (days <= 7)  return "bg-red-100 text-[#8E0E1A]";
-  if (days <= 30) return "bg-amber-100 text-amber-700";
-  return "bg-green-100 text-green-700";
+function daysUntilBadge(days: number | null): { cls: string; label: string } {
+  if (days === null) return { cls: "bg-[#F3F4F6] text-[#6B7280]", label: "—" };
+  if (days <= 0)  return { cls: "bg-[#8E0E1A] text-white",       label: "Hoy" };
+  if (days <= 7)  return { cls: "bg-red-100 text-[#8E0E1A]",     label: `${days}d` };
+  if (days <= 30) return { cls: "bg-amber-100 text-amber-700",   label: `${days}d` };
+  return                 { cls: "bg-green-100 text-green-700",   label: `${days}d` };
 }
 
 function daysOverdueCls(days: number) {
@@ -182,9 +183,11 @@ export function RiesgoClientesCard({ delegateId, vencidas, pendientes }: Props) 
                         {r.dueDate ? fmtDate(r.dueDate) : <span className="text-[#D1D5DB]">—</span>}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${daysUntilCls(r.daysUntilDue)}`}>
-                          {r.daysUntilDue !== null ? `${r.daysUntilDue}d` : "—"}
-                        </span>
+                        {(() => { const b = daysUntilBadge(r.daysUntilDue); return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${b.cls}`}>
+                            {b.label}
+                          </span>
+                        ); })()}
                       </td>
                     </tr>
                   ))}
