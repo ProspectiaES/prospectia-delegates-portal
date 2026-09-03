@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getProfile } from "@/lib/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SKU_SPRAY, SKUS_PROMO } from "@/lib/skus";
@@ -48,7 +48,8 @@ export default async function AnaliticaPage({
   searchParams: Promise<{ mes?: string }>;
 }) {
   const profile = await getProfile();
-  if (!profile || profile.role !== "OWNER") notFound();
+  if (!profile) redirect("/login");
+  if (profile.role !== "OWNER") notFound();
 
   const sp  = await searchParams;
   const now = new Date();
