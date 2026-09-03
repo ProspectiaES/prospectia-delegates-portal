@@ -2,8 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { login, resetPassword } from "@/app/actions/auth";
+import { clientLogin } from "@/app/actions/clientAuth";
 
 export default function LoginPage() {
+  const [audience, setAudience] = useState<"cliente" | "staff">("cliente");
+  const [clientState, clientLoginAction, clientPending] = useActionState(clientLogin, null);
   const [error, loginAction, pending] = useActionState(login, null);
   const [resetError, resetAction, resetPending] = useActionState(resetPassword, null);
   const [mode, setMode] = useState<"login" | "reset" | "reset-sent">("login");
@@ -30,10 +33,67 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-[#6B7280]">Delegates Portal</p>
         </div>
 
+        {/* Pill tab selector */}
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex rounded-full bg-[#F5F1E6] border border-[#E8DFC8] p-1">
+            <button
+              type="button"
+              onClick={() => setAudience("cliente")}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                audience === "cliente" ? "bg-[#B8860B] text-white" : "text-[#6B7280] hover:text-[#0A0A0A]"
+              }`}
+            >
+              Cliente
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudience("staff")}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                audience === "staff" ? "bg-white text-[#0A0A0A] shadow-sm" : "text-[#6B7280] hover:text-[#0A0A0A]"
+              }`}
+            >
+              Equipo Viholabs
+            </button>
+          </div>
+        </div>
+
         {/* Card */}
         <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm px-8 py-8">
 
-          {mode === "login" ? (
+          {audience === "cliente" ? (
+            <>
+              {clientState?.error && (
+                <div className="mb-5 rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-sm text-[#8E0E1A]">
+                  {clientState.error}
+                </div>
+              )}
+
+              <form action={clientLoginAction} className="space-y-5">
+                <div>
+                  <label htmlFor="nif" className="block text-sm font-medium text-[#374151] mb-1.5">
+                    NIF / CIF
+                  </label>
+                  <input
+                    id="nif"
+                    name="nif"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Tu NIF o CIF tal como consta en tus facturas"
+                    required
+                    className="w-full rounded-lg border border-[#E5E7EB] px-3.5 py-2.5 text-sm text-[#0A0A0A] placeholder-[#9CA3AF] focus:border-[#B8860B] focus:outline-none focus:ring-2 focus:ring-[#B8860B]/10 transition-colors"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={clientPending}
+                  className="w-full rounded-lg bg-[#B8860B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#96700A] focus:outline-none focus:ring-2 focus:ring-[#B8860B] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                >
+                  {clientPending ? "Accediendo…" : "Acceder"}
+                </button>
+              </form>
+            </>
+          ) : mode === "login" ? (
             <>
               {error && (
                 <div className="mb-5 rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-sm text-[#8E0E1A]">
