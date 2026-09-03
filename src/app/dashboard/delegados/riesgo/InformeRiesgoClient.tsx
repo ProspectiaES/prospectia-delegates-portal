@@ -292,12 +292,16 @@ export function InformeRiesgoClient({ delegates, lastSyncAt, isOwner }: Props) {
               {/* Delegate header */}
               <div className="px-5 py-3 border-b border-[#E5E7EB] flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <Link
-                    href={`/dashboard/delegados/${d.id}`}
-                    className="text-sm font-bold text-[#0A0A0A] hover:text-[#8E0E1A] transition-colors print:no-underline"
-                  >
-                    {d.name}
-                  </Link>
+                  {d.id === "unassigned" ? (
+                    <span className="text-sm font-bold text-[#0A0A0A]">{d.name}</span>
+                  ) : (
+                    <Link
+                      href={`/dashboard/delegados/${d.id}`}
+                      className="text-sm font-bold text-[#0A0A0A] hover:text-[#8E0E1A] transition-colors print:no-underline"
+                    >
+                      {d.name}
+                    </Link>
+                  )}
                   {d.vencidas.length > 0 && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-[#8E0E1A]">
                       {d.vencidas.length} vencida{d.vencidas.length !== 1 ? "s" : ""}
@@ -313,12 +317,14 @@ export function InformeRiesgoClient({ delegates, lastSyncAt, isOwner }: Props) {
                   {totalV > 0 && <span className="font-semibold text-[#8E0E1A]">{fmtEuro(totalV)} vencido</span>}
                   {totalP > 0 && <span className="font-semibold text-amber-700">{fmtEuro(totalP)} pendiente</span>}
                   <span className="font-bold text-[#0A0A0A]">{fmtEuro(totalV + totalP)} total</span>
-                  <Link
-                    href={`/dashboard/delegados/${d.id}/riesgo`}
-                    className="text-[10px] font-medium text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors print:hidden"
-                  >
-                    Informe →
-                  </Link>
+                  {d.id !== "unassigned" && (
+                    <Link
+                      href={`/dashboard/delegados/${d.id}/riesgo`}
+                      className="text-[10px] font-medium text-[#9CA3AF] hover:text-[#8E0E1A] transition-colors print:hidden"
+                    >
+                      Informe →
+                    </Link>
+                  )}
                 </div>
               </div>
 

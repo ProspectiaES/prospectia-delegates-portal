@@ -68,15 +68,24 @@ export default async function InformeRiesgoGlobalPage() {
 
   const allContactIds = [...new Set(cd.map(r => r.contact_id).filter(Boolean) as string[])];
 
+  // Owner/admin see every outstanding invoice, not just ones with an explicit
+  // contact_delegates assignment (that table is manually populated and many
+  // clients with real invoices never get assigned to a delegate).
   const [invoicesRes, syncRes] = await Promise.all([
-    allContactIds.length > 0
+    isOwner
       ? admin.from("holded_invoices")
           .select("id, doc_number, contact_id, contact_name, date, due_date, total, status, raw")
-          .in("contact_id", allContactIds)
           .in("status", [1, 2])
           .eq("is_credit_note", false)
           .order("due_date", { ascending: true })
-      : Promise.resolve({ data: [] }),
+      : allContactIds.length > 0
+        ? admin.from("holded_invoices")
+            .select("id, doc_number, contact_id, contact_name, date, due_date, total, status, raw")
+            .in("contact_id", allContactIds)
+            .in("status", [1, 2])
+            .eq("is_credit_note", false)
+            .order("due_date", { ascending: true })
+        : Promise.resolve({ data: [] }),
     admin.from("holded_sync_log")
       .select("finished_at")
       .eq("status", "completed")
@@ -89,13 +98,18 @@ export default async function InformeRiesgoGlobalPage() {
   const lastSyncAt = (syncRes.data as { finished_at: string | null } | null)?.finished_at ?? null;
 
   // Credit notes to exclude
-  const { data: cnRows } = allContactIds.length > 0
+  const { data: cnRows } = isOwner
     ? await admin.from("holded_invoices")
         .select("from_invoice_id")
-        .in("contact_id", allContactIds)
         .eq("is_credit_note", true)
         .not("from_invoice_id", "is", null)
-    : { data: [] };
+    : allContactIds.length > 0
+      ? await admin.from("holded_invoices")
+          .select("from_invoice_id")
+          .in("contact_id", allContactIds)
+          .eq("is_credit_note", true)
+          .not("from_invoice_id", "is", null)
+      : { data: [] };
 
   const cancelledIds = new Set(
     ((cnRows ?? []) as { from_invoice_id: string | null }[])
@@ -105,14 +119,17 @@ export default async function InformeRiesgoGlobalPage() {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
-  // Group by delegate
+  // Group by delegate — unassigned contacts (owner view only) fall into a
+  // dedicated "Sin asignar" bucket instead of being dropped.
+  const UNASSIGNED_ID = "unassigned";
   const delegateMap: Record<string, { vencidas: InvRiesgo[]; pendientes: InvRiesgo[] }> = {};
   for (const del of delegates) delegateMap[del.id] = { vencidas: [], pendientes: [] };
+  if (isOwner) delegateMap[UNASSIGNED_ID] = { vencidas: [], pendientes: [] };
 
   for (const inv of invoices) {
     if (cancelledIds.has(inv.id)) continue;
     if (!inv.contact_id) continue;
-    const delId = contactToDelegate[inv.contact_id];
+    const delId = contactToDelegate[inv.contact_id] ?? (isOwner ? UNASSIGNED_ID : undefined);
     if (!delId || !delegateMap[delId]) continue;
 
     const outs = outstanding(inv);
@@ -161,6 +178,13 @@ export default async function InformeRiesgoGlobalPage() {
       name: d.delegate_name ?? d.full_name,
       ...delegateMap[d.id],
     }));
+
+  if (isOwner) {
+    const unassigned = delegateMap[UNASSIGNED_ID];
+    if (unassigned.vencidas.length > 0 || unassigned.pendientes.length > 0) {
+      result.push({ id: UNASSIGNED_ID, name: "Sin delegado", ...unassigned });
+    }
+  }
 
   return (
     <InformeRiesgoClient
