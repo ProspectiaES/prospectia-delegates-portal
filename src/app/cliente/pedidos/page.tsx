@@ -24,25 +24,13 @@ export default async function ClientePedidosPage() {
   if (!contact) redirect("/login");
 
   const admin = createAdminClient();
-  const [{ data: ordersData }, { data: paidInvoice }] = await Promise.all([
-    admin.from("holded_salesorders")
-      .select("id, doc_number, date, total, status, shipping_status")
-      .eq("contact_id", contact.id)
-      .order("date", { ascending: false }),
-    admin.from("holded_invoices")
-      .select("id")
-      .eq("contact_id", contact.id)
-      .eq("status", 3)
-      .eq("is_credit_note", false)
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const { data: ordersData } = await admin
+    .from("holded_salesorders")
+    .select("id, doc_number, date, total, status, shipping_status")
+    .eq("contact_id", contact.id)
+    .order("date", { ascending: false });
 
   const orders = (ordersData ?? []) as DbOrder[];
-  // Same convention as the staff pedidos view: a contact with any paid
-  // invoice has its orders treated as "Finalizado" rather than trusting
-  // Holded's own status field, which lags for accepted/invoiced orders.
-  const hasPaidInvoice = !!paidInvoice;
 
   return (
     <div className="space-y-6">
@@ -76,7 +64,7 @@ export default async function ClientePedidosPage() {
               </thead>
               <tbody className="divide-y divide-[#F3F4F6]">
                 {orders.map(o => {
-                  const st = hasPaidInvoice ? { label: "Facturado", variant: "success" as const } : orderStatus(o.status);
+                  const st = orderStatus(o.status);
                   return (
                     <tr key={o.id} className="hover:bg-[#FAFAFA]">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">

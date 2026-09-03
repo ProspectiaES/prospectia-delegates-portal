@@ -114,3 +114,34 @@ export const getClientContact = cache(async (): Promise<ClientContact | null> =>
 
   return data as ClientContact | null;
 });
+
+export interface AssignedDelegate {
+  name: string;
+  email: string | null;
+}
+
+// The delegate this client is linked to, for display in the portal
+// (contact_delegates enforces one delegate per contact by convention).
+export const getAssignedDelegate = cache(async (contactId: string): Promise<AssignedDelegate | null> => {
+  const admin = createAdminClient();
+  const { data: link } = await admin
+    .from("contact_delegates")
+    .select("delegate_id")
+    .eq("contact_id", contactId)
+    .maybeSingle();
+  if (!link?.delegate_id) return null;
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name, delegate_name")
+    .eq("id", link.delegate_id)
+    .maybeSingle();
+  if (!profile) return null;
+
+  const { data: authData } = await admin.auth.admin.getUserById(link.delegate_id);
+
+  return {
+    name: profile.delegate_name ?? profile.full_name,
+    email: authData?.user?.email ?? null,
+  };
+});
