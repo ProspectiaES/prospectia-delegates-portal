@@ -65,6 +65,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
   let query = supabase
     .from("holded_contacts")
     .select("id, name, code, email, phone, type, tags, city")
+    .is("merged_into_id", null)
     .order("name", { ascending: true });
 
   if (delegateContactIds !== null) query = query.in("id", delegateContactIds);
