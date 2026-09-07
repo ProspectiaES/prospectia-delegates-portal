@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductes } from "@/app/actions/bruixola";
-import { getProjecteNegoci, getOportunitats, getOrganitzacions, getTasquesProjecte } from "@/app/actions/bruixola-negoci";
+import { getProjecteNegoci, getOportunitats, getOrganitzacions, getTasquesProjecte, getPipelines, getStages } from "@/app/actions/bruixola-negoci";
 import { Badge } from "@/components/ui/Badge";
 import { ProjecteDetailClient } from "./ProjecteDetailClient";
 
@@ -16,11 +16,13 @@ export default async function ProjecteDetailPage({ params }: { params: Promise<{
   const projecte = await getProjecteNegoci(id);
   if (!projecte) notFound();
 
-  const [productes, oportunitats, organitzacions, tasques] = await Promise.all([
+  const [productes, oportunitats, organitzacions, tasques, pipelines, stages] = await Promise.all([
     getProductes(),
     getOportunitats(),
     getOrganitzacions(),
     getTasquesProjecte(id),
+    getPipelines(),
+    getStages(),
   ]);
 
   const producte = productes.find(p => p.id === projecte.producte_id);
@@ -48,6 +50,8 @@ export default async function ProjecteDetailPage({ params }: { params: Promise<{
         oportunitats={oportunitatsProjecte}
         organitzacions={organitzacions}
         tasques={tasques}
+        pipelines={pipelines}
+        stages={stages}
       />
     </div>
   );
