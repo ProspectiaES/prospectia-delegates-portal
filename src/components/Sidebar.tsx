@@ -448,6 +448,8 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/bruixola/empreses",   label: "Empresas",    Icon: IconBruixola, exact: false },
         { href: "/dashboard/bruixola/prospeccio", label: "Prospección", Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/pipelines",  label: "Pipelines",   Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/calendari",  label: "Agenda",      Icon: IconBruixola, exact: false },
       ],
     }] : []),
 
