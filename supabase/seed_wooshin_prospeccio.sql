@@ -3,8 +3,11 @@
 -- NO és una migració d'esquema — executar NOMÉS DESPRÉS d'aplicar
 -- 065_bruixola_negoci.sql. Idempotent (es pot re-executar sense duplicar).
 --
--- Assumeix que hi ha un únic perfil amb role='OWNER'. Si n'hi ha més d'un,
--- ajustar manualment la subquery `owner_id` abans d'executar.
+-- Hi ha DOS perfils amb role='OWNER' en producció (lvila@prospectia.es i
+-- marti@viho.es) — totes les subqueries d'owner filtren explícitament per
+-- l'email lvila@prospectia.es, ja que aquestes empreses/oportunitats són
+-- seves. No usar mai un simple "WHERE role='OWNER' LIMIT 1" en aquest
+-- projecte — és no determinista amb dos OWNER.
 --
 -- Decisions de modelatge (revisar abans d'executar):
 --   - Laboratorios Viñas ja apareix a ArniPatch i Ivy Leaf ODF com a
@@ -27,7 +30,7 @@
 -- ─── 1. Empreses pròpies (crear si no existeixen) ───────────────────────────
 
 INSERT INTO bruixola_empreses (user_id, nom, tipus, sector, descripcio)
-SELECT (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1), v.nom, v.tipus, 'Farmacèutica / autocuidado', v.descripcio
+SELECT (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es'), v.nom, v.tipus, 'Farmacèutica / autocuidado', v.descripcio
 FROM (VALUES
   ('Wooshin',            'Fabricant',  'Wooshin Labottach — ArniPatch, Ivy Leaf ODF, Tadalafil ODF'),
   ('Athena',             'Propi',      NULL),
@@ -41,13 +44,13 @@ FROM (VALUES
 ) AS v(nom, tipus, descripcio)
 WHERE NOT EXISTS (
   SELECT 1 FROM bruixola_empreses e
-  WHERE e.user_id = (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1) AND e.nom = v.nom
+  WHERE e.user_id = (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es') AND e.nom = v.nom
 );
 
 -- ─── 2. Organitzacions externes (dedupliquen entre productes) ───────────────
 
 INSERT INTO bruixola_organitzacions (user_id, nom, tipus, pais, sector, contacte, notes)
-SELECT (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1), v.nom, 'prospecte', 'Espanya', v.sector, v.contacte, v.notes
+SELECT (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es'), v.nom, 'prospecte', 'Espanya', v.sector, v.contacte, v.notes
 FROM (VALUES
   ('Laboratorios Viñas',                               'Laboratori familiar', 'C/ Provença 386, 6a, Barcelona · 93 207 05 12 · www.vinas.es · contacte: Mariona (ja actiu)', 'Origen del projecte Wooshin a Espanya.'),
   ('HARTMANN España',                                  'Apòsits/parches',     'Mataró, Barcelona · 93 741 71 36 · hartmann.info/es-es', 'Sense àrnica pròpia — entrada neta.'),
@@ -83,14 +86,14 @@ FROM (VALUES
 ) AS v(nom, sector, contacte, notes)
 WHERE NOT EXISTS (
   SELECT 1 FROM bruixola_organitzacions o
-  WHERE o.user_id = (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1) AND o.nom = v.nom
+  WHERE o.user_id = (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es') AND o.nom = v.nom
 );
 
 -- ─── 3. Oportunitats — ArniPatch ─────────────────────────────────────────────
 
 INSERT INTO bruixola_oportunitats (user_id, empresa_id, organitzacio_id, nom, estat, ona, proxima_accio, notes)
 SELECT
-  (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1),
+  (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es'),
   (SELECT id FROM bruixola_empreses WHERE nom = 'Wooshin' LIMIT 1),
   (SELECT id FROM bruixola_organitzacions WHERE nom = v.org LIMIT 1),
   'ArniPatch — ' || v.org, v.estat, v.ona, v.proxima_accio, v.notes
@@ -120,7 +123,7 @@ WHERE NOT EXISTS (
 
 INSERT INTO bruixola_oportunitats (user_id, empresa_id, organitzacio_id, nom, estat, ona, proxima_accio, notes)
 SELECT
-  (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1),
+  (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es'),
   (SELECT id FROM bruixola_empreses WHERE nom = 'Wooshin' LIMIT 1),
   (SELECT id FROM bruixola_organitzacions WHERE nom = v.org LIMIT 1),
   'Ivy Leaf ODF — ' || v.org, v.estat, v.ona, v.proxima_accio, v.notes
@@ -148,7 +151,7 @@ WHERE NOT EXISTS (
 
 INSERT INTO bruixola_oportunitats (user_id, empresa_id, organitzacio_id, nom, estat, ona, proxima_accio, notes)
 SELECT
-  (SELECT id FROM profiles WHERE role = 'OWNER' LIMIT 1),
+  (SELECT p.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE u.email = 'lvila@prospectia.es'),
   (SELECT id FROM bruixola_empreses WHERE nom = 'Wooshin' LIMIT 1),
   (SELECT id FROM bruixola_organitzacions WHERE nom = v.org LIMIT 1),
   'Tadalafil ODF — ' || v.org, v.estat, v.ona, v.proxima_accio, v.notes
