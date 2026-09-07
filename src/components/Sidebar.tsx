@@ -439,6 +439,18 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       ],
     }] : []),
 
+    // ── Mi Negocio (privat, només OWNER — Bruixola negoci) ────────────────
+    ...(isOwner ? [{
+      label: "Mi Negocio",
+      dot: "bg-yellow-400", iconColor: "text-yellow-600",
+      labelColor: "text-yellow-700",
+      activeClasses: "bg-yellow-50 text-yellow-800", activeBar: "bg-yellow-500",
+      items: [
+        { href: "/dashboard/bruixola/empreses",   label: "Empresas",    Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/prospeccio", label: "Prospección", Icon: IconBruixola, exact: false },
+      ],
+    }] : []),
+
     // ── Clientes & Ventas ──────────────────────────────────────────────────
     {
       label: "Clientes & Ventas",
