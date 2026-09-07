@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEmpreses, getActors, getProjectes, getBloquejos, type EstatProjecte } from "@/app/actions/bruixola";
+import { getEmpreses, getActors, getProjectes, getBloquejos, getProductes, type EstatProjecte } from "@/app/actions/bruixola";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ProductesSection } from "./ProductesSection";
 
 const estatVariant: Record<EstatProjecte, "default" | "success" | "warning" | "danger" | "neutral"> = {
   actiu: "success",
@@ -17,11 +18,12 @@ export default async function EmpresaDetailPage({ params }: { params: Promise<{ 
 
   // getActors()/getProjectes()/getBloquejos() have no filter param — bruixola.ts
   // is off-limits to edit, so we filter the full lists here instead.
-  const [empreses, actors, projectes, bloquejos] = await Promise.all([
+  const [empreses, actors, projectes, bloquejos, productes] = await Promise.all([
     getEmpreses(),
     getActors(),
     getProjectes(),
     getBloquejos(),
+    getProductes(),
   ]);
 
   const empresa = empreses.find(e => e.id === id);
@@ -29,6 +31,7 @@ export default async function EmpresaDetailPage({ params }: { params: Promise<{ 
 
   const actorsEmpresa = actors.filter(a => a.empresa_id === id);
   const projectesEmpresa = projectes.filter(p => p.empresa_id === id);
+  const productesEmpresa = productes.filter(p => p.empresa_id === id);
 
   // Bloqueig has no empresa_id — link via this empresa's own projects/actors.
   const projecteIds = new Set(projectesEmpresa.map(p => p.id));
@@ -47,6 +50,8 @@ export default async function EmpresaDetailPage({ params }: { params: Promise<{ 
         <h1 className="mt-2 text-2xl font-bold text-[#0A0A0A] tracking-tight">{empresa.nom}</h1>
         {empresa.descripcio && <p className="mt-1 text-sm text-[#6B7280]">{empresa.descripcio}</p>}
       </div>
+
+      <ProductesSection empresaId={id} productes={productesEmpresa} />
 
       <Card>
         <CardHeader><CardTitle>Persones clau ({actorsEmpresa.length})</CardTitle></CardHeader>
