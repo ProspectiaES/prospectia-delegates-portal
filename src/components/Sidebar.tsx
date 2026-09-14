@@ -436,6 +436,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       items: [
         { href: "/dashboard/bruixola",               label: "Cuadro de Mando", Icon: IconBruixola, exact: true  },
         { href: "/dashboard/bruixola/internacional", label: "· Internacional",  Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola/historico",     label: "· Histórico",      Icon: IconBruixola, exact: false },
       ],
     }] : []),
 
