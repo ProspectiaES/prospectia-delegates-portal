@@ -1,5 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
+interface RawLine {
+  name?: string;
+  sku?: string;
+  units?: number | string;
+  price?: number | string;
+  discount?: number | string;
+}
+
 interface InvRow {
   id: string;
   contact_id: string | null;
@@ -8,6 +16,15 @@ interface InvRow {
   subtotal: number | null;
   is_credit_note: boolean;
   from_invoice_id: string | null;
+  raw: { products?: RawLine[]; items?: RawLine[] } | null;
+}
+
+export interface ProductBreakdownRow {
+  producto: string;
+  intl: number;
+  otros: number;
+  unidadesIntl: number;
+  unidadesOtros: number;
 }
 
 export interface HistoricoData {
@@ -18,8 +35,20 @@ export interface HistoricoData {
   total: number;
   invoiceCount: number;
   byYear: { year: number; intl: number; otros: number }[];
+  byProduct: ProductBreakdownRow[];
   firstDate: Date | null;
   lastDate: Date | null;
+}
+
+function normName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ");
+}
+
+function lineNet(l: RawLine): number {
+  const units = Number(l.units ?? 0);
+  const price = Number(l.price ?? 0);
+  const discount = Number(l.discount ?? 0);
+  return units * price * (1 - discount / 100);
 }
 
 export async function getHistoricoData(): Promise<HistoricoData> {
@@ -28,7 +57,7 @@ export async function getHistoricoData(): Promise<HistoricoData> {
   const [{ data: intlContactsRaw }, { data: invRaw }, { data: creditRaw }] = await Promise.all([
     admin.from("holded_contacts").select("id").eq("is_internacional", true).is("merged_into_id", null),
     admin.from("holded_invoices")
-      .select("id, contact_id, date, total, subtotal, is_credit_note, from_invoice_id")
+      .select("id, contact_id, date, total, subtotal, is_credit_note, from_invoice_id, raw")
       .in("status", [1, 2, 3])
       .eq("is_credit_note", false)
       .order("date", { ascending: true }),
@@ -43,6 +72,7 @@ export async function getHistoricoData(): Promise<HistoricoData> {
 
   let totalIntl = 0, totalOtros = 0, countIntl = 0, countOtros = 0;
   const byYearMap = new Map<number, { intl: number; otros: number }>();
+  const byProductMap = new Map<string, ProductBreakdownRow>();
 
   for (const inv of invoices) {
     const isIntl = inv.contact_id ? intlIds.has(inv.contact_id) : false;
@@ -53,15 +83,30 @@ export async function getHistoricoData(): Promise<HistoricoData> {
 
     if (isIntl) { totalIntl += value; countIntl++; bucket.intl += value; }
     else { totalOtros += value; countOtros++; bucket.otros += value; }
+
+    const lines = inv.raw?.products ?? inv.raw?.items ?? [];
+    for (const l of lines) {
+      const rawName = (l.name ?? l.sku ?? "Sin nombre").trim();
+      const key = normName(rawName);
+      if (!key) continue;
+      if (!byProductMap.has(key)) byProductMap.set(key, { producto: rawName, intl: 0, otros: 0, unidadesIntl: 0, unidadesOtros: 0 });
+      const p = byProductMap.get(key)!;
+      const net = lineNet(l);
+      const units = Number(l.units ?? 0);
+      if (isIntl) { p.intl += net; p.unidadesIntl += units; }
+      else { p.otros += net; p.unidadesOtros += units; }
+    }
   }
 
   const byYear = [...byYearMap.entries()].sort((a, b) => b[0] - a[0]).map(([year, b]) => ({ year, ...b }));
+  const byProduct = [...byProductMap.values()].sort((a, b) => (b.intl + b.otros) - (a.intl + a.otros));
 
   return {
     totalIntl, totalOtros, countIntl, countOtros,
     total: totalIntl + totalOtros,
     invoiceCount: invoices.length,
     byYear,
+    byProduct,
     firstDate: invoices[0]?.date ? new Date(invoices[0].date) : null,
     lastDate: invoices[invoices.length - 1]?.date ? new Date(invoices[invoices.length - 1].date) : null,
   };

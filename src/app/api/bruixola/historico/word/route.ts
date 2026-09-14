@@ -31,7 +31,7 @@ export async function GET() {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const { totalIntl, totalOtros, countIntl, countOtros, total, invoiceCount, byYear, firstDate, lastDate } = await getHistoricoData();
+  const { totalIntl, totalOtros, countIntl, countOtros, total, invoiceCount, byYear, byProduct, firstDate, lastDate } = await getHistoricoData();
 
   const periodLabel = firstDate && lastDate
     ? `${firstDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })} — ${lastDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}`
@@ -95,6 +95,26 @@ export async function GET() {
   ];
   const yearTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: yearRows });
 
+  const productRows = [
+    new TableRow({
+      children: [
+        cell("Producto", { bold: true, color: "FFFFFF", shading: RED }),
+        cell("Internacional", { bold: true, color: "FFFFFF", shading: RED, align: AlignmentType.RIGHT }),
+        cell("Otros", { bold: true, color: "FFFFFF", shading: RED, align: AlignmentType.RIGHT }),
+        cell("Total", { bold: true, color: "FFFFFF", shading: RED, align: AlignmentType.RIGHT }),
+      ],
+    }),
+    ...byProduct.map(p => new TableRow({
+      children: [
+        cell(p.producto),
+        cell(p.intl > 0 ? fmt(p.intl) : "—", { align: AlignmentType.RIGHT }),
+        cell(p.otros > 0 ? fmt(p.otros) : "—", { align: AlignmentType.RIGHT }),
+        cell(fmt(p.intl + p.otros), { bold: true, color: RED, align: AlignmentType.RIGHT }),
+      ],
+    })),
+  ];
+  const productTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: productRows });
+
   const doc = new Document({
     sections: [{
       properties: {},
@@ -121,6 +141,12 @@ export async function GET() {
         summaryTable,
         new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 150 }, children: [new TextRun("Evolución por año")] }),
         yearTable,
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 150 }, children: [new TextRun("Por producto")] }),
+        new Paragraph({
+          spacing: { after: 150 },
+          children: [new TextRun({ text: "Importe neto por línea de factura (precio × unidades − descuento); puede diferir ligeramente del total de factura por redondeos.", color: GREY, italics: true, size: 16 })],
+        }),
+        productTable,
         new Paragraph({
           spacing: { before: 500 },
           border: { top: { style: BorderStyle.SINGLE, size: 4, color: "E5E7EB", space: 8 } },
