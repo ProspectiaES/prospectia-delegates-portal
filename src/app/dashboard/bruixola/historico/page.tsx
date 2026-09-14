@@ -1,21 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/profile";
+import { getHistoricoData } from "@/lib/bruixola/historicoData";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100));
-
-interface InvRow {
-  id: string;
-  contact_id: string | null;
-  date: string;
-  total: number | null;
-  subtotal: number | null;
-  is_credit_note: boolean;
-  from_invoice_id: string | null;
-}
 
 export default async function HistoricoFacturacionPage() {
   const profile = await getProfile();
@@ -23,61 +13,34 @@ export default async function HistoricoFacturacionPage() {
     redirect("/dashboard");
   }
 
-  const admin = createAdminClient();
-
-  const [{ data: intlContactsRaw }, { data: invRaw }, { data: creditRaw }] = await Promise.all([
-    admin.from("holded_contacts").select("id").eq("is_internacional", true).is("merged_into_id", null),
-    admin.from("holded_invoices")
-      .select("id, contact_id, date, total, subtotal, is_credit_note, from_invoice_id")
-      .in("status", [1, 2, 3])
-      .eq("is_credit_note", false)
-      .order("date", { ascending: true }),
-    admin.from("holded_invoices").select("from_invoice_id").eq("is_credit_note", true).not("from_invoice_id", "is", null),
-  ]);
-
-  const intlIds = new Set((intlContactsRaw ?? []).map(c => c.id as string));
-  const cancelled = new Set(((creditRaw ?? []) as { from_invoice_id: string | null }[]).map(r => r.from_invoice_id).filter(Boolean) as string[]);
-  const invoices = ((invRaw ?? []) as InvRow[]).filter(i => !cancelled.has(i.id));
-
-  const amount = (i: InvRow) => i.subtotal ?? i.total ?? 0;
-
-  let totalIntl = 0, totalOtros = 0, countIntl = 0, countOtros = 0;
-  const byYear = new Map<number, { intl: number; otros: number }>();
-
-  for (const inv of invoices) {
-    const isIntl = inv.contact_id ? intlIds.has(inv.contact_id) : false;
-    const value = amount(inv);
-    const year = new Date(inv.date).getUTCFullYear();
-    if (!byYear.has(year)) byYear.set(year, { intl: 0, otros: 0 });
-    const bucket = byYear.get(year)!;
-
-    if (isIntl) { totalIntl += value; countIntl++; bucket.intl += value; }
-    else { totalOtros += value; countOtros++; bucket.otros += value; }
-  }
-
-  const total = totalIntl + totalOtros;
-  const years = [...byYear.keys()].sort((a, b) => b - a);
-  const firstDate = invoices[0]?.date ? new Date(invoices[0].date) : null;
-  const lastDate = invoices[invoices.length - 1]?.date ? new Date(invoices[invoices.length - 1].date) : null;
+  const { totalIntl, totalOtros, countIntl, countOtros, total, invoiceCount, byYear, firstDate, lastDate } = await getHistoricoData();
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
-        <div>
-          <Link href="/dashboard/bruixola" className="text-xs text-[#6B7280] hover:text-[#111827] mb-1 inline-block">← Brúixola</Link>
-          <h1 className="text-2xl font-bold text-[#111827]">Facturación histórica</h1>
-          <p className="text-xs text-[#9CA3AF] mt-0.5">
-            {firstDate && lastDate
-              ? `Desde ${firstDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })} hasta ${lastDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })} · ${invoices.length} facturas`
-              : "Sin datos"}
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <Link href="/dashboard/bruixola" className="text-xs text-[#6B7280] hover:text-[#111827] mb-1 inline-block">← Brúixola</Link>
+            <h1 className="text-2xl font-bold text-[#111827]">Facturación histórica</h1>
+            <p className="text-xs text-[#9CA3AF] mt-0.5">
+              {firstDate && lastDate
+                ? `Desde ${firstDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })} hasta ${lastDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })} · ${invoiceCount} facturas`
+                : "Sin datos"}
+            </p>
+          </div>
+          <a
+            href="/api/bruixola/historico/word"
+            className="h-9 px-4 rounded-lg text-sm font-medium text-white bg-[#8E0E1A] hover:bg-[#6B0A14] transition-colors flex items-center gap-2"
+          >
+            Descargar Word →
+          </a>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="rounded-xl p-5 border border-[#8E0E1A] bg-[#8E0E1A]">
             <p className="text-xs font-medium mb-1 text-[#FECDD3]">Total facturado</p>
             <p className="text-2xl font-bold text-white">{fmt(total)}</p>
-            <p className="text-xs mt-1 font-medium text-[#FCA5A5]">{invoices.length} facturas</p>
+            <p className="text-xs mt-1 font-medium text-[#FCA5A5]">{invoiceCount} facturas</p>
           </div>
           <div className="rounded-xl p-5 border border-[#E5E7EB] bg-white shadow-sm">
             <p className="text-xs font-medium mb-1 text-[#6B7280]">Internacional</p>
@@ -107,17 +70,14 @@ export default async function HistoricoFacturacionPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F9FAFB]">
-                {years.map(year => {
-                  const b = byYear.get(year)!;
-                  return (
-                    <tr key={year} className="hover:bg-[#FAFAFA] transition-colors">
-                      <td className="px-4 py-3 font-semibold text-[#111827]">{year}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{fmt(b.intl)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{fmt(b.otros)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#8E0E1A]">{fmt(b.intl + b.otros)}</td>
-                    </tr>
-                  );
-                })}
+                {byYear.map(b => (
+                  <tr key={b.year} className="hover:bg-[#FAFAFA] transition-colors">
+                    <td className="px-4 py-3 font-semibold text-[#111827]">{b.year}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{fmt(b.intl)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{fmt(b.otros)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#8E0E1A]">{fmt(b.intl + b.otros)}</td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[#E5E7EB] bg-[#F9FAFB]">
