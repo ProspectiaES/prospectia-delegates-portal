@@ -170,6 +170,7 @@ export default async function BruixolaPage({ searchParams }: { searchParams: Pro
             {href:"/dashboard/bruixola/rendiment",label:"Rendiment"},
             {href:"/dashboard/bruixola/financier",label:"Motor Econòmic"},
             {href:"/dashboard/bruixola/rendibilitat",label:"Rendibilitat"},
+            {href:"/dashboard/bruixola/historico",label:"Històric"},
           ].map(n=>(
             <Link key={n.href} href={n.href}
               className="h-8 px-3 rounded-lg text-[12px] font-medium text-[#8E0E1A] border border-[#FECACA] hover:bg-[#FEF2F2] transition-colors flex items-center">
