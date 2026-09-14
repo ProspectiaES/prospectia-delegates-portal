@@ -13,7 +13,7 @@ export default async function HistoricoFacturacionPage() {
     redirect("/dashboard");
   }
 
-  const { totalIntl, totalOtros, countIntl, countOtros, total, invoiceCount, byYear, firstDate, lastDate } = await getHistoricoData();
+  const { totalIntl, totalOtros, countIntl, countOtros, total, invoiceCount, byYear, byProduct, firstDate, lastDate } = await getHistoricoData();
 
   return (
     <div className="min-h-screen bg-white">
@@ -89,6 +89,47 @@ export default async function HistoricoFacturacionPage() {
               </tfoot>
             </table>
           </div>
+        </div>
+
+        <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#F3F4F6] bg-[#FAFAFA]">
+            <p className="text-sm font-semibold text-[#111827]">Por producto</p>
+            <p className="text-[10px] text-[#9CA3AF] mt-0.5">Importe neto por línea de factura (precio × unidades − descuento) · puede variar ligeramente del total de factura por redondeos</p>
+          </div>
+          {byProduct.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-[#9CA3AF] text-center">Sin líneas de producto en las facturas.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#F3F4F6]">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Producto</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Internacional</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Otros</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F9FAFB]">
+                  {byProduct.map(p => (
+                    <tr key={p.producto} className="hover:bg-[#FAFAFA] transition-colors">
+                      <td className="px-4 py-3 font-medium text-[#111827] capitalize">{p.producto}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{p.intl > 0 ? fmt(p.intl) : <span className="text-[#D1D5DB]">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-[#111827]">{p.otros > 0 ? fmt(p.otros) : <span className="text-[#D1D5DB]">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-[#8E0E1A]">{fmt(p.intl + p.otros)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[#E5E7EB] bg-[#F9FAFB]">
+                    <td className="px-4 py-3 font-bold text-[#111827]">TOTAL líneas</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#111827]">{fmt(byProduct.reduce((s, p) => s + p.intl, 0))}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#111827]">{fmt(byProduct.reduce((s, p) => s + p.otros, 0))}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#8E0E1A]">{fmt(byProduct.reduce((s, p) => s + p.intl + p.otros, 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
 
         <Link href="/dashboard/bruixola/internacional" className="inline-block text-sm text-[#8E0E1A] hover:underline">Ver detalle mensual Internacional →</Link>
