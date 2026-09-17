@@ -57,10 +57,6 @@ export default async function ObjectiusPage() {
           <h1 className="text-xl font-bold text-[#0A0A0A]">Objectius estratègics</h1>
           <p className="text-xs text-[#9CA3AF] mt-0.5">{objectius.length} objectiu{objectius.length !== 1 ? "s" : ""} registrats</p>
         </div>
-        <Link href="/dashboard/bruixola/internacional/objectius"
-          className="h-8 px-3 rounded-lg text-[12px] font-medium text-[#8E0E1A] border border-[#FECACA] hover:bg-[#FEF2F2] transition-colors flex items-center">
-          Internacional →
-        </Link>
       </div>
 
       <ObjectiusClient objectius={objectius} currentYear={currentYear} />

@@ -434,23 +434,7 @@ function buildSections(role: string, userId: string, isKol = false, isCoordinato
       labelColor: "text-indigo-500",
       activeClasses: "bg-indigo-50 text-indigo-700", activeBar: "bg-indigo-500",
       items: [
-        { href: "/dashboard/bruixola",               label: "Cuadro de Mando", Icon: IconBruixola, exact: true  },
-        { href: "/dashboard/bruixola/internacional", label: "· Internacional",  Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/historico",     label: "· Histórico",      Icon: IconBruixola, exact: false },
-      ],
-    }] : []),
-
-    // ── Mi Negocio (privat, només OWNER — Bruixola negoci) ────────────────
-    ...(isOwner ? [{
-      label: "Mi Negocio",
-      dot: "bg-yellow-400", iconColor: "text-yellow-600",
-      labelColor: "text-yellow-700",
-      activeClasses: "bg-yellow-50 text-yellow-800", activeBar: "bg-yellow-500",
-      items: [
-        { href: "/dashboard/bruixola/empreses",   label: "Empresas",    Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/prospeccio", label: "Prospección", Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/pipelines",  label: "Pipelines",   Icon: IconBruixola, exact: false },
-        { href: "/dashboard/bruixola/calendari",  label: "Agenda",      Icon: IconBruixola, exact: false },
+        { href: "/dashboard/bruixola", label: "Cuadro de Mando", Icon: IconBruixola, exact: true },
       ],
     }] : []),
 
