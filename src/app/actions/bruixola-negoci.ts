@@ -61,6 +61,15 @@ export interface Oportunitat {
   moneda: string | null;
   lost_reason: string | null;
   persona_id: string | null;
+  // Seguiment de guanyats — acords ja tancats amb dates/percentatges propis
+  data_signatura: string | null;
+  data_primer_enviament: string | null;
+  comissio_pct: number | null;
+  llicencia_pct: number | null;
+  durada_comissio_anys: number | null;
+  durada_contracte_mesos: number | null;
+  renovacio_automatica: boolean;
+  doc_contracte_ref: string | null;
 }
 
 export interface NegociActionState {
@@ -492,6 +501,14 @@ export async function saveOportunitat(
     moneda: safeText(formData.get("moneda")) ?? "EUR",
     lost_reason: safeText(formData.get("lost_reason")),
     persona_id: safeText(formData.get("persona_id")),
+    data_signatura: safeText(formData.get("data_signatura")),
+    data_primer_enviament: safeText(formData.get("data_primer_enviament")),
+    comissio_pct: safeNum(formData.get("comissio_pct")),
+    llicencia_pct: safeNum(formData.get("llicencia_pct")),
+    durada_comissio_anys: safeNum(formData.get("durada_comissio_anys")),
+    durada_contracte_mesos: safeNum(formData.get("durada_contracte_mesos")),
+    renovacio_automatica: formData.get("renovacio_automatica") === "true",
+    doc_contracte_ref: safeText(formData.get("doc_contracte_ref")),
   };
   if (stageChanged) payload.stage_entered_at = new Date().toISOString();
 
