@@ -64,7 +64,6 @@ export async function createObjectiu(
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
-  if (divisio) revalidatePath(`/dashboard/bruixola/internacional/objectius`);
   return { success: true };
 }
 
@@ -106,7 +105,6 @@ export async function updateObjectiu(
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
-  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }
 
@@ -120,7 +118,6 @@ export async function deleteObjectiu(id: string): Promise<ObjectiuFormState> {
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
-  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }
 
@@ -138,7 +135,6 @@ export async function quickUpdateProgress(id: string, progress: number, estat: s
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
-  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }
 
@@ -173,6 +169,5 @@ export async function addObjectiuEntry(
 
   revalidatePath("/dashboard/bruixola");
   revalidatePath("/dashboard/bruixola/objectius");
-  revalidatePath("/dashboard/bruixola/internacional/objectius");
   return { success: true };
 }

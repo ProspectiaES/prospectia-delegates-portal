@@ -269,8 +269,6 @@ export async function toggleInternacional(contactId: string, value: boolean) {
   if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/clientes/${contactId}`);
-  revalidatePath(`/dashboard/bruixola/internacional`);
-  revalidatePath(`/dashboard/bruixola/internacional/assignar`);
   revalidatePath(`/dashboard/admin/asignaciones`);
   return { success: true };
 }
@@ -294,28 +292,3 @@ export async function toggleRecargoEquivalencia(contactId: string, value: boolea
   return { success: true };
 }
 
-export async function bulkSetInternacional(toAdd: string[], toRemove: string[]) {
-  "use server";
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "No autenticat" };
-
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "OWNER") return { error: "Sin permisos" };
-
-  const admin = createAdminClient();
-
-  if (toAdd.length > 0) {
-    const { error } = await admin.from("holded_contacts").update({ is_internacional: true }).in("id", toAdd);
-    if (error) return { error: error.message };
-  }
-  if (toRemove.length > 0) {
-    const { error } = await admin.from("holded_contacts").update({ is_internacional: false }).in("id", toRemove);
-    if (error) return { error: error.message };
-  }
-
-  revalidatePath(`/dashboard/bruixola/internacional`);
-  revalidatePath(`/dashboard/bruixola/internacional/assignar`);
-  revalidatePath(`/dashboard/admin/asignaciones`);
-  return { success: true };
-}
