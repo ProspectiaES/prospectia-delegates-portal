@@ -19,6 +19,12 @@ jobs:
           script: |
             set -e
             APP_DIR=/var/www/portal
+            echo "Limpiando código anterior..."
+            cd "$APP_DIR"
+            rm -rf .claude .github docs public scripts src supabase \
+              AGENTS.md CLAUDE.md LICENSE README.md ecosystem.config.cjs \
+              eslint.config.mjs next.config.ts package-lock.json package.json \
+              postcss.config.mjs tsconfig.json .env.production.example .gitignore
             echo "Descargando código..."
             curl -sL \
               -H "Authorization: Bearer ${GH_TOKEN}" \
